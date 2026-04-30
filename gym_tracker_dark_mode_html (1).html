@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gym Tracker</title>
+  <style>
+    :root {
+      --bg: #07090b;
+      --card: #111519;
+      --card-soft: #171c21;
+      --border: #252c33;
+      --text: #f4f7f5;
+      --muted: #8f9aa3;
+      --muted-2: #66717a;
+      --accent: #ff5a2a;
+      --accent-soft: rgba(255, 90, 42, 0.14);
+      --good: #49e278;
+      --warn: #ffd166;
+      --bad: #ff6b6b;
+      --radius-lg: 24px;
+      --radius-md: 16px;
+      --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      background:
+        radial-gradient(circle at top right, rgba(255, 90, 42, 0.10), transparent 28%),
+        linear-gradient(180deg, #0b0e11 0%, var(--bg) 45%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 460px;
+      margin: 0 auto;
+      padding: 20px 16px 96px;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 22px;
+    }
+
+    .eyebrow {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    h1, h2, h3, p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 30px;
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+    }
+
+    h2 {
+      font-size: 20px;
+      letter-spacing: -0.03em;
+      margin-bottom: 12px;
+    }
+
+    h3 {
+      font-size: 16px;
+      letter-spacing: -0.02em;
+    }
+
+    .avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #101010;
+      display: grid;
+      place-items: center;
+      font-weight: 800;
+    }
+
+    .hero {
+      background: linear-gradient(145deg, rgba(255,90,42,0.18), rgba(17,21,25,0.96) 42%);
+      border: 1px solid rgba(255,90,42,0.18);
+      border-radius: 30px;
+      padding: 20px;
+      box-shadow: var(--shadow);
+      margin-bottom: 18px;
+    }
+
+    .hero-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: flex-end;
+      margin-top: 18px;
+    }
+
+    .metric-large {
+      font-size: 40px;
+      line-height: 1;
+      letter-spacing: -0.06em;
+      font-weight: 800;
+    }
+
+    .metric-label {
+      color: var(--muted);
+      font-size: 13px;
+      margin-top: 6px;
+    }
+
+    .primary-btn {
+      border: 0;
+      background: var(--accent);
+      color: #101010;
+      font-weight: 800;
+      padding: 15px 18px;
+      border-radius: 999px;
+      font-size: 15px;
+      cursor: pointer;
+      box-shadow: 0 10px 30px rgba(255, 90, 42, 0.16);
+    }
+
+    .section {
+      margin-top: 22px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .mini-card {
+      background: rgba(17,21,25,0.92);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 14px 12px;
+      min-height: 96px;
+    }
+
+    .mini-value {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      margin-bottom: 8px;
+    }
+
+    .mini-label {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.25;
+    }
+
+    .card {
+      background: rgba(17,21,25,0.94);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .card-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 7px 10px;
+      background: var(--card-soft);
+      color: var(--muted);
+      font-size: 12px;
+      border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+
+    .pill.accent {
+      color: var(--accent);
+      background: var(--accent-soft);
+      border-color: rgba(255,90,42,0.22);
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .routine-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .routine-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 16px;
+      cursor: pointer;
+    }
+
+    .day-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .day-card {
+      background: var(--card-soft);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 14px;
+      min-height: 82px;
+      cursor: pointer;
+    }
+
+    .exercise-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 26px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    .last-set-row {
+      display: flex;
+      gap: 7px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      margin-bottom: 14px;
+    }
+
+    .set-chip {
+      background: #0c0f12;
+      border: 1px solid var(--border);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 8px 10px;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .input-grid {
+      display: grid;
+      grid-template-columns: 34px 1fr 1fr 1fr;
+      gap: 8px;
+      align-items: center;
+      margin-top: 8px;
+    }
+
+    .set-number {
+      color: var(--muted);
+      font-weight: 800;
+      text-align: center;
+    }
+
+    input, select, textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: #0b0e11;
+      color: var(--text);
+      border-radius: 14px;
+      padding: 12px 10px;
+      font-size: 15px;
+      outline: none;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      border-color: rgba(182,255,59,0.55);
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 74px;
+    }
+
+    .screen {
+      display: none;
+    }
+
+    .screen.active {
+      display: block;
+    }
+
+    .bottom-nav {
+      position: fixed;
+      left: 50%;
+      bottom: 14px;
+      transform: translateX(-50%);
+      width: calc(100% - 28px);
+      max-width: 432px;
+      background: rgba(17, 21, 25, 0.92);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(16px);
+      border-radius: 999px;
+      padding: 8px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      z-index: 20;
+    }
+
+    .nav-btn {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      padding: 11px 6px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .nav-btn.active {
+      background: var(--accent);
+      color: #101010;
+    }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .ghost-btn {
+      border: 1px solid var(--border);
+      background: var(--card-soft);
+      color: var(--text);
+      border-radius: 999px;
+      padding: 10px 13px;
+      font-weight: 750;
+      cursor: pointer;
+    }
+
+    .summary-status {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 12px;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+      background: var(--good);
+    }
+
+    .dot.warn { background: var(--warn); }
+    .dot.bad { background: var(--bad); }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <section id="home" class="screen active">
+      <div class="topbar">
+        <div>
+          <div class="eyebrow">Jueves 30 abril</div>
+          <h1>Gym Tracker</h1>
+        </div>
+        <div class="avatar">J</div>
+      </div>
+
+      <div class="hero">
+        <div class="eyebrow">Esta semana</div>
+        <div class="hero-row">
+          <div>
+            <div class="metric-large">3</div>
+            <div class="metric-label">sesiones completadas</div>
+          </div>
+          <button class="primary-btn" onclick="goTo('train')">Empezar</button>
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="mini-card">
+          <div class="mini-value">24.3k</div>
+          <div class="mini-label">kg de volumen semanal</div>
+        </div>
+        <div class="mini-card">
+          <div class="mini-value">5</div>
+          <div class="mini-label">ejercicios en progreso</div>
+        </div>
+        <div class="mini-card">
+          <div class="mini-value">2</div>
+          <div class="mini-label">marcas mejoradas</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Última sesión</h2>
+        <div class="card">
+          <div class="card-row">
+            <div>
+              <h3>Push 1</h3>
+              <p class="muted">Hipertrofia 2026 · hace 3 días</p>
+            </div>
+            <span class="pill accent">8.450 kg</span>
+          </div>
+          <div class="summary-status">
+            <span class="dot"></span>
+            <p class="muted">Press plano mejoró: +2 reps contra la sesión anterior.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="routines" class="screen">
+      <div class="header-row">
+        <div>
+          <div class="eyebrow">Editor</div>
+          <h1>Rutinas</h1>
+        </div>
+        <button class="ghost-btn">+ Nueva</button>
+      </div>
+
+      <div class="routine-grid">
+        <div class="routine-card">
+          <div class="card-row">
+            <div>
+              <h3>Hipertrofia 2026</h3>
+              <p class="muted">4 días · 26 ejercicios</p>
+            </div>
+            <span class="pill accent">Activa</span>
+          </div>
+          <div class="day-grid">
+            <div class="day-card"><h3>Push 1</h3><p class="muted">6 ejercicios</p></div>
+            <div class="day-card"><h3>Pull 1</h3><p class="muted">7 ejercicios</p></div>
+            <div class="day-card"><h3>Push 2</h3><p class="muted">6 ejercicios</p></div>
+            <div class="day-card"><h3>Pull 2</h3><p class="muted">7 ejercicios</p></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="train" class="screen">
+      <div class="header-row">
+        <div>
+          <div class="eyebrow">Entrenamiento</div>
+          <h1>Push 1</h1>
+        </div>
+        <button class="ghost-btn">Cambiar</button>
+      </div>
+
+      <div class="card">
+        <label class="muted">Fecha</label>
+        <input type="date" value="2026-04-30" />
+      </div>
+
+      <div class="exercise-card">
+        <div class="card-row">
+          <div>
+            <h3>Press plano</h3>
+            <p class="muted">4 series · 5-6 reps</p>
+          </div>
+          <span class="pill accent">70 kg</span>
+        </div>
+
+        <p class="muted" style="margin-top:14px;">Última vez</p>
+        <div class="last-set-row">
+          <span class="set-chip">70 × 6</span>
+          <span class="set-chip">70 × 6</span>
+          <span class="set-chip">70 × 5</span>
+          <span class="set-chip">70 × 5</span>
+        </div>
+
+        <p class="muted">Hoy</p>
+        <div class="input-grid">
+          <div class="set-number">1</div>
+          <input type="number" placeholder="kg" value="70" />
+          <input type="number" placeholder="reps" />
+          <input type="number" placeholder="RIR" />
+        </div>
+        <div class="input-grid">
+          <div class="set-number">2</div>
+          <input type="number" placeholder="kg" value="70" />
+          <input type="number" placeholder="reps" />
+          <input type="number" placeholder="RIR" />
+        </div>
+        <div class="input-grid">
+          <div class="set-number">3</div>
+          <input type="number" placeholder="kg" value="70" />
+          <input type="number" placeholder="reps" />
+          <input type="number" placeholder="RIR" />
+        </div>
+        <div class="input-grid">
+          <div class="set-number">4</div>
+          <input type="number" placeholder="kg" value="70" />
+          <input type="number" placeholder="reps" />
+          <input type="number" placeholder="RIR" />
+        </div>
+      </div>
+
+      <div class="exercise-card">
+        <div class="card-row">
+          <div>
+            <h3>Press inclinado mancuernas</h3>
+            <p class="muted">3 series · 8-10 reps</p>
+          </div>
+          <span class="pill accent">22 kg</span>
+        </div>
+
+        <p class="muted" style="margin-top:14px;">Última vez</p>
+        <div class="last-set-row">
+          <span class="set-chip">22 × 10</span>
+          <span class="set-chip">22 × 9</span>
+          <span class="set-chip">22 × 8</span>
+        </div>
+
+        <p class="muted">Hoy</p>
+        <div class="input-grid">
+          <div class="set-number">1</div>
+          <input type="number" placeholder="kg" value="22" />
+          <input type="number" placeholder="reps" />
+          <input type="number" placeholder="RIR" />
+        </div>
+        <div class="input-grid">
+          <div class="set-number">2</div>
+          <input type="number" placeholder="kg" value="22" />
+          <input type="number" placeholder="reps" />
+          <input type="number" placeholder="RIR" />
+        </div>
+        <div class="input-grid">
+          <div class="set-number">3</div>
+          <input type="number" placeholder="kg" value="22" />
+          <input type="number" placeholder="reps" />
+          <input type="number" placeholder="RIR" />
+        </div>
+      </div>
+
+      <button class="primary-btn" style="width:100%; margin-top: 6px;" onclick="goTo('summary')">Guardar sesión</button>
+    </section>
+
+    <section id="summary" class="screen">
+      <div class="header-row">
+        <div>
+          <div class="eyebrow">Resumen</div>
+          <h1>Sesión guardada</h1>
+        </div>
+      </div>
+
+      <div class="hero">
+        <div class="eyebrow">Push 1 · 30 abril</div>
+        <div class="hero-row">
+          <div>
+            <div class="metric-large">8.9k</div>
+            <div class="metric-label">kg de volumen total</div>
+          </div>
+          <span class="pill accent">+5%</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-row">
+          <div>
+            <h3>Press plano</h3>
+            <p class="muted">Hoy: 70×6 · 70×6 · 70×6 · 70×5</p>
+          </div>
+          <span class="pill accent">Mejoró</span>
+        </div>
+        <div class="summary-status">
+          <span class="dot warn"></span>
+          <p class="muted">Repetir 70 kg hasta cerrar 4×6.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-row">
+          <div>
+            <h3>Press inclinado</h3>
+            <p class="muted">Hoy: 22×10 · 22×10 · 22×9</p>
+          </div>
+          <span class="pill accent">Mejoró</span>
+        </div>
+        <div class="summary-status">
+          <span class="dot"></span>
+          <p class="muted">Si cerrás 3×10 la próxima, subir carga.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="progress" class="screen">
+      <div class="header-row">
+        <div>
+          <div class="eyebrow">Análisis</div>
+          <h1>Progreso</h1>
+        </div>
+      </div>
+
+      <div class="card">
+        <label class="muted">Ejercicio</label>
+        <select>
+          <option>Press plano</option>
+          <option>Press inclinado mancuernas</option>
+          <option>Vuelos laterales</option>
+        </select>
+      </div>
+
+      <div class="card">
+        <div class="card-row">
+          <div>
+            <h3>Press plano</h3>
+            <p class="muted">Últimas 4 sesiones</p>
+          </div>
+          <span class="pill accent">Tendencia positiva</span>
+        </div>
+        <div class="section">
+          <div class="summary-status"><span class="dot"></span><p class="muted">30 abr · 70×6,6,6,5</p></div>
+          <div class="summary-status"><span class="dot warn"></span><p class="muted">27 abr · 70×6,6,5,5</p></div>
+          <div class="summary-status"><span class="dot warn"></span><p class="muted">23 abr · 70×6,5,5,5</p></div>
+          <div class="summary-status"><span class="dot bad"></span><p class="muted">19 abr · 67.5×6,6,6,6</p></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <nav class="bottom-nav">
+    <button class="nav-btn active" onclick="goTo('home')">Home</button>
+    <button class="nav-btn" onclick="goTo('routines')">Rutinas</button>
+    <button class="nav-btn" onclick="goTo('train')">Entrenar</button>
+    <button class="nav-btn" onclick="goTo('progress')">Progreso</button>
+  </nav>
+
+  <script>
+    function goTo(screenId) {
+      document.querySelectorAll('.screen').forEach(screen => {
+        screen.classList.remove('active');
+      });
+
+      document.getElementById(screenId).classList.add('active');
+
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        btn.classList.remove('active');
+      });
+
+      const labels = {
+        home: 'Home',
+        routines: 'Rutinas',
+        train: 'Entrenar',
+        progress: 'Progreso',
+        summary: 'Entrenar'
+      };
+
+      document.querySelectorAll('.nav-btn').forEach(btn => {
+        if (btn.textContent.trim() === labels[screenId]) {
+          btn.classList.add('active');
+        }
+      });
+    }
+  </script>
+</body>
+</html>

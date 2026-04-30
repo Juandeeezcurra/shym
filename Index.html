@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<base target="_top" />
+<title>Gym Tracker</title>
+<style>
+  :root {
+    --bg: #07090b;
+    --card: #111519;
+    --card-soft: #171c21;
+    --border: #252c33;
+    --text: #f4f7f5;
+    --muted: #8f9aa3;
+    --muted-2: #66717a;
+    --accent: #ff5a2a;
+    --accent-soft: rgba(255, 90, 42, 0.14);
+    --good: #49e278;
+    --warn: #ffd166;
+    --bad: #ff6b6b;
+    --radius-lg: 24px;
+    --radius-md: 16px;
+    --radius-sm: 12px;
+    --shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  body {
+    font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    background:
+      radial-gradient(circle at top right, rgba(255, 90, 42, 0.10), transparent 28%),
+      linear-gradient(180deg, #0b0e11 0%, var(--bg) 45%);
+    min-height: 100vh;
+    overscroll-behavior: none;
+  }
+
+  .app {
+    width: 100%;
+    max-width: 460px;
+    margin: 0 auto;
+    padding: 20px 16px 110px;
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, p { margin: 0; }
+  h1 { font-size: 30px; line-height: 1.05; letter-spacing: -0.04em; }
+  h2 { font-size: 20px; letter-spacing: -0.03em; margin-bottom: 12px; }
+  h3 { font-size: 16px; letter-spacing: -0.02em; }
+
+  .eyebrow { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
+  .muted { color: var(--muted); font-size: 13px; line-height: 1.4; }
+  .muted-sm { color: var(--muted-2); font-size: 12px; }
+
+  /* Screens */
+  .screen { display: none; animation: fadeIn 0.18s ease; }
+  .screen.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+  /* Topbar */
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 22px;
+  }
+  .avatar {
+    width: 42px; height: 42px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #101010;
+    display: grid; place-items: center;
+    font-weight: 800;
+  }
+
+  .header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  .back-btn {
+    width: 38px; height: 38px;
+    border-radius: 50%;
+    background: var(--card-soft);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 18px;
+    cursor: pointer;
+    display: grid; place-items: center;
+  }
+
+  /* Hero / cards */
+  .hero {
+    background: linear-gradient(145deg, rgba(255,90,42,0.18), rgba(17,21,25,0.96) 42%);
+    border: 1px solid rgba(255,90,42,0.18);
+    border-radius: 30px;
+    padding: 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 18px;
+  }
+  .hero-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-end;
+    margin-top: 18px;
+  }
+  .metric-large { font-size: 40px; line-height: 1; letter-spacing: -0.06em; font-weight: 800; }
+  .metric-label { color: var(--muted); font-size: 13px; margin-top: 6px; }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+  }
+  .mini-card {
+    background: rgba(17,21,25,0.92);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 14px 12px;
+    min-height: 96px;
+  }
+  .mini-value {
+    font-size: 24px;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    margin-bottom: 8px;
+  }
+  .mini-label { color: var(--muted); font-size: 12px; line-height: 1.25; }
+
+  .section { margin-top: 22px; }
+
+  .card {
+    background: rgba(17,21,25,0.94);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .card-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: center;
+  }
+
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 999px;
+    padding: 7px 10px;
+    background: var(--card-soft);
+    color: var(--muted);
+    font-size: 12px;
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .pill.accent { color: var(--accent); background: var(--accent-soft); border-color: rgba(255,90,42,0.22); }
+  .pill.good { color: var(--good); background: rgba(73,226,120,0.12); border-color: rgba(73,226,120,0.3); }
+
+  /* Routine cards */
+  .routine-grid { display: grid; gap: 12px; }
+  .routine-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, transform 0.1s ease;
+  }
+  .routine-card:active { transform: scale(0.99); border-color: var(--accent); }
+  .routine-card.active-routine { border-color: rgba(255, 90, 42, 0.4); }
+
+  .day-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .day-card {
+    background: var(--card-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    min-height: 82px;
+    cursor: pointer;
+  }
+
+  /* Buttons */
+  .primary-btn {
+    border: 0;
+    background: var(--accent);
+    color: #101010;
+    font-weight: 800;
+    padding: 15px 18px;
+    border-radius: 999px;
+    font-size: 15px;
+    cursor: pointer;
+    box-shadow: 0 10px 30px rgba(255, 90, 42, 0.16);
+  }
+  .primary-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .primary-btn.full { width: 100%; }
+
+  .ghost-btn {
+    border: 1px solid var(--border);
+    background: var(--card-soft);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 10px 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 14px;
+  }
+  .ghost-btn.full { width: 100%; }
+  .ghost-btn.danger { color: var(--bad); border-color: rgba(255, 107, 107, 0.3); }
+
+  /* Inputs */
+  input, select, textarea {
+    width: 100%;
+    border: 1px solid var(--border);
+    background: #0b0e11;
+    color: var(--text);
+    border-radius: 14px;
+    padding: 12px 12px;
+    font-size: 16px; /* iOS no zoom */
+    outline: none;
+    font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 74px; }
+  label.field-label {
+    display: block;
+    color: var(--muted);
+    font-size: 12px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /* Bottom nav */
+  .bottom-nav {
+    position: fixed;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    width: calc(100% - 28px);
+    max-width: 432px;
+    background: rgba(17, 21, 25, 0.92);
+    border: 1px solid var(--border);
+    backdrop-filter: blur(16px);
+    border-radius: 999px;
+    padding: 8px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    z-index: 20;
+  }
+  .nav-btn {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    padding: 11px 6px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .nav-btn.active { background: var(--accent); color: #101010; }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 36px 20px;
+    background: var(--card);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius-lg);
+  }
+  .empty-state .emoji { font-size: 32px; margin-bottom: 8px; }
+  .empty-state h3 { margin-bottom: 6px; }
+
+  /* Skeleton */
+  .skeleton {
+    background: linear-gradient(90deg, var(--card-soft) 0%, #1e242a 50%, var(--card-soft) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.4s infinite;
+    border-radius: var(--radius-md);
+  }
+  @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 100;
+    animation: fadeIn 0.2s ease;
+  }
+  .modal-card {
+    width: 100%;
+    max-width: 460px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-top-left-radius: 28px;
+    border-top-right-radius: 28px;
+    padding: 24px 18px calc(24px + env(safe-area-inset-bottom));
+    animation: slideUp 0.22s ease;
+  }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .modal-handle {
+    width: 36px; height: 4px;
+    background: var(--border);
+    border-radius: 999px;
+    margin: -8px auto 14px;
+  }
+  .modal-actions {
+    display: grid;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-120%);
+    background: var(--card);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 14px;
+    padding: 12px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    z-index: 200;
+    transition: transform 0.25s ease;
+    max-width: calc(100% - 28px);
+    box-shadow: var(--shadow);
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.success { border-color: rgba(73, 226, 120, 0.4); }
+  .toast.error { border-color: rgba(255, 107, 107, 0.5); color: var(--bad); }
+
+  /* Loader */
+  .loader {
+    position: fixed;
+    inset: 0;
+    background: rgba(7, 9, 11, 0.6);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 150;
+  }
+  .spinner {
+    width: 36px; height: 36px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ============ HOME ============ -->
+  <section id="screen-home" class="screen active">
+    <div class="topbar">
+      <div>
+        <div class="eyebrow" id="home-date">—</div>
+        <h1>Gym Tracker</h1>
+      </div>
+      <div class="avatar">J</div>
+    </div>
+
+    <div class="hero">
+      <div class="eyebrow">Esta semana</div>
+      <div class="hero-row">
+        <div>
+          <div class="metric-large" id="home-week-sessions">0</div>
+          <div class="metric-label">sesiones completadas</div>
+        </div>
+        <button class="primary-btn" data-action="go-train">Empezar</button>
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div class="mini-card">
+        <div class="mini-value" id="home-volume">—</div>
+        <div class="mini-label">kg de volumen semanal</div>
+      </div>
+      <div class="mini-card">
+        <div class="mini-value" id="home-progress-count">—</div>
+        <div class="mini-label">ejercicios en progreso</div>
+      </div>
+      <div class="mini-card">
+        <div class="mini-value" id="home-improved">—</div>
+        <div class="mini-label">marcas mejoradas</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Última sesión</h2>
+      <div id="home-last-session">
+        <div class="empty-state">
+          <div class="emoji">📈</div>
+          <h3>Aún no hay sesiones</h3>
+          <p class="muted">Cuando guardes tu primera sesión, va a aparecer acá.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ROUTINES ============ -->
+  <section id="screen-routines" class="screen">
+    <div class="header-row">
+      <div>
+        <div class="eyebrow">Editor</div>
+        <h1>Rutinas</h1>
+      </div>
+      <button class="ghost-btn" data-action="new-routine">+ Nueva</button>
+    </div>
+
+    <div id="routines-list" class="routine-grid">
+      <!-- skeletons inicial -->
+      <div class="skeleton" style="height: 120px;"></div>
+      <div class="skeleton" style="height: 120px;"></div>
+    </div>
+  </section>
+
+  <!-- ============ ROUTINE DETAIL ============ -->
+  <section id="screen-routine-detail" class="screen">
+    <div class="header-row">
+      <button class="back-btn" data-action="back-to-routines">←</button>
+      <span class="pill" id="rd-active-pill" style="display:none;">Activa</span>
+    </div>
+
+    <div style="margin-bottom: 18px;">
+      <div class="eyebrow">Rutina</div>
+      <h1 id="rd-name">—</h1>
+    </div>
+
+    <div class="section">
+      <div class="header-row">
+        <h2 style="margin: 0;">Días</h2>
+        <button class="ghost-btn" data-action="add-day" disabled style="opacity:0.5;">+ Día</button>
+      </div>
+      <div id="rd-days">
+        <div class="empty-state">
+          <div class="emoji">🗓️</div>
+          <h3>Días llegan en Parte 3</h3>
+          <p class="muted">Por ahora podés crear, renombrar, activar y borrar rutinas.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="section" style="display: grid; gap: 8px;">
+      <button class="ghost-btn full" data-action="rename-routine">Renombrar rutina</button>
+      <button class="ghost-btn full" data-action="activate-routine" id="rd-activate-btn">Marcar como activa</button>
+      <button class="ghost-btn full danger" data-action="delete-routine">Borrar rutina</button>
+    </div>
+  </section>
+
+  <!-- ============ TRAIN (placeholder Parte 4) ============ -->
+  <section id="screen-train" class="screen">
+    <div class="header-row">
+      <div>
+        <div class="eyebrow">Entrenamiento</div>
+        <h1>Entrenar</h1>
+      </div>
+    </div>
+    <div class="empty-state">
+      <div class="emoji">🏋️</div>
+      <h3>Disponible en Parte 4</h3>
+      <p class="muted">Necesitamos primero crear rutinas, días y ejercicios.</p>
+    </div>
+  </section>
+
+  <!-- ============ SUMMARY (placeholder Parte 5) ============ -->
+  <section id="screen-summary" class="screen">
+    <div class="header-row">
+      <div>
+        <div class="eyebrow">Resumen</div>
+        <h1>—</h1>
+      </div>
+    </div>
+    <div class="empty-state">
+      <div class="emoji">✅</div>
+      <p class="muted">El resumen aparece después de guardar una sesión.</p>
+    </div>
+  </section>
+
+  <!-- ============ PROGRESS (placeholder Parte 7) ============ -->
+  <section id="screen-progress" class="screen">
+    <div class="header-row">
+      <div>
+        <div class="eyebrow">Análisis</div>
+        <h1>Progreso</h1>
+      </div>
+    </div>
+    <div class="empty-state">
+      <div class="emoji">📊</div>
+      <h3>Disponible en Parte 7</h3>
+      <p class="muted">Cuando empieces a guardar sesiones, vas a poder ver tu progreso por ejercicio.</p>
+    </div>
+  </section>
+
+</div>
+
+<nav class="bottom-nav">
+  <button class="nav-btn active" data-go="home">Home</button>
+  <button class="nav-btn" data-go="routines">Rutinas</button>
+  <button class="nav-btn" data-go="train">Entrenar</button>
+  <button class="nav-btn" data-go="progress">Progreso</button>
+</nav>
+
+<div id="toast" class="toast"></div>
+<div id="loader" class="loader hidden"><div class="spinner"></div></div>
+<div id="modal-root"></div>
+
+<script>
+// ============================================================
+// GAS WRAPPER — google.script.run a Promises
+// ============================================================
+const gas = new Proxy({}, {
+  get(_, fnName) {
+    return (...args) => new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler(resolve)
+        .withFailureHandler(err => reject(err && err.message ? err : new Error(String(err))))
+        [fnName](...args);
+    });
+  }
+});
+
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  currentScreen: 'home',
+  screenParams: {},
+  routines: [],
+  currentRoutine: null,
+};
+
+// ============================================================
+// UI HELPERS
+// ============================================================
+function $(sel, root) { return (root || document).querySelector(sel); }
+function $$(sel, root) { return Array.from((root || document).querySelectorAll(sel)); }
+
+function toast(msg, kind) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.className = 'toast show' + (kind ? ' ' + kind : '');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { el.className = 'toast'; }, 2500);
+}
+
+function showLoader() { $('#loader').classList.remove('hidden'); }
+function hideLoader() { $('#loader').classList.add('hidden'); }
+
+async function withLoader(promise) {
+  showLoader();
+  try { return await promise; }
+  finally { hideLoader(); }
+}
+
+// Modal manager
+const modal = {
+  open({ title, bodyHtml, actions }) {
+    const root = $('#modal-root');
+    root.innerHTML = `
+      <div class="modal-overlay" data-modal-overlay>
+        <div class="modal-card" role="dialog">
+          <div class="modal-handle"></div>
+          ${title ? `<h2>${escapeHtml(title)}</h2>` : ''}
+          <div class="modal-body">${bodyHtml || ''}</div>
+          <div class="modal-actions">
+            ${(actions || []).map((a, i) =>
+              `<button class="${a.kind === 'primary' ? 'primary-btn' : 'ghost-btn'} full ${a.kind === 'danger' ? 'danger' : ''}" data-modal-action="${i}">${escapeHtml(a.label)}</button>`
+            ).join('')}
+          </div>
+        </div>
+      </div>
+    `;
+    const overlay = $('[data-modal-overlay]', root);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) modal.close();
+    });
+    $$('[data-modal-action]', root).forEach((btn, i) => {
+      btn.addEventListener('click', () => {
+        const a = actions[i];
+        if (a.onClick) a.onClick();
+      });
+    });
+    return root;
+  },
+  close() {
+    $('#modal-root').innerHTML = '';
+  }
+};
+
+function promptModal({ title, label, initial, placeholder, confirmText, danger }) {
+  return new Promise((resolve) => {
+    modal.open({
+      title,
+      bodyHtml: `
+        <label class="field-label">${escapeHtml(label || '')}</label>
+        <input id="modal-input" type="text" value="${escapeHtml(initial || '')}" placeholder="${escapeHtml(placeholder || '')}" />
+      `,
+      actions: [
+        { label: confirmText || 'Guardar', kind: danger ? 'danger' : 'primary', onClick: () => {
+          const val = ($('#modal-input').value || '').trim();
+          modal.close();
+          resolve(val || null);
+        }},
+        { label: 'Cancelar', onClick: () => { modal.close(); resolve(null); }},
+      ]
+    });
+    setTimeout(() => { const i = $('#modal-input'); if (i) { i.focus(); i.select(); } }, 50);
+  });
+}
+
+function confirmModal({ title, message, confirmText, danger }) {
+  return new Promise((resolve) => {
+    modal.open({
+      title,
+      bodyHtml: `<p class="muted" style="font-size:14px;">${escapeHtml(message || '')}</p>`,
+      actions: [
+        { label: confirmText || 'Confirmar', kind: danger ? 'danger' : 'primary', onClick: () => { modal.close(); resolve(true); } },
+        { label: 'Cancelar', onClick: () => { modal.close(); resolve(false); } },
+      ]
+    });
+  });
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// ============================================================
+// FORMATTERS / UNITS (toggle kg/lb persistido en localStorage)
+// ============================================================
+const units = {
+  KEY: 'gymtracker:units',
+  get current() { return localStorage.getItem(this.KEY) || 'kg'; },
+  set(u) { localStorage.setItem(this.KEY, u); },
+  KG_TO_LB: 2.2046226218,
+  toDisplay(kg) {
+    if (kg == null || kg === '') return '';
+    const n = Number(kg);
+    if (this.current === 'lb') return Math.round(n * this.KG_TO_LB * 2) / 2;
+    return n;
+  },
+  fromInput(val) {
+    if (val == null || val === '') return null;
+    const n = Number(val);
+    if (this.current === 'lb') return Math.round((n / this.KG_TO_LB) * 100) / 100;
+    return n;
+  },
+  label() { return this.current; },
+};
+
+function formatDateLong(iso) {
+  if (!iso) return '';
+  const d = new Date(iso + (iso.length === 10 ? 'T12:00:00' : ''));
+  const days = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
+}
+
+// ============================================================
+// ROUTER
+// ============================================================
+const screens = {};
+
+function registerScreen(id, handlers) { screens[id] = handlers || {}; }
+
+function goTo(screenId, params) {
+  state.screenParams = params || {};
+  state.currentScreen = screenId;
+
+  $$('.screen').forEach(s => s.classList.remove('active'));
+  const target = $('#screen-' + screenId);
+  if (target) target.classList.add('active');
+
+  // Bottom nav highlight (mapeo screens hijas a su tab parent)
+  const navMap = {
+    home: 'home',
+    routines: 'routines',
+    'routine-detail': 'routines',
+    train: 'train',
+    summary: 'train',
+    progress: 'progress',
+  };
+  $$('.nav-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.go === navMap[screenId]);
+  });
+
+  window.scrollTo({ top: 0, behavior: 'instant' });
+
+  const handler = screens[screenId];
+  if (handler && handler.onEnter) handler.onEnter(state.screenParams);
+}
+
+// ============================================================
+// HOME (placeholder hasta Parte 6)
+// ============================================================
+registerScreen('home', {
+  onEnter() {
+    $('#home-date').textContent = formatDateLong(new Date().toISOString().slice(0, 10));
+  }
+});
+
+// ============================================================
+// ROUTINES — list, create
+// ============================================================
+registerScreen('routines', {
+  async onEnter() {
+    await loadRoutines();
+  }
+});
+
+async function loadRoutines() {
+  const listEl = $('#routines-list');
+  listEl.innerHTML = `
+    <div class="skeleton" style="height: 120px;"></div>
+    <div class="skeleton" style="height: 120px;"></div>
+  `;
+  try {
+    const routines = await gas.listRoutines();
+    state.routines = routines;
+    renderRoutines(routines);
+  } catch (err) {
+    listEl.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
+    toast('No se pudieron cargar las rutinas', 'error');
+  }
+}
+
+function renderRoutines(routines) {
+  const listEl = $('#routines-list');
+  if (!routines.length) {
+    listEl.innerHTML = `
+      <div class="empty-state">
+        <div class="emoji">📋</div>
+        <h3>Aún no tenés rutinas</h3>
+        <p class="muted">Tocá <b>+ Nueva</b> arriba a la derecha para crear la primera.</p>
+      </div>
+    `;
+    return;
+  }
+  listEl.innerHTML = routines.map(r => `
+    <div class="routine-card ${r.is_active ? 'active-routine' : ''}" data-routine-id="${escapeHtml(r.routine_id)}">
+      <div class="card-row">
+        <div>
+          <h3>${escapeHtml(r.routine_name)}</h3>
+          <p class="muted">${r.day_count} día${r.day_count === 1 ? '' : 's'} · ${r.exercise_count} ejercicio${r.exercise_count === 1 ? '' : 's'}</p>
+        </div>
+        ${r.is_active ? '<span class="pill accent">Activa</span>' : ''}
+      </div>
+    </div>
+  `).join('');
+
+  $$('.routine-card', listEl).forEach(card => {
+    card.addEventListener('click', () => {
+      const id = card.dataset.routineId;
+      goTo('routine-detail', { routine_id: id });
+    });
+  });
+}
+
+async function handleNewRoutine() {
+  const name = await promptModal({
+    title: 'Nueva rutina',
+    label: 'Nombre',
+    placeholder: 'Hipertrofia 2026',
+    confirmText: 'Crear',
+  });
+  if (!name) return;
+  try {
+    await withLoader(gas.createRoutine(name));
+    toast('Rutina creada', 'success');
+    await loadRoutines();
+  } catch (err) {
+    toast(err.message || 'Error al crear rutina', 'error');
+  }
+}
+
+// ============================================================
+// ROUTINE DETAIL — rename, activate, delete
+// ============================================================
+registerScreen('routine-detail', {
+  async onEnter(params) {
+    const id = params.routine_id;
+    if (!id) { goTo('routines'); return; }
+    await loadRoutineDetail(id);
+  }
+});
+
+async function loadRoutineDetail(routine_id) {
+  $('#rd-name').textContent = '—';
+  $('#rd-active-pill').style.display = 'none';
+  try {
+    const r = await gas.getRoutine(routine_id);
+    state.currentRoutine = r;
+    $('#rd-name').textContent = r.routine_name;
+    $('#rd-active-pill').style.display = r.is_active ? 'inline-flex' : 'none';
+    $('#rd-activate-btn').style.display = r.is_active ? 'none' : 'block';
+  } catch (err) {
+    toast(err.message || 'Error al cargar rutina', 'error');
+    goTo('routines');
+  }
+}
+
+async function handleRenameRoutine() {
+  const r = state.currentRoutine;
+  if (!r) return;
+  const newName = await promptModal({
+    title: 'Renombrar rutina',
+    label: 'Nombre',
+    initial: r.routine_name,
+    confirmText: 'Guardar',
+  });
+  if (!newName || newName === r.routine_name) return;
+  try {
+    await withLoader(gas.renameRoutine(r.routine_id, newName));
+    toast('Renombrada', 'success');
+    await loadRoutineDetail(r.routine_id);
+  } catch (err) {
+    toast(err.message || 'Error', 'error');
+  }
+}
+
+async function handleActivateRoutine() {
+  const r = state.currentRoutine;
+  if (!r) return;
+  try {
+    await withLoader(gas.setActiveRoutine(r.routine_id));
+    toast('Rutina activada', 'success');
+    await loadRoutineDetail(r.routine_id);
+  } catch (err) {
+    toast(err.message || 'Error', 'error');
+  }
+}
+
+async function handleDeleteRoutine() {
+  const r = state.currentRoutine;
+  if (!r) return;
+  const ok = await confirmModal({
+    title: 'Borrar rutina',
+    message: `Vas a borrar "${r.routine_name}" con todos sus días y ejercicios. Las sesiones guardadas se mantienen como histórico. ¿Seguro?`,
+    confirmText: 'Borrar',
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    await withLoader(gas.deleteRoutine(r.routine_id));
+    toast('Rutina borrada', 'success');
+    state.currentRoutine = null;
+    goTo('routines');
+  } catch (err) {
+    toast(err.message || 'Error', 'error');
+  }
+}
+
+// ============================================================
+// EVENT WIRING (delegación)
+// ============================================================
+document.addEventListener('click', (e) => {
+  const t = e.target.closest('[data-action], [data-go]');
+  if (!t) return;
+
+  if (t.dataset.go) {
+    goTo(t.dataset.go);
+    return;
+  }
+
+  const action = t.dataset.action;
+  switch (action) {
+    case 'go-train': goTo('train'); break;
+    case 'new-routine': handleNewRoutine(); break;
+    case 'back-to-routines': goTo('routines'); break;
+    case 'rename-routine': handleRenameRoutine(); break;
+    case 'activate-routine': handleActivateRoutine(); break;
+    case 'delete-routine': handleDeleteRoutine(); break;
+    case 'add-day': /* Parte 3 */ break;
+  }
+});
+
+// ============================================================
+// BOOT
+// ============================================================
+(async function boot() {
+  $('#home-date').textContent = formatDateLong(new Date().toISOString().slice(0, 10));
+  try {
+    await gas.ping();
+  } catch (err) {
+    toast('No conecta con el backend. ¿Corriste setup()?', 'error');
+  }
+})();
+</script>
+</body>
+</html>
