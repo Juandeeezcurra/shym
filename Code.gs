@@ -1,14 +1,16 @@
 // ============================================================
-// GYM TRACKER — GOOGLE APPS SCRIPT
+// GYM TRACKER — GOOGLE APPS SCRIPT (API backend)
 // ============================================================
 // Setup:
 //   1. Crea un Google Sheets vacio.
-//   2. Extensions > Apps Script. Pega Code.gs y Index.html.
-//   3. Corre setup() una vez (boton Run).
-//   4. Deploy > New deployment > Web app > Execute as: Me, Access: Only myself.
-//   5. Abri la URL en el celular.
-// ============================================================
-// Single-user. Pesos guardados siempre en kg (toggle kg/lb es solo display).
+//   2. Extensions > Apps Script. Pega este Code.gs.
+//   3. Run > setup() una vez para crear las sheets.
+//   4. Deploy > New deployment > Web app.
+//      - Execute as: Me
+//      - Who has access: Anyone
+//      Copia la URL /exec.
+//   5. Abri el frontend en GitHub Pages, peguen la URL en la pantalla
+//      de setup y listo.
 // ============================================================
 
 const SHEETS = {
@@ -42,21 +44,64 @@ const HEADERS = {
 };
 
 // ============================================================
-// WEB ENTRY
+// API ROUTING — doGet / doPost reciben { action, payload }
 // ============================================================
 
-function doGet() {
-  return HtmlService.createTemplateFromFile('Index')
-    .evaluate()
-    .setTitle('Gym Tracker')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1.0, user-scalable=no')
-    .addMetaTag('apple-mobile-web-app-capable', 'yes')
-    .addMetaTag('mobile-web-app-capable', 'yes')
-    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+function doGet(e) {
+  const action = (e && e.parameter && e.parameter.action) || null;
+  if (!action) {
+    return ContentService
+      .createTextOutput('Gym Tracker API ready. Use POST {action, payload}.')
+      .setMimeType(ContentService.MimeType.TEXT);
+  }
+  let payload = {};
+  if (e.parameter.payload) {
+    try { payload = JSON.parse(e.parameter.payload); } catch (err) {}
+  }
+  return apiResponse_(safeRun_(action, payload));
 }
 
-function include(filename) {
-  return HtmlService.createHtmlOutputFromFile(filename).getContent();
+function doPost(e) {
+  let body = {};
+  try {
+    if (e && e.postData && e.postData.contents) {
+      body = JSON.parse(e.postData.contents);
+    }
+  } catch (err) {
+    return apiResponse_({ ok: false, error: 'Invalid JSON body' });
+  }
+  return apiResponse_(safeRun_(body.action, body.payload));
+}
+
+function safeRun_(action, payload) {
+  try {
+    return { ok: true, data: handleRequest_(action, payload || {}) };
+  } catch (err) {
+    return { ok: false, error: (err && err.message) ? err.message : String(err) };
+  }
+}
+
+function handleRequest_(action, p) {
+  switch (action) {
+    case 'ping':              return ping();
+
+    // Routines
+    case 'listRoutines':      return listRoutines();
+    case 'createRoutine':     return createRoutine(p.name);
+    case 'renameRoutine':     return renameRoutine(p.routine_id, p.new_name);
+    case 'setActiveRoutine':  return setActiveRoutine(p.routine_id);
+    case 'deleteRoutine':     return deleteRoutine(p.routine_id);
+    case 'getRoutine':        return getRoutine(p.routine_id);
+
+    default:
+      throw new Error('Accion desconocida: ' + action);
+  }
+}
+
+function apiResponse_(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 // ============================================================
@@ -80,8 +125,10 @@ function setup() {
     sh.autoResizeColumns(1, headers.length);
   });
 
-  // Borra la sheet por defecto si esta vacia y existe
-  const defaultSheet = ss.getSheetByName('Sheet1') || ss.getSheetByName('Hoja 1') || ss.getSheetByName('Hoja1');
+  const defaultSheet =
+    ss.getSheetByName('Sheet1') ||
+    ss.getSheetByName('Hoja 1') ||
+    ss.getSheetByName('Hoja1');
   if (defaultSheet && defaultSheet.getLastRow() === 0 && ss.getSheets().length > 1) {
     ss.deleteSheet(defaultSheet);
   }
@@ -90,7 +137,7 @@ function setup() {
 }
 
 // ============================================================
-// HELPERS GENERICOS
+// HELPERS GENERICOS (privados, sufijo _)
 // ============================================================
 
 function getSheet_(name) {
@@ -192,11 +239,11 @@ function isTrue_(v) {
 }
 
 // ============================================================
-// PING — usado por el frontend para verificar conexion
+// PING
 // ============================================================
 
 function ping() {
-  return { ok: true, time: nowIso_(), today: todayIso_() };
+  return { time: nowIso_(), today: todayIso_() };
 }
 
 // ============================================================
@@ -281,7 +328,6 @@ function deleteRoutine(routine_id) {
   }
   const ok = deleteRowById_(SHEETS.ROUTINES, 'routine_id', routine_id);
 
-  // Si la borrada era la activa, activa la primera disponible
   const remaining = readAll_(SHEETS.ROUTINES);
   if (remaining.length > 0 && !remaining.some(r => isTrue_(r.is_active))) {
     setActiveRoutine(remaining[0].routine_id);
@@ -299,7 +345,6 @@ function getRoutine(routine_id) {
     .sort((a, b) => Number(a.day_order || 0) - Number(b.day_order || 0));
 
   const exercises = readAll_(SHEETS.EXERCISES);
-  const dayIds = days.map(d => d.day_id);
 
   const result = days.map(d => ({
     day_id: d.day_id,

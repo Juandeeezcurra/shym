@@ -2,7 +2,11 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
-<base target="_top" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="theme-color" content="#07090b" />
 <title>Gym Tracker</title>
 <style>
   :root {
@@ -49,6 +53,7 @@
     padding: 20px 16px 110px;
     min-height: 100vh;
   }
+  .app.no-nav { padding-bottom: 24px; }
 
   h1, h2, h3, p { margin: 0; }
   h1 { font-size: 30px; line-height: 1.05; letter-spacing: -0.04em; }
@@ -59,12 +64,10 @@
   .muted { color: var(--muted); font-size: 13px; line-height: 1.4; }
   .muted-sm { color: var(--muted-2); font-size: 12px; }
 
-  /* Screens */
   .screen { display: none; animation: fadeIn 0.18s ease; }
   .screen.active { display: block; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
-  /* Topbar */
   .topbar {
     display: flex;
     justify-content: space-between;
@@ -78,6 +81,8 @@
     color: #101010;
     display: grid; place-items: center;
     font-weight: 800;
+    cursor: pointer;
+    border: 0;
   }
 
   .header-row {
@@ -98,7 +103,6 @@
     display: grid; place-items: center;
   }
 
-  /* Hero / cards */
   .hero {
     background: linear-gradient(145deg, rgba(255,90,42,0.18), rgba(17,21,25,0.96) 42%);
     border: 1px solid rgba(255,90,42,0.18);
@@ -168,7 +172,6 @@
   .pill.accent { color: var(--accent); background: var(--accent-soft); border-color: rgba(255,90,42,0.22); }
   .pill.good { color: var(--good); background: rgba(73,226,120,0.12); border-color: rgba(73,226,120,0.3); }
 
-  /* Routine cards */
   .routine-grid { display: grid; gap: 12px; }
   .routine-card {
     background: var(--card);
@@ -196,7 +199,6 @@
     cursor: pointer;
   }
 
-  /* Buttons */
   .primary-btn {
     border: 0;
     background: var(--accent);
@@ -224,7 +226,6 @@
   .ghost-btn.full { width: 100%; }
   .ghost-btn.danger { color: var(--bad); border-color: rgba(255, 107, 107, 0.3); }
 
-  /* Inputs */
   input, select, textarea {
     width: 100%;
     border: 1px solid var(--border);
@@ -232,7 +233,7 @@
     color: var(--text);
     border-radius: 14px;
     padding: 12px 12px;
-    font-size: 16px; /* iOS no zoom */
+    font-size: 16px;
     outline: none;
     font-family: inherit;
   }
@@ -247,7 +248,6 @@
     letter-spacing: 0.06em;
   }
 
-  /* Bottom nav */
   .bottom-nav {
     position: fixed;
     left: 50%;
@@ -265,6 +265,7 @@
     gap: 6px;
     z-index: 20;
   }
+  .bottom-nav.hidden { display: none; }
   .nav-btn {
     border: 0;
     background: transparent;
@@ -277,7 +278,6 @@
   }
   .nav-btn.active { background: var(--accent); color: #101010; }
 
-  /* Empty state */
   .empty-state {
     text-align: center;
     padding: 36px 20px;
@@ -288,7 +288,6 @@
   .empty-state .emoji { font-size: 32px; margin-bottom: 8px; }
   .empty-state h3 { margin-bottom: 6px; }
 
-  /* Skeleton */
   .skeleton {
     background: linear-gradient(90deg, var(--card-soft) 0%, #1e242a 50%, var(--card-soft) 100%);
     background-size: 200% 100%;
@@ -297,7 +296,6 @@
   }
   @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
-  /* Modal */
   .modal-overlay {
     position: fixed;
     inset: 0;
@@ -318,6 +316,8 @@
     border-top-right-radius: 28px;
     padding: 24px 18px calc(24px + env(safe-area-inset-bottom));
     animation: slideUp 0.22s ease;
+    max-height: 85vh;
+    overflow-y: auto;
   }
   @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
   .modal-handle {
@@ -332,7 +332,6 @@
     margin-top: 16px;
   }
 
-  /* Toast */
   .toast {
     position: fixed;
     top: 16px;
@@ -354,7 +353,6 @@
   .toast.success { border-color: rgba(73, 226, 120, 0.4); }
   .toast.error { border-color: rgba(255, 107, 107, 0.5); color: var(--bad); }
 
-  /* Loader */
   .loader {
     position: fixed;
     inset: 0;
@@ -375,20 +373,52 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   .hidden { display: none !important; }
+
+  .url-display {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    color: var(--muted);
+    word-break: break-all;
+    background: var(--card-soft);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px;
+    margin-bottom: 12px;
+  }
 </style>
 </head>
 <body>
 
-<div class="app">
+<div class="app" id="app">
+
+  <!-- ============ SETUP (cuando no hay API URL configurada) ============ -->
+  <section id="screen-setup" class="screen">
+    <div style="margin-top: 32px;">
+      <div class="eyebrow">Primera vez</div>
+      <h1>Conectar backend</h1>
+      <p class="muted" style="margin-top: 10px;">
+        Pegá la URL del web app de Apps Script. La conseguís en Apps Script →
+        <b>Deploy → Manage deployments</b>.
+      </p>
+    </div>
+    <div class="card" style="margin-top: 20px;">
+      <label class="field-label">URL del backend</label>
+      <input id="setup-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+      <button class="primary-btn full" data-action="save-setup" style="margin-top: 12px;">Guardar y conectar</button>
+    </div>
+    <p class="muted" style="margin-top: 16px; text-align: center;">
+      La URL queda guardada en este dispositivo. Podés cambiarla tocando el avatar 🔘.
+    </p>
+  </section>
 
   <!-- ============ HOME ============ -->
-  <section id="screen-home" class="screen active">
+  <section id="screen-home" class="screen">
     <div class="topbar">
       <div>
         <div class="eyebrow" id="home-date">—</div>
         <h1>Gym Tracker</h1>
       </div>
-      <div class="avatar">J</div>
+      <button class="avatar" data-action="open-settings" aria-label="Settings">J</button>
     </div>
 
     <div class="hero">
@@ -440,7 +470,6 @@
     </div>
 
     <div id="routines-list" class="routine-grid">
-      <!-- skeletons inicial -->
       <div class="skeleton" style="height: 120px;"></div>
       <div class="skeleton" style="height: 120px;"></div>
     </div>
@@ -525,7 +554,7 @@
 
 </div>
 
-<nav class="bottom-nav">
+<nav class="bottom-nav hidden" id="bottom-nav">
   <button class="nav-btn active" data-go="home">Home</button>
   <button class="nav-btn" data-go="routines">Rutinas</button>
   <button class="nav-btn" data-go="train">Entrenar</button>
@@ -538,24 +567,66 @@
 
 <script>
 // ============================================================
-// GAS WRAPPER — google.script.run a Promises
+// CONFIG: API URL guardada en localStorage
 // ============================================================
-const gas = new Proxy({}, {
-  get(_, fnName) {
-    return (...args) => new Promise((resolve, reject) => {
-      google.script.run
-        .withSuccessHandler(resolve)
-        .withFailureHandler(err => reject(err && err.message ? err : new Error(String(err))))
-        [fnName](...args);
-    });
+const CFG_KEY = 'gymtracker:api-url';
+const UNITS_KEY = 'gymtracker:units';
+
+function getApiUrl() { return localStorage.getItem(CFG_KEY) || ''; }
+function setApiUrl(u) { localStorage.setItem(CFG_KEY, u); }
+function clearApiUrl() { localStorage.removeItem(CFG_KEY); }
+
+// ============================================================
+// API: fetch a Apps Script con POST text/plain (sin preflight CORS)
+// ============================================================
+const api = new Proxy({}, {
+  get(_, action) {
+    return async (payload) => {
+      const url = getApiUrl();
+      if (!url) throw new Error('No hay URL configurada.');
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action, payload: payload || {} }),
+        redirect: 'follow',
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      let json;
+      try { json = await res.json(); }
+      catch (err) { throw new Error('Respuesta no JSON. ¿La URL es correcta y el script esta deployado?'); }
+      if (!json.ok) throw new Error(json.error || 'Error desconocido');
+      return json.data;
+    };
   }
 });
+
+// ============================================================
+// UNITS (kg / lb) — toggle persistido
+// ============================================================
+const units = {
+  get current() { return localStorage.getItem(UNITS_KEY) || 'kg'; },
+  set(u) { localStorage.setItem(UNITS_KEY, u); },
+  KG_TO_LB: 2.2046226218,
+  toDisplay(kg) {
+    if (kg == null || kg === '') return '';
+    const n = Number(kg);
+    if (this.current === 'lb') return Math.round(n * this.KG_TO_LB * 2) / 2;
+    return n;
+  },
+  fromInput(val) {
+    if (val == null || val === '') return null;
+    const n = Number(val);
+    if (this.current === 'lb') return Math.round((n / this.KG_TO_LB) * 100) / 100;
+    return n;
+  },
+  label() { return this.current; },
+};
 
 // ============================================================
 // STATE
 // ============================================================
 const state = {
-  currentScreen: 'home',
+  currentScreen: null,
   screenParams: {},
   routines: [],
   currentRoutine: null,
@@ -584,7 +655,6 @@ async function withLoader(promise) {
   finally { hideLoader(); }
 }
 
-// Modal manager
 const modal = {
   open({ title, bodyHtml, actions }) {
     const root = $('#modal-root');
@@ -614,9 +684,7 @@ const modal = {
     });
     return root;
   },
-  close() {
-    $('#modal-root').innerHTML = '';
-  }
+  close() { $('#modal-root').innerHTML = ''; }
 };
 
 function promptModal({ title, label, initial, placeholder, confirmText, danger }) {
@@ -662,29 +730,6 @@ function escapeHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
-// ============================================================
-// FORMATTERS / UNITS (toggle kg/lb persistido en localStorage)
-// ============================================================
-const units = {
-  KEY: 'gymtracker:units',
-  get current() { return localStorage.getItem(this.KEY) || 'kg'; },
-  set(u) { localStorage.setItem(this.KEY, u); },
-  KG_TO_LB: 2.2046226218,
-  toDisplay(kg) {
-    if (kg == null || kg === '') return '';
-    const n = Number(kg);
-    if (this.current === 'lb') return Math.round(n * this.KG_TO_LB * 2) / 2;
-    return n;
-  },
-  fromInput(val) {
-    if (val == null || val === '') return null;
-    const n = Number(val);
-    if (this.current === 'lb') return Math.round((n / this.KG_TO_LB) * 100) / 100;
-    return n;
-  },
-  label() { return this.current; },
-};
-
 function formatDateLong(iso) {
   if (!iso) return '';
   const d = new Date(iso + (iso.length === 10 ? 'T12:00:00' : ''));
@@ -708,7 +753,6 @@ function goTo(screenId, params) {
   const target = $('#screen-' + screenId);
   if (target) target.classList.add('active');
 
-  // Bottom nav highlight (mapeo screens hijas a su tab parent)
   const navMap = {
     home: 'home',
     routines: 'routines',
@@ -717,6 +761,14 @@ function goTo(screenId, params) {
     summary: 'train',
     progress: 'progress',
   };
+  const nav = $('#bottom-nav');
+  if (screenId === 'setup') {
+    nav.classList.add('hidden');
+    $('#app').classList.add('no-nav');
+  } else {
+    nav.classList.remove('hidden');
+    $('#app').classList.remove('no-nav');
+  }
   $$('.nav-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.go === navMap[screenId]);
   });
@@ -725,6 +777,86 @@ function goTo(screenId, params) {
 
   const handler = screens[screenId];
   if (handler && handler.onEnter) handler.onEnter(state.screenParams);
+}
+
+// ============================================================
+// SETUP screen
+// ============================================================
+registerScreen('setup', {
+  onEnter() {
+    const existing = getApiUrl();
+    if (existing) $('#setup-url').value = existing;
+  }
+});
+
+async function handleSaveSetup() {
+  const raw = ($('#setup-url').value || '').trim();
+  if (!raw) { toast('Pegá la URL primero', 'error'); return; }
+  if (!/^https:\/\/script\.google\.com\//i.test(raw)) {
+    toast('La URL debe empezar con https://script.google.com/', 'error');
+    return;
+  }
+  if (!/\/exec(\?|$)/.test(raw)) {
+    toast('Falta /exec al final de la URL', 'error');
+    return;
+  }
+  setApiUrl(raw);
+  try {
+    await withLoader(api.ping());
+    toast('Conectado', 'success');
+    goTo('home');
+  } catch (err) {
+    clearApiUrl();
+    toast(err.message || 'No conecta', 'error');
+  }
+}
+
+// ============================================================
+// SETTINGS modal (avatar tap)
+// ============================================================
+function openSettings() {
+  const url = getApiUrl();
+  modal.open({
+    title: 'Ajustes',
+    bodyHtml: `
+      <label class="field-label">URL del backend</label>
+      <div class="url-display">${escapeHtml(url || '(no configurada)')}</div>
+      <label class="field-label">Unidades</label>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px;">
+        <button class="${units.current === 'kg' ? 'primary-btn' : 'ghost-btn'} full" data-units="kg">kg</button>
+        <button class="${units.current === 'lb' ? 'primary-btn' : 'ghost-btn'} full" data-units="lb">lb</button>
+      </div>
+    `,
+    actions: [
+      { label: 'Cambiar URL', onClick: () => { modal.close(); changeApiUrl(); } },
+      { label: 'Cerrar', kind: 'primary', onClick: () => modal.close() },
+    ]
+  });
+  $$('[data-units]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      units.set(btn.dataset.units);
+      modal.close();
+      toast('Unidad: ' + btn.dataset.units, 'success');
+    });
+  });
+}
+
+async function changeApiUrl() {
+  const newUrl = await promptModal({
+    title: 'Cambiar URL del backend',
+    label: 'Nueva URL',
+    initial: getApiUrl(),
+    placeholder: 'https://script.google.com/macros/s/.../exec',
+    confirmText: 'Guardar',
+  });
+  if (!newUrl) return;
+  setApiUrl(newUrl);
+  try {
+    await withLoader(api.ping());
+    toast('Conectado', 'success');
+  } catch (err) {
+    toast(err.message || 'No conecta', 'error');
+  }
 }
 
 // ============================================================
@@ -752,7 +884,7 @@ async function loadRoutines() {
     <div class="skeleton" style="height: 120px;"></div>
   `;
   try {
-    const routines = await gas.listRoutines();
+    const routines = await api.listRoutines();
     state.routines = routines;
     renderRoutines(routines);
   } catch (err) {
@@ -802,7 +934,7 @@ async function handleNewRoutine() {
   });
   if (!name) return;
   try {
-    await withLoader(gas.createRoutine(name));
+    await withLoader(api.createRoutine({ name }));
     toast('Rutina creada', 'success');
     await loadRoutines();
   } catch (err) {
@@ -825,7 +957,7 @@ async function loadRoutineDetail(routine_id) {
   $('#rd-name').textContent = '—';
   $('#rd-active-pill').style.display = 'none';
   try {
-    const r = await gas.getRoutine(routine_id);
+    const r = await api.getRoutine({ routine_id });
     state.currentRoutine = r;
     $('#rd-name').textContent = r.routine_name;
     $('#rd-active-pill').style.display = r.is_active ? 'inline-flex' : 'none';
@@ -847,7 +979,7 @@ async function handleRenameRoutine() {
   });
   if (!newName || newName === r.routine_name) return;
   try {
-    await withLoader(gas.renameRoutine(r.routine_id, newName));
+    await withLoader(api.renameRoutine({ routine_id: r.routine_id, new_name: newName }));
     toast('Renombrada', 'success');
     await loadRoutineDetail(r.routine_id);
   } catch (err) {
@@ -859,7 +991,7 @@ async function handleActivateRoutine() {
   const r = state.currentRoutine;
   if (!r) return;
   try {
-    await withLoader(gas.setActiveRoutine(r.routine_id));
+    await withLoader(api.setActiveRoutine({ routine_id: r.routine_id }));
     toast('Rutina activada', 'success');
     await loadRoutineDetail(r.routine_id);
   } catch (err) {
@@ -878,7 +1010,7 @@ async function handleDeleteRoutine() {
   });
   if (!ok) return;
   try {
-    await withLoader(gas.deleteRoutine(r.routine_id));
+    await withLoader(api.deleteRoutine({ routine_id: r.routine_id }));
     toast('Rutina borrada', 'success');
     state.currentRoutine = null;
     goTo('routines');
@@ -888,19 +1020,18 @@ async function handleDeleteRoutine() {
 }
 
 // ============================================================
-// EVENT WIRING (delegación)
+// EVENT WIRING (delegacion)
 // ============================================================
 document.addEventListener('click', (e) => {
   const t = e.target.closest('[data-action], [data-go]');
   if (!t) return;
 
-  if (t.dataset.go) {
-    goTo(t.dataset.go);
-    return;
-  }
+  if (t.dataset.go) { goTo(t.dataset.go); return; }
 
   const action = t.dataset.action;
   switch (action) {
+    case 'save-setup': handleSaveSetup(); break;
+    case 'open-settings': openSettings(); break;
     case 'go-train': goTo('train'); break;
     case 'new-routine': handleNewRoutine(); break;
     case 'back-to-routines': goTo('routines'); break;
@@ -911,15 +1042,31 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// Enter en setup-url envía
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && state.currentScreen === 'setup') {
+    handleSaveSetup();
+  }
+});
+
 // ============================================================
 // BOOT
 // ============================================================
 (async function boot() {
   $('#home-date').textContent = formatDateLong(new Date().toISOString().slice(0, 10));
+
+  if (!getApiUrl()) {
+    goTo('setup');
+    return;
+  }
+
+  goTo('home');
+
+  // Verificación silenciosa de conexión
   try {
-    await gas.ping();
+    await api.ping();
   } catch (err) {
-    toast('No conecta con el backend. ¿Corriste setup()?', 'error');
+    toast('No conecta con el backend. Tocá el avatar para revisar la URL.', 'error');
   }
 })();
 </script>
