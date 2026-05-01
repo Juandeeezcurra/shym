@@ -82,8 +82,8 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
 - Parte 1 completa: setup, sheets y helpers.
 - Parte 2 completa: rutinas CRUD.
 - Parte 3 completa: dias y ejercicios CRUD.
-- Parte 4 iniciada: seleccion de entrenamiento, pantalla train, autosave, kg/lb, series extras, precarga de ultima vez.
-- Parte 5 pendiente: guardar sesion real, resumen, editar/borrar sesion.
+- Parte 4 base completa: seleccion de entrenamiento, pantalla train, autosave, kg/lb, series extras, precarga de ultima vez.
+- Parte 5 iniciada: guardar sesion real y resumen completos; editar/borrar sesion pendiente.
 - Parte 6 pendiente: Home stats reales.
 - Parte 7 pendiente: progreso por ejercicio.
 
@@ -104,4 +104,3 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
 - Error `No se encontró el archivo HTML llamado Index`: alguien esta intentando servir HTML desde Apps Script. No corresponde.
 - La URL `/exec` abierta directo muestra JSON: eso esta bien. La app se abre desde GitHub Pages.
 - La app no conecta al backend: revisar URL `/exec`, deploy nueva version, permisos `Anyone`, y que `Code.gs` tenga `doPost`.
-

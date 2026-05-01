@@ -169,6 +169,25 @@
   }
   .pill.accent { color: var(--accent); background: var(--accent-soft); border-color: rgba(255,90,42,0.22); }
   .pill.good { color: var(--good); background: rgba(73,226,120,0.12); border-color: rgba(73,226,120,0.3); }
+  .pill.warn { color: var(--warn); background: rgba(255,209,102,0.12); border-color: rgba(255,209,102,0.28); }
+  .pill.bad { color: var(--bad); background: rgba(255,107,107,0.12); border-color: rgba(255,107,107,0.28); }
+
+  .summary-status {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    margin-top: 12px;
+  }
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: var(--good);
+    margin-top: 5px;
+    flex: 0 0 auto;
+  }
+  .dot.warn { background: var(--warn); }
+  .dot.bad { background: var(--bad); }
 
   /* Routine cards */
   .routine-grid { display: grid; gap: 12px; }
@@ -642,17 +661,31 @@
     <button class="primary-btn full floating-save" data-action="save-session">Guardar sesión</button>
   </section>
 
-  <!-- ============ SUMMARY (placeholder Parte 5) ============ -->
+  <!-- ============ SUMMARY ============ -->
   <section id="screen-summary" class="screen">
     <div class="header-row">
       <div>
-        <div class="eyebrow">Resumen</div>
-        <h1>—</h1>
+        <div class="eyebrow" id="summary-meta">Resumen</div>
+        <h1>Sesión guardada</h1>
       </div>
     </div>
-    <div class="empty-state">
-      <div class="emoji">✅</div>
-      <p class="muted">El resumen aparece después de guardar una sesión.</p>
+
+    <div class="hero">
+      <div class="eyebrow" id="summary-day">—</div>
+      <div class="hero-row">
+        <div>
+          <div class="metric-large" id="summary-volume">0</div>
+          <div class="metric-label">kg de volumen total</div>
+        </div>
+        <span class="pill accent" id="summary-delta">—</span>
+      </div>
+    </div>
+
+    <div id="summary-exercises"></div>
+
+    <div class="section" style="display:grid;gap:8px;">
+      <button class="primary-btn full" data-action="summary-home">Volver al Home</button>
+      <button class="ghost-btn full" data-action="summary-train-again">Entrenar otro día</button>
     </div>
   </section>
 
@@ -732,6 +765,7 @@ const state = {
   currentDay: null,
   trainDraft: null,
   lastSetsByExercise: {},
+  lastSummary: null,
 };
 
 // ============================================================
@@ -1516,11 +1550,11 @@ function renderTrainExercises(exercises) {
 }
 
 function renderSetRow(ex, setNumber) {
-  const suggested = ex.suggested_weight != null && ex.suggested_weight !== '' ? units.toDisplay(ex.suggested_weight) : '';
+  const suggested = ex.suggested_weight != null && ex.suggested_weight !== '' ? `${units.toDisplay(ex.suggested_weight)} ${units.label()}` : units.label();
   return `
     <div class="input-grid" data-set-row data-rex-id="${escapeHtml(ex.routine_exercise_id)}" data-set-number="${setNumber}">
       <div class="set-number">${setNumber}</div>
-      <input type="number" step="0.5" inputmode="decimal" data-field="weight" placeholder="${units.label()}" value="${escapeHtml(suggested)}" />
+      <input type="number" step="0.5" inputmode="decimal" data-field="weight" placeholder="${escapeHtml(suggested)}" />
       <input type="number" step="1" inputmode="numeric" data-field="reps" placeholder="reps" />
       <input type="number" step="1" inputmode="numeric" data-field="rir" placeholder="RIR" />
     </div>
@@ -1559,8 +1593,43 @@ function collectTrainDraft() {
   };
 }
 
+function buildSavePayload() {
+  const r = state.currentRoutine;
+  const day = state.currentDay;
+  if (!r || !day) throw new Error('Falta rutina o día.');
+
+  const draft = collectTrainDraft();
+  const exercises = (day.exercises || []).map(ex => {
+    const exDraft = draft.exercises[ex.routine_exercise_id] || { sets: [], note: '' };
+    return {
+      routine_exercise_id: ex.routine_exercise_id,
+      exercise_name: ex.exercise_name,
+      sets: (exDraft.sets || []).map(set => ({
+        set_number: set.set_number,
+        weight: set.weight === '' ? null : units.fromInput(set.weight),
+        reps: set.reps === '' ? null : Number(set.reps),
+        rir: set.rir === '' ? null : Number(set.rir),
+        note: exDraft.note || '',
+      }))
+    };
+  });
+
+  return {
+    date: state.screenParams.date,
+    routine_id: r.routine_id,
+    day_id: day.day_id,
+    bodyweight: draft.bodyweight === '' ? null : units.fromInput(draft.bodyweight),
+    notes: '',
+    exercises,
+  };
+}
+
 function saveSessionDraft(day_id, date) {
   localStorage.setItem(draftKey(day_id, date), JSON.stringify(collectTrainDraft()));
+}
+
+function clearSessionDraft(day_id, date) {
+  localStorage.removeItem(draftKey(day_id, date));
 }
 
 function loadSessionDraft(day_id, date) {
@@ -1622,9 +1691,89 @@ function renderUnitToggle() {
   });
 }
 
-function handleSaveSessionPlaceholder() {
-  saveSessionDraft(state.screenParams.day_id, state.screenParams.date);
-  toast('Sesión guardada como borrador. Guardado real llega en Parte 5.', 'success');
+async function handleSaveSession() {
+  try {
+    const payload = buildSavePayload();
+    const result = await withLoader(gas.saveSession(payload));
+    clearSessionDraft(payload.day_id, payload.date);
+    state.lastSummary = result.summary;
+    toast('Sesión guardada', 'success');
+    goTo('summary');
+  } catch (err) {
+    toast(err.message || 'No se pudo guardar', 'error');
+  }
+}
+
+registerScreen('summary', {
+  onEnter() {
+    if (!state.lastSummary) {
+      $('#summary-meta').textContent = 'Resumen';
+      $('#summary-day').textContent = 'Sin sesión cargada';
+      $('#summary-volume').textContent = '0';
+      $('#summary-delta').textContent = '—';
+      $('#summary-exercises').innerHTML = `
+        <div class="empty-state">
+          <div class="emoji">✅</div>
+          <p class="muted">El resumen aparece después de guardar una sesión.</p>
+        </div>
+      `;
+      return;
+    }
+    renderSummary(state.lastSummary);
+  }
+});
+
+function renderSummary(summary) {
+  $('#summary-meta').textContent = `${summary.routine_name} · ${formatDateLong(summary.date)}`;
+  $('#summary-day').textContent = summary.day_name;
+  $('#summary-volume').textContent = formatCompactNumber(summary.total_volume);
+  $('#summary-delta').textContent = summary.delta_percent == null
+    ? 'Sin previo'
+    : `${summary.delta_percent > 0 ? '+' : ''}${summary.delta_percent}%`;
+
+  $('#summary-exercises').innerHTML = (summary.exercises || []).map(ex => `
+    <div class="card">
+      <div class="card-row" style="align-items:flex-start;">
+        <div style="flex:1;min-width:0;">
+          <h3 style="word-break:break-word;">${escapeHtml(ex.exercise_name)}</h3>
+          <p class="muted">${escapeHtml(formatSetsLine(ex.sets))}</p>
+          ${ex.previous_sets && ex.previous_sets.length ? `<p class="muted-sm" style="margin-top:4px;">Última: ${escapeHtml(formatSetsLine(ex.previous_sets))}</p>` : ''}
+        </div>
+        <span class="pill ${statusClass(ex.status)}">${escapeHtml(ex.status)}</span>
+      </div>
+      <div class="summary-status">
+        <span class="dot ${statusDotClass(ex.status)}"></span>
+        <p class="muted">${escapeHtml(ex.suggestion || '')}</p>
+      </div>
+    </div>
+  `).join('');
+}
+
+function formatCompactNumber(n) {
+  const num = Number(n || 0);
+  if (num >= 1000) return `${Math.round(num / 100) / 10}k`;
+  return String(Math.round(num));
+}
+
+function formatSetsLine(sets) {
+  return (sets || []).map(s => {
+    const w = s.weight == null ? '-' : units.toDisplay(s.weight);
+    const r = s.reps == null ? '-' : s.reps;
+    return `${w}×${r}`;
+  }).join(' · ');
+}
+
+function statusClass(status) {
+  if (status === 'Mejoró') return 'good';
+  if (status === 'Bajó') return 'bad';
+  if (status === 'Igual') return 'warn';
+  return 'accent';
+}
+
+function statusDotClass(status) {
+  if (status === 'Bajó') return 'bad';
+  if (status === 'Igual' || status === 'Sin datos previos') return 'warn';
+  return '';
 }
 
 // ============================================================
@@ -1676,7 +1825,9 @@ document.addEventListener('click', (e) => {
     }
     case 'change-train-day': goTo('train-pick'); break;
     case 'add-train-set': addTrainSet(t.dataset.rexId); break;
-    case 'save-session': handleSaveSessionPlaceholder(); break;
+    case 'save-session': handleSaveSession(); break;
+    case 'summary-home': goTo('home'); break;
+    case 'summary-train-again': goTo('train-pick'); break;
     case 'set-units': {
       if (state.currentScreen === 'train' && state.screenParams.day_id && state.screenParams.date) {
         saveSessionDraft(state.screenParams.day_id, state.screenParams.date);

@@ -95,6 +95,8 @@ function getApi_() {
     deleteExercise,
     getActiveRoutine,
     getLastSessionForDay,
+    saveSession,
+    getSession,
   };
 }
 
@@ -608,4 +610,271 @@ function getLastSessionForDay(params) {
   });
 
   return result;
+}
+
+// ============================================================
+// SESSIONS API — Parte 5
+// ============================================================
+
+function saveSession(params) {
+  params = params || {};
+  const date = normalizeDate_(params.date);
+  const routine_id = (params.routine_id || '').toString().trim();
+  const day_id = (params.day_id || '').toString().trim();
+  if (!routine_id) throw new Error('routine_id requerido.');
+  if (!day_id) throw new Error('day_id requerido.');
+
+  const routine = readAll_(SHEETS.ROUTINES).find(r => r.routine_id === routine_id);
+  if (!routine) throw new Error('Rutina no encontrada.');
+  const day = readAll_(SHEETS.DAYS).find(d => d.day_id === day_id && d.routine_id === routine_id);
+  if (!day) throw new Error('Día no encontrado en esta rutina.');
+
+  const bodyweight = normalizeOptionalNumber_(params.bodyweight, 'bodyweight');
+  const notes = (params.notes || '').toString().trim();
+  const prepared = prepareSessionExercises_(params.exercises || []);
+  if (prepared.setCount === 0) throw new Error('Cargá al menos una serie con peso o reps.');
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const session = appendRow_(SHEETS.SESSIONS, {
+      session_id: genId_('ses'),
+      date,
+      routine_id,
+      day_id,
+      bodyweight: bodyweight === null ? '' : bodyweight,
+      notes,
+      created_at: nowIso_(),
+    });
+
+    prepared.exercises.forEach(ex => {
+      ex.sets.forEach(set => {
+        appendRow_(SHEETS.SETS, {
+          set_id: genId_('set'),
+          session_id: session.session_id,
+          routine_exercise_id: ex.routine_exercise_id,
+          exercise_name: ex.exercise_name,
+          set_number: set.set_number,
+          weight: set.weight === null ? '' : set.weight,
+          reps: set.reps === null ? '' : set.reps,
+          rir: set.rir === null ? '' : set.rir,
+          note: set.note || '',
+        });
+      });
+    });
+
+    const summary = buildSessionSummary_(session, prepared.exercises, routine, day);
+    return { session, summary };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function getSession(params) {
+  params = params || {};
+  const session_id = (params.session_id || '').toString().trim();
+  if (!session_id) throw new Error('session_id requerido.');
+
+  const session = readAll_(SHEETS.SESSIONS).find(s => s.session_id === session_id);
+  if (!session) throw new Error('Sesión no encontrada.');
+
+  const routines = readAll_(SHEETS.ROUTINES);
+  const days = readAll_(SHEETS.DAYS);
+  const routine = routines.find(r => r.routine_id === session.routine_id) || {};
+  const day = days.find(d => d.day_id === session.day_id) || {};
+  const sets = readAll_(SHEETS.SETS)
+    .filter(s => s.session_id === session_id)
+    .sort((a, b) => {
+      const nameCmp = (a.exercise_name || '').toString().localeCompare((b.exercise_name || '').toString());
+      if (nameCmp !== 0) return nameCmp;
+      return Number(a.set_number || 0) - Number(b.set_number || 0);
+    });
+
+  const grouped = {};
+  sets.forEach(set => {
+    const rexId = set.routine_exercise_id || set.exercise_name;
+    if (!grouped[rexId]) {
+      grouped[rexId] = {
+        routine_exercise_id: set.routine_exercise_id,
+        exercise_name: set.exercise_name,
+        sets: [],
+      };
+    }
+    grouped[rexId].sets.push({
+      set_number: Number(set.set_number || 0),
+      weight: set.weight === '' ? null : Number(set.weight),
+      reps: set.reps === '' ? null : Number(set.reps),
+      rir: set.rir === '' ? null : Number(set.rir),
+      note: set.note || '',
+    });
+  });
+
+  return {
+    session_id: session.session_id,
+    date: normalizeDate_(session.date),
+    routine_id: session.routine_id,
+    routine_name: routine.routine_name || '',
+    day_id: session.day_id,
+    day_name: day.day_name || '',
+    bodyweight: session.bodyweight === '' ? null : Number(session.bodyweight),
+    notes: session.notes || '',
+    created_at: session.created_at,
+    exercises: Object.keys(grouped).map(k => grouped[k]),
+  };
+}
+
+function prepareSessionExercises_(items) {
+  if (!Array.isArray(items)) throw new Error('exercises debe ser un array.');
+  const routineExercises = readAll_(SHEETS.EXERCISES);
+  const prepared = [];
+  let setCount = 0;
+
+  items.forEach(item => {
+    const rexId = (item.routine_exercise_id || '').toString().trim();
+    if (!rexId) return;
+    const template = routineExercises.find(e => e.routine_exercise_id === rexId);
+    const exerciseName = ((item.exercise_name || (template && template.exercise_name) || '') + '').trim();
+    if (!exerciseName) throw new Error('Nombre de ejercicio requerido.');
+    if (exerciseName.length > 100) throw new Error('Nombre de ejercicio demasiado largo.');
+
+    const sets = [];
+    (item.sets || []).forEach((rawSet, idx) => {
+      const weight = normalizeOptionalNumber_(rawSet.weight, 'weight');
+      const reps = normalizeOptionalInteger_(rawSet.reps, 'reps');
+      const rir = normalizeOptionalInteger_(rawSet.rir, 'rir');
+      const note = (rawSet.note || '').toString().trim();
+      if (weight === null && reps === null) return;
+      if (weight !== null && weight < 0) throw new Error('El peso no puede ser negativo.');
+      if (reps !== null && (reps < 1 || reps > 100)) throw new Error('Las reps deben ser 1-100.');
+      if (rir !== null && (rir < 0 || rir > 10)) throw new Error('RIR debe ser 0-10.');
+      sets.push({
+        set_number: Number(rawSet.set_number || idx + 1),
+        weight,
+        reps,
+        rir,
+        note,
+      });
+      setCount++;
+    });
+
+    if (sets.length > 0) {
+      prepared.push({
+        routine_exercise_id: rexId,
+        exercise_name: exerciseName,
+        template,
+        sets,
+      });
+    }
+  });
+
+  return { exercises: prepared, setCount };
+}
+
+function normalizeOptionalNumber_(value, field) {
+  if (value === undefined || value === null || value === '') return null;
+  const n = Number(value);
+  if (isNaN(n)) throw new Error(field + ' inválido.');
+  return Math.round(n * 100) / 100;
+}
+
+function normalizeOptionalInteger_(value, field) {
+  if (value === undefined || value === null || value === '') return null;
+  const n = Number(value);
+  if (isNaN(n)) throw new Error(field + ' inválido.');
+  return Math.round(n);
+}
+
+function buildSessionSummary_(session, exercises, routine, day) {
+  const exerciseSummaries = exercises.map(ex => {
+    const previousSets = getPreviousSetsForExercise_(ex.routine_exercise_id, session.day_id, normalizeDate_(session.date));
+    const currentMetrics = calcSetMetrics_(ex.sets);
+    const previousMetrics = calcSetMetrics_(previousSets);
+    const status = compareMetrics_(currentMetrics, previousMetrics, previousSets.length > 0);
+    return {
+      routine_exercise_id: ex.routine_exercise_id,
+      exercise_name: ex.exercise_name,
+      sets: ex.sets,
+      previous_sets: previousSets,
+      metrics: currentMetrics,
+      previous_metrics: previousSets.length > 0 ? previousMetrics : null,
+      status,
+      suggestion: buildSuggestion_(ex.sets, ex.template),
+    };
+  });
+
+  const totalVolume = exerciseSummaries.reduce((sum, ex) => sum + ex.metrics.volume, 0);
+  const previousVolume = exerciseSummaries.reduce((sum, ex) => sum + (ex.previous_metrics ? ex.previous_metrics.volume : 0), 0);
+  const delta = previousVolume > 0 ? Math.round(((totalVolume - previousVolume) / previousVolume) * 1000) / 10 : null;
+
+  return {
+    session_id: session.session_id,
+    date: normalizeDate_(session.date),
+    routine_id: session.routine_id,
+    routine_name: routine.routine_name,
+    day_id: session.day_id,
+    day_name: day.day_name,
+    total_volume: Math.round(totalVolume * 100) / 100,
+    previous_volume: previousVolume > 0 ? Math.round(previousVolume * 100) / 100 : null,
+    delta_percent: delta,
+    exercises: exerciseSummaries,
+  };
+}
+
+function getPreviousSetsForExercise_(rexId, dayId, beforeDate) {
+  const sessions = readAll_(SHEETS.SESSIONS)
+    .filter(s => s.day_id === dayId && normalizeDate_(s.date) < beforeDate)
+    .sort((a, b) => {
+      const dateCmp = normalizeDate_(b.date).localeCompare(normalizeDate_(a.date));
+      if (dateCmp !== 0) return dateCmp;
+      return (b.created_at || '').toString().localeCompare((a.created_at || '').toString());
+    });
+  const sets = readAll_(SHEETS.SETS);
+
+  for (let i = 0; i < sessions.length; i++) {
+    const found = sets
+      .filter(set => set.session_id === sessions[i].session_id && set.routine_exercise_id === rexId)
+      .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0))
+      .map(set => ({
+        set_number: Number(set.set_number || 0),
+        weight: set.weight === '' ? null : Number(set.weight),
+        reps: set.reps === '' ? null : Number(set.reps),
+        rir: set.rir === '' ? null : Number(set.rir),
+        note: set.note || '',
+      }));
+    if (found.length > 0) return found;
+  }
+  return [];
+}
+
+function calcSetMetrics_(sets) {
+  const clean = (sets || []).filter(s => s.weight !== null || s.reps !== null);
+  return clean.reduce((acc, set) => {
+    const weight = set.weight === null ? 0 : Number(set.weight);
+    const reps = set.reps === null ? 0 : Number(set.reps);
+    acc.volume += weight * reps;
+    acc.reps_total += reps;
+    acc.weight_max = Math.max(acc.weight_max, weight);
+    return acc;
+  }, { volume: 0, reps_total: 0, weight_max: 0, set_count: clean.length });
+}
+
+function compareMetrics_(current, previous, hasPrevious) {
+  if (!hasPrevious) return 'Sin datos previos';
+  if (current.set_count > 0 && previous.set_count === 0) return 'Mejoró';
+  if (current.volume > previous.volume && current.weight_max >= previous.weight_max) return 'Mejoró';
+  if (current.volume >= previous.volume * 0.95 && current.weight_max >= previous.weight_max) return 'Igual';
+  if (current.volume < previous.volume * 0.95) return 'Bajó';
+  return 'Igual';
+}
+
+function buildSuggestion_(sets, template) {
+  if (!template) return 'Registrar una sesión más para afinar la sugerencia.';
+  const min = Number(template.target_reps_min || 0);
+  const max = Number(template.target_reps_max || 0);
+  const reps = (sets || []).map(s => s.reps).filter(r => r !== null);
+  if (reps.length === 0) return 'Completá reps para generar una sugerencia.';
+  if (max > 0 && reps.every(r => r >= max)) return 'Subir carga próxima vez.';
+  if (min > 0 && max > 0 && reps.every(r => r >= min && r <= max)) return 'Mantener carga, cerrar el rango.';
+  if (min > 0 && reps.some(r => r < min)) return 'Repetir o bajar; revisar fatiga/técnica.';
+  return 'Mantener y buscar reps limpias.';
 }

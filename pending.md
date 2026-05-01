@@ -12,7 +12,8 @@ Estado y plan de trabajo restante. Última actualización: 2026-05-01.
 - ✅ **Refactor a arquitectura híbrida** — Backend como API JSON (Apps Script `doGet`/`doPost`) + frontend estático en GitHub Pages. URL: https://juandeeezcurra.github.io/shym/. Configuración del backend vía pantalla de setup que persiste en `localStorage`.
 - ✅ **Fix arquitectura híbrida real** — `Code.gs` expone API JSON (`doPost`) y `index.html` usa `fetch` contra la URL `/exec` guardada en `localStorage`. Ya no hace falta pegar HTML en Apps Script.
 - ✅ **Parte 3** — Días + Ejercicios CRUD. Backend y frontend completos: crear/renombrar/borrar días, crear/editar/borrar ejercicios, validaciones, grid de días, pantalla detalle de día y modal reutilizable de ejercicio.
-- 🟡 **Parte 4 iniciada** — Selección de entrenamiento + precarga: `getActiveRoutine`, `getLastSessionForDay`, pantalla `train-pick`, pantalla `train`, autosave local, toggle kg/lb y series extras. El botón de guardar todavía deja borrador; el guardado real entra en Parte 5.
+- ✅ **Parte 4 base completa** — Selección de entrenamiento + precarga: `getActiveRoutine`, `getLastSessionForDay`, pantalla `train-pick`, pantalla `train`, autosave local, toggle kg/lb y series extras.
+- 🟡 **Parte 5 iniciada** — Guardado real de sesión + resumen post-entreno. Pendiente: editar/borrar sesión desde UI.
 
 **Vivo en producción (asumiendo deploy hecho):**
 - App: https://juandeeezcurra.github.io/shym/
@@ -93,7 +94,7 @@ Cada mutación devuelve el `getRoutine` completo para que el frontend re-renderi
   - Botón flotante "Guardar sesión"
 - ✅ **localStorage autosave:** key `gymtracker:session-draft:<day_id>:<date>`, se escribe debounced en cada input. Al entrar al train screen, si hay draft para ese day+date, se restaura con toast "Continuando sesión".
 - ✅ **Toggle kg/lb cableado:** los inputs respetan `units.current`.
-- Pendiente Parte 5: al guardar exitosamente, limpiar draft y convertir/envíar pesos a kg.
+- ✅ Parte 5 conectada: al guardar exitosamente, limpia draft y convierte/envía pesos a kg.
 
 **Decisión locked:** sets generados según `target_sets`. Si querés agregar series extras durante el entrenamiento, botón "+ serie" debajo del último set.
 
@@ -101,9 +102,11 @@ Cada mutación devuelve el `getRoutine` completo para que el frontend re-renderi
 
 ### Parte 5 — Guardar sesión + Resumen
 
+**Estado:** iniciada el 2026-05-01. Guardar sesión real y summary ya implementados; edición/borrado queda pendiente.
+
 **Backend:**
-- `saveSession({ date, routine_id, day_id, bodyweight, notes, exercises: [{ routine_exercise_id, exercise_name, sets: [{ weight, reps, rir, note }] }] })` — escribe `Sessions` + `Session_Sets` atómicamente. Filtra sets vacíos (kg+reps ambos null). Devuelve `{ session, summary }`.
-- `getSession({ session_id })` — devuelve sesión con sets agrupados por ejercicio
+- ✅ `saveSession({ date, routine_id, day_id, bodyweight, notes, exercises: [{ routine_exercise_id, exercise_name, sets: [{ weight, reps, rir, note }] }] })` — escribe `Sessions` + `Session_Sets`, filtra sets vacíos (kg+reps ambos null). Devuelve `{ session, summary }`.
+- ✅ `getSession({ session_id })` — devuelve sesión con sets agrupados por ejercicio
 - `editSession({ session_id, ...campos editables })` — permite cambiar fecha, notes, bodyweight, sets
 - `deleteSession({ session_id })` — borra sesión + todos sus sets
 
@@ -128,9 +131,11 @@ sugerencia (basada en target_reps_max):
 ```
 
 **Frontend:**
-- Pantalla `screen-summary`: hero con día + fecha + volumen total + delta vs anterior
-- Por ejercicio: card con sets de hoy, estado (pill), sugerencia (con dot de color)
-- Botones: "Volver al Home", "Editar sesión" (lleva a edit modal)
+- ✅ Botón Guardar sesión llama a `saveSession`, limpia draft y navega a resumen
+- ✅ Pantalla `screen-summary`: hero con día + fecha + volumen total + delta vs anterior
+- ✅ Por ejercicio: card con sets de hoy, estado (pill), sugerencia (con dot de color)
+- ✅ Botones: "Volver al Home", "Entrenar otro día"
+- Pendiente: botón "Editar sesión" (lleva a edit modal)
 - Pantalla `screen-session-edit`: vista similar a train pero con datos cargados, botón "Guardar cambios" / "Borrar sesión"
 
 **Decisión locked:** sets vacíos (sin kg ni reps) se ignoran al guardar. No se requiere completar todos.
