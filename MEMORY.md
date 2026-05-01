@@ -84,7 +84,7 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
 - Parte 3 completa: dias y ejercicios CRUD.
 - Parte 4 base completa: seleccion de entrenamiento, pantalla train, autosave, kg/lb, series extras, precarga de ultima vez.
 - Parte 5 iniciada: guardar sesion real y resumen completos; editar/borrar sesion pendiente.
-- Parte 6 pendiente: Home stats reales.
+- Parte 6 iniciada: Home stats reales y ultima sesion completos; abrir detalle desde Home pendiente.
 - Parte 7 pendiente: progreso por ejercicio.
 
 ## Reglas de Implementacion

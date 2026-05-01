@@ -97,6 +97,7 @@ function getApi_() {
     getLastSessionForDay,
     saveSession,
     getSession,
+    getHomeStats,
   };
 }
 
@@ -877,4 +878,146 @@ function buildSuggestion_(sets, template) {
   if (min > 0 && max > 0 && reps.every(r => r >= min && r <= max)) return 'Mantener carga, cerrar el rango.';
   if (min > 0 && reps.some(r => r < min)) return 'Repetir o bajar; revisar fatiga/técnica.';
   return 'Mantener y buscar reps limpias.';
+}
+
+// ============================================================
+// HOME STATS API — Parte 6
+// ============================================================
+
+function getHomeStats() {
+  const today = todayIso_();
+  const week = getWeekRange_(today);
+  const sessions = readAll_(SHEETS.SESSIONS);
+  const sets = readAll_(SHEETS.SETS);
+  const routines = readAll_(SHEETS.ROUTINES);
+  const days = readAll_(SHEETS.DAYS);
+
+  const weekSessions = sessions.filter(s => {
+    const d = normalizeDate_(s.date);
+    return d >= week.start && d <= week.end;
+  });
+  const weekIds = weekSessions.map(s => s.session_id);
+  const weekSets = sets.filter(set => weekIds.indexOf(set.session_id) >= 0);
+  const weekVolume = calcRawVolume_(weekSets);
+
+  const fourteenAgo = addDaysIso_(today, -13);
+  const recentSessionIds = sessions
+    .filter(s => {
+      const d = normalizeDate_(s.date);
+      return d >= fourteenAgo && d <= today;
+    })
+    .map(s => s.session_id);
+  const exerciseNames = {};
+  sets.forEach(set => {
+    if (recentSessionIds.indexOf(set.session_id) >= 0 && set.exercise_name) {
+      exerciseNames[set.exercise_name] = true;
+    }
+  });
+
+  const improved = countImprovedLatest_(sessions, sets);
+  const lastSession = getLastSessionSummary_(sessions, sets, routines, days);
+
+  return {
+    sesiones_semana: weekSessions.length,
+    volumen_semana: Math.round(weekVolume * 100) / 100,
+    ejercicios_en_progreso: Object.keys(exerciseNames).length,
+    marcas_mejoradas: improved,
+    last_session: lastSession,
+  };
+}
+
+function getWeekRange_(isoDate) {
+  const date = parseIsoDateLocal_(isoDate);
+  const day = date.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  return {
+    start: formatIsoDateLocal_(new Date(date.getFullYear(), date.getMonth(), date.getDate() + diffToMonday)),
+    end: formatIsoDateLocal_(new Date(date.getFullYear(), date.getMonth(), date.getDate() + diffToMonday + 6)),
+  };
+}
+
+function parseIsoDateLocal_(iso) {
+  const parts = normalizeDate_(iso).split('-').map(Number);
+  return new Date(parts[0], parts[1] - 1, parts[2]);
+}
+
+function formatIsoDateLocal_(date) {
+  const yyyy = date.getFullYear();
+  const mm = ('0' + (date.getMonth() + 1)).slice(-2);
+  const dd = ('0' + date.getDate()).slice(-2);
+  return yyyy + '-' + mm + '-' + dd;
+}
+
+function addDaysIso_(iso, days) {
+  const d = parseIsoDateLocal_(iso);
+  d.setDate(d.getDate() + days);
+  return formatIsoDateLocal_(d);
+}
+
+function calcRawVolume_(sets) {
+  return (sets || []).reduce((sum, set) => {
+    const w = set.weight === '' || set.weight === null ? 0 : Number(set.weight);
+    const r = set.reps === '' || set.reps === null ? 0 : Number(set.reps);
+    return sum + (isNaN(w) || isNaN(r) ? 0 : w * r);
+  }, 0);
+}
+
+function countImprovedLatest_(sessions, sets) {
+  const byExercise = {};
+  sets.forEach(set => {
+    const rexId = set.routine_exercise_id;
+    if (!rexId) return;
+    const session = sessions.find(s => s.session_id === set.session_id);
+    if (!session) return;
+    if (!byExercise[rexId]) byExercise[rexId] = {};
+    if (!byExercise[rexId][session.session_id]) {
+      byExercise[rexId][session.session_id] = {
+        date: normalizeDate_(session.date),
+        created_at: session.created_at || '',
+        sets: [],
+      };
+    }
+    byExercise[rexId][session.session_id].sets.push(set);
+  });
+
+  let improved = 0;
+  Object.keys(byExercise).forEach(rexId => {
+    const entries = Object.keys(byExercise[rexId]).map(id => byExercise[rexId][id])
+      .sort((a, b) => {
+        const dateCmp = b.date.localeCompare(a.date);
+        if (dateCmp !== 0) return dateCmp;
+        return b.created_at.localeCompare(a.created_at);
+      });
+    if (entries.length < 2) return;
+    if (calcRawVolume_(entries[0].sets) > calcRawVolume_(entries[1].sets)) improved++;
+  });
+  return improved;
+}
+
+function getLastSessionSummary_(sessions, sets, routines, days) {
+  if (!sessions.length) return null;
+  const sorted = sessions.slice().sort((a, b) => {
+    const dateCmp = normalizeDate_(b.date).localeCompare(normalizeDate_(a.date));
+    if (dateCmp !== 0) return dateCmp;
+    return (b.created_at || '').toString().localeCompare((a.created_at || '').toString());
+  });
+  const session = sorted[0];
+  const sessionSets = sets.filter(set => set.session_id === session.session_id);
+  const routine = routines.find(r => r.routine_id === session.routine_id) || {};
+  const day = days.find(d => d.day_id === session.day_id) || {};
+
+  return {
+    session_id: session.session_id,
+    date: normalizeDate_(session.date),
+    routine_id: session.routine_id,
+    routine_name: routine.routine_name || '',
+    day_id: session.day_id,
+    day_name: day.day_name || '',
+    volume: Math.round(calcRawVolume_(sessionSets) * 100) / 100,
+    set_count: sessionSets.length,
+    exercise_count: Object.keys(sessionSets.reduce((acc, set) => {
+      acc[set.routine_exercise_id || set.exercise_name] = true;
+      return acc;
+    }, {})).length,
+  };
 }

@@ -14,6 +14,7 @@ Estado y plan de trabajo restante. Última actualización: 2026-05-01.
 - ✅ **Parte 3** — Días + Ejercicios CRUD. Backend y frontend completos: crear/renombrar/borrar días, crear/editar/borrar ejercicios, validaciones, grid de días, pantalla detalle de día y modal reutilizable de ejercicio.
 - ✅ **Parte 4 base completa** — Selección de entrenamiento + precarga: `getActiveRoutine`, `getLastSessionForDay`, pantalla `train-pick`, pantalla `train`, autosave local, toggle kg/lb y series extras.
 - 🟡 **Parte 5 iniciada** — Guardado real de sesión + resumen post-entreno. Pendiente: editar/borrar sesión desde UI.
+- 🟡 **Parte 6 iniciada** — Home con stats reales y última sesión. Pendiente: hacer clic en última sesión para abrir detalle/resumen persistido.
 
 **Vivo en producción (asumiendo deploy hecho):**
 - App: https://juandeeezcurra.github.io/shym/
@@ -144,18 +145,21 @@ sugerencia (basada en target_reps_max):
 
 ### Parte 6 — Home dashboard real
 
+**Estado:** iniciada el 2026-05-01. Stats reales y última sesión ya implementados.
+
 **Backend:**
-- `getHomeStats()` — calcula:
+- ✅ `getHomeStats()` — calcula:
   - `sesiones_semana`: count de sesiones cuya fecha cae en la semana actual (lunes-domingo)
   - `volumen_semana`: Σ(weight × reps) de todas las series de esas sesiones
   - `ejercicios_en_progreso`: count de `exercise_name` distintos que aparecen en sesiones de los últimos 14 días
   - `marcas_mejoradas`: count de `routine_exercise_id` cuya última sesión superó la anterior en volumen total
-  - `last_session`: última sesión (si existe), con day_name + routine_name + volumen + delta de la última comparación
+  - `last_session`: última sesión (si existe), con day_name + routine_name + volumen + conteos
 
 **Frontend:**
-- Reemplazar placeholders del Home con números reales
-- Card "Última sesión" con info real + botón para ir al summary de esa sesión
-- Si no hay sesiones todavía: empty state con CTA a "Configurar primera rutina"
+- ✅ Reemplazar placeholders del Home con números reales
+- ✅ Card "Última sesión" con info real
+- ✅ Si no hay sesiones todavía: empty state
+- Pendiente: botón para ir al summary/detalle de esa sesión
 
 **Decisión locked:** semana = lunes a domingo en timezone del script.
 

@@ -942,7 +942,7 @@ function goTo(screenId, params) {
 }
 
 // ============================================================
-// HOME (placeholder hasta Parte 6)
+// HOME
 // ============================================================
 registerScreen('setup', {
   onEnter() {
@@ -953,8 +953,55 @@ registerScreen('setup', {
 registerScreen('home', {
   onEnter() {
     $('#home-date').textContent = formatDateLong(new Date().toISOString().slice(0, 10));
+    loadHomeStats();
   }
 });
+
+async function loadHomeStats() {
+  if (!backend.url) return;
+  try {
+    const stats = await gas.getHomeStats();
+    renderHomeStats(stats);
+  } catch (err) {
+    toast('No se pudo cargar el Home', 'error');
+  }
+}
+
+function renderHomeStats(stats) {
+  $('#home-week-sessions').textContent = stats.sesiones_semana || 0;
+  $('#home-volume').textContent = formatCompactNumber(stats.volumen_semana || 0);
+  $('#home-progress-count').textContent = stats.ejercicios_en_progreso || 0;
+  $('#home-improved').textContent = stats.marcas_mejoradas || 0;
+
+  const el = $('#home-last-session');
+  const last = stats.last_session;
+  if (!last) {
+    el.innerHTML = `
+      <div class="empty-state">
+        <div class="emoji">📈</div>
+        <h3>Aún no hay sesiones</h3>
+        <p class="muted">Cuando guardes tu primera sesión, va a aparecer acá.</p>
+      </div>
+    `;
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-row">
+        <div>
+          <h3>${escapeHtml(last.day_name || 'Sesión')}</h3>
+          <p class="muted">${escapeHtml(last.routine_name || '')} · ${formatDateLong(last.date)}</p>
+        </div>
+        <span class="pill accent">${formatCompactNumber(last.volume)} kg</span>
+      </div>
+      <div class="summary-status">
+        <span class="dot"></span>
+        <p class="muted">${last.exercise_count} ejercicio${last.exercise_count === 1 ? '' : 's'} · ${last.set_count} serie${last.set_count === 1 ? '' : 's'} guardada${last.set_count === 1 ? '' : 's'}.</p>
+      </div>
+    </div>
+  `;
+}
 
 async function handleSaveBackendUrl() {
   const input = $('#setup-backend-url');
