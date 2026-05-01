@@ -1,16 +1,14 @@
 // ============================================================
-// GYM TRACKER — GOOGLE APPS SCRIPT (API backend)
+// GYM TRACKER — GOOGLE APPS SCRIPT
 // ============================================================
 // Setup:
 //   1. Crea un Google Sheets vacio.
-//   2. Extensions > Apps Script. Pega este Code.gs.
-//   3. Run > setup() una vez para crear las sheets.
-//   4. Deploy > New deployment > Web app.
-//      - Execute as: Me
-//      - Who has access: Anyone
-//      Copia la URL /exec.
-//   5. Abri el frontend en GitHub Pages, peguen la URL en la pantalla
-//      de setup y listo.
+//   2. Extensions > Apps Script. Pega solo Code.gs.
+//   3. Corre setup() una vez (boton Run).
+//   4. Deploy > New deployment > Web app > Execute as: Me, Access: Anyone.
+//   5. Abri la app en GitHub Pages y pega la URL /exec del deploy.
+// ============================================================
+// Single-user. Pesos guardados siempre en kg (toggle kg/lb es solo display).
 // ============================================================
 
 const SHEETS = {
@@ -44,64 +42,60 @@ const HEADERS = {
 };
 
 // ============================================================
-// API ROUTING — doGet / doPost reciben { action, payload }
+// WEB/API ENTRY
 // ============================================================
 
-function doGet(e) {
-  const action = (e && e.parameter && e.parameter.action) || null;
-  if (!action) {
-    return ContentService
-      .createTextOutput('Gym Tracker API ready. Use POST {action, payload}.')
-      .setMimeType(ContentService.MimeType.TEXT);
-  }
-  let payload = {};
-  if (e.parameter.payload) {
-    try { payload = JSON.parse(e.parameter.payload); } catch (err) {}
-  }
-  return apiResponse_(safeRun_(action, payload));
+function doGet() {
+  return json_({
+    ok: true,
+    app: 'Gym Tracker API',
+    message: 'Backend activo. Abrí la app desde GitHub Pages y configurá esta URL /exec.',
+    time: nowIso_(),
+  });
 }
 
 function doPost(e) {
-  let body = {};
   try {
-    if (e && e.postData && e.postData.contents) {
-      body = JSON.parse(e.postData.contents);
-    }
+    const body = e && e.postData && e.postData.contents
+      ? JSON.parse(e.postData.contents)
+      : {};
+    const fn = (body.fn || '').toString();
+    const args = Array.isArray(body.args) ? body.args : [];
+    const api = getApi_();
+    if (!api[fn]) throw new Error('Funcion API no permitida: ' + fn);
+    return json_({ ok: true, result: api[fn].apply(null, args) });
   } catch (err) {
-    return apiResponse_({ ok: false, error: 'Invalid JSON body' });
-  }
-  return apiResponse_(safeRun_(body.action, body.payload));
-}
-
-function safeRun_(action, payload) {
-  try {
-    return { ok: true, data: handleRequest_(action, payload || {}) };
-  } catch (err) {
-    return { ok: false, error: (err && err.message) ? err.message : String(err) };
+    return json_({
+      ok: false,
+      error: err && err.message ? err.message : String(err),
+    });
   }
 }
 
-function handleRequest_(action, p) {
-  switch (action) {
-    case 'ping':              return ping();
-
-    // Routines
-    case 'listRoutines':      return listRoutines();
-    case 'createRoutine':     return createRoutine(p.name);
-    case 'renameRoutine':     return renameRoutine(p.routine_id, p.new_name);
-    case 'setActiveRoutine':  return setActiveRoutine(p.routine_id);
-    case 'deleteRoutine':     return deleteRoutine(p.routine_id);
-    case 'getRoutine':        return getRoutine(p.routine_id);
-
-    default:
-      throw new Error('Accion desconocida: ' + action);
-  }
-}
-
-function apiResponse_(obj) {
+function json_(payload) {
   return ContentService
-    .createTextOutput(JSON.stringify(obj))
+    .createTextOutput(JSON.stringify(payload))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+function getApi_() {
+  return {
+    ping,
+    listRoutines,
+    createRoutine,
+    renameRoutine,
+    setActiveRoutine,
+    deleteRoutine,
+    getRoutine,
+    addDay,
+    renameDay,
+    deleteDay,
+    addExercise,
+    updateExercise,
+    deleteExercise,
+    getActiveRoutine,
+    getLastSessionForDay,
+  };
 }
 
 // ============================================================
@@ -125,10 +119,8 @@ function setup() {
     sh.autoResizeColumns(1, headers.length);
   });
 
-  const defaultSheet =
-    ss.getSheetByName('Sheet1') ||
-    ss.getSheetByName('Hoja 1') ||
-    ss.getSheetByName('Hoja1');
+  // Borra la sheet por defecto si esta vacia y existe
+  const defaultSheet = ss.getSheetByName('Sheet1') || ss.getSheetByName('Hoja 1') || ss.getSheetByName('Hoja1');
   if (defaultSheet && defaultSheet.getLastRow() === 0 && ss.getSheets().length > 1) {
     ss.deleteSheet(defaultSheet);
   }
@@ -137,7 +129,7 @@ function setup() {
 }
 
 // ============================================================
-// HELPERS GENERICOS (privados, sufijo _)
+// HELPERS GENERICOS
 // ============================================================
 
 function getSheet_(name) {
@@ -239,11 +231,11 @@ function isTrue_(v) {
 }
 
 // ============================================================
-// PING
+// PING — usado por el frontend para verificar conexion
 // ============================================================
 
 function ping() {
-  return { time: nowIso_(), today: todayIso_() };
+  return { ok: true, time: nowIso_(), today: todayIso_() };
 }
 
 // ============================================================
@@ -328,6 +320,7 @@ function deleteRoutine(routine_id) {
   }
   const ok = deleteRowById_(SHEETS.ROUTINES, 'routine_id', routine_id);
 
+  // Si la borrada era la activa, activa la primera disponible
   const remaining = readAll_(SHEETS.ROUTINES);
   if (remaining.length > 0 && !remaining.some(r => isTrue_(r.is_active))) {
     setActiveRoutine(remaining[0].routine_id);
@@ -345,6 +338,7 @@ function getRoutine(routine_id) {
     .sort((a, b) => Number(a.day_order || 0) - Number(b.day_order || 0));
 
   const exercises = readAll_(SHEETS.EXERCISES);
+  const dayIds = days.map(d => d.day_id);
 
   const result = days.map(d => ({
     day_id: d.day_id,
@@ -372,4 +366,246 @@ function getRoutine(routine_id) {
     is_active: isTrue_(r.is_active),
     days: result,
   };
+}
+
+// ============================================================
+// DAYS API — Parte 3
+// ============================================================
+
+function addDay(params) {
+  const routine_id = (params.routine_id || '').toString().trim();
+  const day_name   = (params.day_name   || '').toString().trim();
+  if (!routine_id) throw new Error('routine_id requerido.');
+  if (!day_name)   throw new Error('El nombre del día no puede estar vacío.');
+  if (day_name.length > 50) throw new Error('Nombre demasiado largo (max 50 caracteres).');
+
+  const routines = readAll_(SHEETS.ROUTINES);
+  if (!routines.some(r => r.routine_id === routine_id)) throw new Error('Rutina no encontrada.');
+
+  const existing  = readAll_(SHEETS.DAYS).filter(d => d.routine_id === routine_id);
+  const nextOrder = existing.length > 0
+    ? Math.max(...existing.map(d => Number(d.day_order || 0))) + 1
+    : 1;
+
+  appendRow_(SHEETS.DAYS, {
+    day_id:     genId_('day'),
+    routine_id,
+    day_name,
+    day_order:  nextOrder,
+  });
+  return getRoutine(routine_id);
+}
+
+function renameDay(params) {
+  const day_id   = (params.day_id   || '').toString().trim();
+  const new_name = (params.new_name || '').toString().trim();
+  if (!day_id)   throw new Error('day_id requerido.');
+  if (!new_name) throw new Error('El nombre no puede estar vacío.');
+  if (new_name.length > 50) throw new Error('Nombre demasiado largo (max 50 caracteres).');
+
+  const day = readAll_(SHEETS.DAYS).find(d => d.day_id === day_id);
+  if (!day) throw new Error('Día no encontrado.');
+  updateRowById_(SHEETS.DAYS, 'day_id', day_id, { day_name: new_name });
+  return getRoutine(day.routine_id);
+}
+
+function deleteDay(params) {
+  const day_id = (params.day_id || '').toString().trim();
+  if (!day_id) throw new Error('day_id requerido.');
+
+  const day = readAll_(SHEETS.DAYS).find(d => d.day_id === day_id);
+  if (!day) throw new Error('Día no encontrado.');
+
+  deleteRowsWhere_(SHEETS.EXERCISES, e => e.day_id === day_id);
+  deleteRowById_(SHEETS.DAYS, 'day_id', day_id);
+  return getRoutine(day.routine_id);
+}
+
+// ============================================================
+// EXERCISES API — Parte 3
+// ============================================================
+
+function addExercise(params) {
+  const day_id        = (params.day_id        || '').toString().trim();
+  const exercise_name = (params.exercise_name || '').toString().trim();
+  const target_sets   = parseInt(params.target_sets,     10);
+  const rmin          = parseInt(params.target_reps_min, 10);
+  const rmax          = parseInt(params.target_reps_max, 10);
+  const swRaw         = params.suggested_weight;
+  const technique_note = (params.technique_note || '').toString().trim();
+
+  if (!day_id)        throw new Error('day_id requerido.');
+  if (!exercise_name) throw new Error('El nombre del ejercicio no puede estar vacío.');
+  if (exercise_name.length > 100) throw new Error('Nombre demasiado largo (max 100 caracteres).');
+  if (isNaN(target_sets) || target_sets < 1 || target_sets > 20) throw new Error('target_sets debe ser 1-20.');
+  if (isNaN(rmin) || rmin < 1 || rmin > 100) throw new Error('target_reps_min debe ser 1-100.');
+  if (isNaN(rmax) || rmax < 1 || rmax > 100) throw new Error('target_reps_max debe ser 1-100.');
+  if (rmin > rmax) throw new Error('target_reps_min no puede ser mayor que target_reps_max.');
+
+  let suggested_weight = '';
+  if (swRaw !== undefined && swRaw !== null && swRaw !== '') {
+    const n = Number(swRaw);
+    if (isNaN(n) || n < 0) throw new Error('El peso sugerido debe ser ≥ 0.');
+    suggested_weight = n;
+  }
+
+  const day = readAll_(SHEETS.DAYS).find(d => d.day_id === day_id);
+  if (!day) throw new Error('Día no encontrado.');
+
+  const existing  = readAll_(SHEETS.EXERCISES).filter(e => e.day_id === day_id);
+  const nextOrder = existing.length > 0
+    ? Math.max(...existing.map(e => Number(e.exercise_order || 0))) + 1
+    : 1;
+
+  appendRow_(SHEETS.EXERCISES, {
+    routine_exercise_id: genId_('rex'),
+    day_id,
+    exercise_order:  nextOrder,
+    exercise_name,
+    target_sets,
+    target_reps_min: rmin,
+    target_reps_max: rmax,
+    suggested_weight,
+    technique_note,
+  });
+  return getRoutine(day.routine_id);
+}
+
+function updateExercise(params) {
+  const rex_id = (params.routine_exercise_id || '').toString().trim();
+  if (!rex_id) throw new Error('routine_exercise_id requerido.');
+
+  const ex = readAll_(SHEETS.EXERCISES).find(e => e.routine_exercise_id === rex_id);
+  if (!ex) throw new Error('Ejercicio no encontrado.');
+
+  const partial = {};
+
+  if (params.exercise_name !== undefined) {
+    const name = params.exercise_name.toString().trim();
+    if (!name) throw new Error('El nombre no puede estar vacío.');
+    if (name.length > 100) throw new Error('Nombre demasiado largo (max 100 caracteres).');
+    partial.exercise_name = name;
+  }
+  if (params.target_sets !== undefined) {
+    const ts = parseInt(params.target_sets, 10);
+    if (isNaN(ts) || ts < 1 || ts > 20) throw new Error('target_sets debe ser 1-20.');
+    partial.target_sets = ts;
+  }
+  if (params.target_reps_min !== undefined || params.target_reps_max !== undefined) {
+    const rmin = parseInt(params.target_reps_min !== undefined ? params.target_reps_min : ex.target_reps_min, 10);
+    const rmax = parseInt(params.target_reps_max !== undefined ? params.target_reps_max : ex.target_reps_max, 10);
+    if (isNaN(rmin) || rmin < 1 || rmin > 100) throw new Error('target_reps_min debe ser 1-100.');
+    if (isNaN(rmax) || rmax < 1 || rmax > 100) throw new Error('target_reps_max debe ser 1-100.');
+    if (rmin > rmax) throw new Error('target_reps_min no puede ser mayor que target_reps_max.');
+    partial.target_reps_min = rmin;
+    partial.target_reps_max = rmax;
+  }
+  if (params.suggested_weight !== undefined) {
+    if (params.suggested_weight === '' || params.suggested_weight === null) {
+      partial.suggested_weight = '';
+    } else {
+      const sw = Number(params.suggested_weight);
+      if (isNaN(sw) || sw < 0) throw new Error('El peso sugerido debe ser ≥ 0.');
+      partial.suggested_weight = sw;
+    }
+  }
+  if (params.technique_note !== undefined) {
+    partial.technique_note = params.technique_note.toString().trim();
+  }
+
+  updateRowById_(SHEETS.EXERCISES, 'routine_exercise_id', rex_id, partial);
+
+  const day = readAll_(SHEETS.DAYS).find(d => d.day_id === ex.day_id);
+  if (!day) throw new Error('Día no encontrado.');
+  return getRoutine(day.routine_id);
+}
+
+function deleteExercise(params) {
+  const rex_id = (params.routine_exercise_id || '').toString().trim();
+  if (!rex_id) throw new Error('routine_exercise_id requerido.');
+
+  const ex = readAll_(SHEETS.EXERCISES).find(e => e.routine_exercise_id === rex_id);
+  if (!ex) throw new Error('Ejercicio no encontrado.');
+
+  const day = readAll_(SHEETS.DAYS).find(d => d.day_id === ex.day_id);
+  if (!day) throw new Error('Día no encontrado.');
+
+  deleteRowById_(SHEETS.EXERCISES, 'routine_exercise_id', rex_id);
+  return getRoutine(day.routine_id);
+}
+
+// ============================================================
+// TRAINING API — Parte 4
+// ============================================================
+
+function normalizeDate_(value) {
+  if (!value) return todayIso_();
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    const tz = Session.getScriptTimeZone() || 'UTC';
+    return Utilities.formatDate(value, tz, 'yyyy-MM-dd');
+  }
+  const s = value.toString().trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d = new Date(s);
+  if (isNaN(d.getTime())) throw new Error('Fecha invalida.');
+  const tz = Session.getScriptTimeZone() || 'UTC';
+  return Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+}
+
+function getActiveRoutine() {
+  const active = readAll_(SHEETS.ROUTINES).find(r => isTrue_(r.is_active));
+  if (!active) throw new Error('No hay rutina activa. Marcá una rutina como activa primero.');
+  return getRoutine(active.routine_id);
+}
+
+function getLastSessionForDay(params) {
+  params = params || {};
+  const day_id = (params.day_id || '').toString().trim();
+  const beforeDate = normalizeDate_(params.date);
+  if (!day_id) throw new Error('day_id requerido.');
+
+  const day = readAll_(SHEETS.DAYS).find(d => d.day_id === day_id);
+  if (!day) throw new Error('Día no encontrado.');
+
+  const exercises = readAll_(SHEETS.EXERCISES)
+    .filter(e => e.day_id === day_id)
+    .sort((a, b) => Number(a.exercise_order || 0) - Number(b.exercise_order || 0));
+  const rexIds = exercises.map(e => e.routine_exercise_id);
+
+  const sessions = readAll_(SHEETS.SESSIONS)
+    .filter(s => s.day_id === day_id && normalizeDate_(s.date) < beforeDate)
+    .sort((a, b) => {
+      const dateCmp = normalizeDate_(b.date).localeCompare(normalizeDate_(a.date));
+      if (dateCmp !== 0) return dateCmp;
+      return (b.created_at || '').toString().localeCompare((a.created_at || '').toString());
+    });
+
+  const sets = readAll_(SHEETS.SETS);
+  const result = {};
+
+  rexIds.forEach(rexId => {
+    for (let i = 0; i < sessions.length; i++) {
+      const session = sessions[i];
+      const sessionSets = sets
+        .filter(set => set.session_id === session.session_id && set.routine_exercise_id === rexId)
+        .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0))
+        .map(set => ({
+          set_number: Number(set.set_number || 0),
+          weight: set.weight === '' ? null : Number(set.weight),
+          reps: set.reps === '' ? null : Number(set.reps),
+          rir: set.rir === '' ? null : Number(set.rir),
+          note: set.note || '',
+        }));
+      if (sessionSets.length > 0) {
+        result[rexId] = {
+          session_id: session.session_id,
+          date: normalizeDate_(session.date),
+          sets: sessionSets,
+        };
+        break;
+      }
+    }
+  });
+
+  return result;
 }

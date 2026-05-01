@@ -2,11 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-<meta name="theme-color" content="#07090b" />
+<base target="_top" />
 <title>Gym Tracker</title>
 <style>
   :root {
@@ -53,7 +49,6 @@
     padding: 20px 16px 110px;
     min-height: 100vh;
   }
-  .app.no-nav { padding-bottom: 24px; }
 
   h1, h2, h3, p { margin: 0; }
   h1 { font-size: 30px; line-height: 1.05; letter-spacing: -0.04em; }
@@ -64,10 +59,12 @@
   .muted { color: var(--muted); font-size: 13px; line-height: 1.4; }
   .muted-sm { color: var(--muted-2); font-size: 12px; }
 
+  /* Screens */
   .screen { display: none; animation: fadeIn 0.18s ease; }
   .screen.active { display: block; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
+  /* Topbar */
   .topbar {
     display: flex;
     justify-content: space-between;
@@ -81,8 +78,6 @@
     color: #101010;
     display: grid; place-items: center;
     font-weight: 800;
-    cursor: pointer;
-    border: 0;
   }
 
   .header-row {
@@ -103,6 +98,7 @@
     display: grid; place-items: center;
   }
 
+  /* Hero / cards */
   .hero {
     background: linear-gradient(145deg, rgba(255,90,42,0.18), rgba(17,21,25,0.96) 42%);
     border: 1px solid rgba(255,90,42,0.18);
@@ -172,6 +168,7 @@
   .pill.accent { color: var(--accent); background: var(--accent-soft); border-color: rgba(255,90,42,0.22); }
   .pill.good { color: var(--good); background: rgba(73,226,120,0.12); border-color: rgba(73,226,120,0.3); }
 
+  /* Routine cards */
   .routine-grid { display: grid; gap: 12px; }
   .routine-card {
     background: var(--card);
@@ -199,6 +196,73 @@
     cursor: pointer;
   }
 
+  /* Training */
+  .train-pick-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .exercise-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    margin-bottom: 14px;
+  }
+  .last-set-row {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+    margin: 10px 0 14px;
+  }
+  .set-chip {
+    background: #0c0f12;
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .input-grid {
+    display: grid;
+    grid-template-columns: 28px 1fr 1fr 1fr;
+    gap: 8px;
+    align-items: center;
+    margin-top: 8px;
+  }
+  .set-number {
+    color: var(--muted);
+    font-weight: 800;
+    text-align: center;
+  }
+  .floating-save {
+    position: sticky;
+    bottom: 90px;
+    z-index: 10;
+    margin-top: 14px;
+  }
+  .unit-toggle {
+    display: inline-grid;
+    grid-template-columns: 1fr 1fr;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--card-soft);
+  }
+  .unit-toggle button {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    padding: 9px 12px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .unit-toggle button.active { background: var(--accent); color: #101010; }
+
+  /* Buttons */
   .primary-btn {
     border: 0;
     background: var(--accent);
@@ -226,6 +290,7 @@
   .ghost-btn.full { width: 100%; }
   .ghost-btn.danger { color: var(--bad); border-color: rgba(255, 107, 107, 0.3); }
 
+  /* Inputs */
   input, select, textarea {
     width: 100%;
     border: 1px solid var(--border);
@@ -233,7 +298,7 @@
     color: var(--text);
     border-radius: 14px;
     padding: 12px 12px;
-    font-size: 16px;
+    font-size: 16px; /* iOS no zoom */
     outline: none;
     font-family: inherit;
   }
@@ -248,6 +313,7 @@
     letter-spacing: 0.06em;
   }
 
+  /* Bottom nav */
   .bottom-nav {
     position: fixed;
     left: 50%;
@@ -265,7 +331,6 @@
     gap: 6px;
     z-index: 20;
   }
-  .bottom-nav.hidden { display: none; }
   .nav-btn {
     border: 0;
     background: transparent;
@@ -278,6 +343,7 @@
   }
   .nav-btn.active { background: var(--accent); color: #101010; }
 
+  /* Empty state */
   .empty-state {
     text-align: center;
     padding: 36px 20px;
@@ -288,6 +354,7 @@
   .empty-state .emoji { font-size: 32px; margin-bottom: 8px; }
   .empty-state h3 { margin-bottom: 6px; }
 
+  /* Skeleton */
   .skeleton {
     background: linear-gradient(90deg, var(--card-soft) 0%, #1e242a 50%, var(--card-soft) 100%);
     background-size: 200% 100%;
@@ -296,6 +363,7 @@
   }
   @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
+  /* Modal */
   .modal-overlay {
     position: fixed;
     inset: 0;
@@ -316,8 +384,6 @@
     border-top-right-radius: 28px;
     padding: 24px 18px calc(24px + env(safe-area-inset-bottom));
     animation: slideUp 0.22s ease;
-    max-height: 85vh;
-    overflow-y: auto;
   }
   @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
   .modal-handle {
@@ -332,6 +398,7 @@
     margin-top: 16px;
   }
 
+  /* Toast */
   .toast {
     position: fixed;
     top: 16px;
@@ -353,6 +420,7 @@
   .toast.success { border-color: rgba(73, 226, 120, 0.4); }
   .toast.error { border-color: rgba(255, 107, 107, 0.5); color: var(--bad); }
 
+  /* Loader */
   .loader {
     position: fixed;
     inset: 0;
@@ -373,52 +441,42 @@
   @keyframes spin { to { transform: rotate(360deg); } }
 
   .hidden { display: none !important; }
-
-  .url-display {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 11px;
-    color: var(--muted);
-    word-break: break-all;
-    background: var(--card-soft);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 10px;
-    margin-bottom: 12px;
-  }
 </style>
 </head>
 <body>
 
-<div class="app" id="app">
-
-  <!-- ============ SETUP (cuando no hay API URL configurada) ============ -->
+<div class="app">
+  <!-- ============ SETUP ============ -->
   <section id="screen-setup" class="screen">
-    <div style="margin-top: 32px;">
-      <div class="eyebrow">Primera vez</div>
-      <h1>Conectar backend</h1>
-      <p class="muted" style="margin-top: 10px;">
-        Pegá la URL del web app de Apps Script. La conseguís en Apps Script →
-        <b>Deploy → Manage deployments</b>.
-      </p>
+    <div class="topbar">
+      <div>
+        <div class="eyebrow">Conexión</div>
+        <h1>Configurar backend</h1>
+      </div>
+      <div class="avatar">J</div>
     </div>
-    <div class="card" style="margin-top: 20px;">
-      <label class="field-label">URL del backend</label>
-      <input id="setup-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
-      <button class="primary-btn full" data-action="save-setup" style="margin-top: 12px;">Guardar y conectar</button>
+
+    <div class="hero">
+      <div class="eyebrow">Apps Script</div>
+      <p class="muted" style="font-size:14px;">Pegá la URL del Web App que termina en /exec. La app queda en GitHub; Google solo guarda los datos.</p>
     </div>
-    <p class="muted" style="margin-top: 16px; text-align: center;">
-      La URL queda guardada en este dispositivo. Podés cambiarla tocando el avatar 🔘.
-    </p>
+
+    <div class="card">
+      <label class="field-label">URL backend</label>
+      <input id="setup-backend-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+    </div>
+
+    <button class="primary-btn full" data-action="save-backend-url">Conectar</button>
   </section>
 
   <!-- ============ HOME ============ -->
-  <section id="screen-home" class="screen">
+  <section id="screen-home" class="screen active">
     <div class="topbar">
       <div>
         <div class="eyebrow" id="home-date">—</div>
         <h1>Gym Tracker</h1>
       </div>
-      <button class="avatar" data-action="open-settings" aria-label="Settings">J</button>
+      <div class="avatar">J</div>
     </div>
 
     <div class="hero">
@@ -470,6 +528,7 @@
     </div>
 
     <div id="routines-list" class="routine-grid">
+      <!-- skeletons inicial -->
       <div class="skeleton" style="height: 120px;"></div>
       <div class="skeleton" style="height: 120px;"></div>
     </div>
@@ -490,13 +549,13 @@
     <div class="section">
       <div class="header-row">
         <h2 style="margin: 0;">Días</h2>
-        <button class="ghost-btn" data-action="add-day" disabled style="opacity:0.5;">+ Día</button>
+        <button class="ghost-btn" data-action="add-day">+ Día</button>
       </div>
       <div id="rd-days">
         <div class="empty-state">
           <div class="emoji">🗓️</div>
-          <h3>Días llegan en Parte 3</h3>
-          <p class="muted">Por ahora podés crear, renombrar, activar y borrar rutinas.</p>
+          <h3>Sin días todavía</h3>
+          <p class="muted">Tocá <b>+ Día</b> para agregar el primero.</p>
         </div>
       </div>
     </div>
@@ -508,19 +567,77 @@
     </div>
   </section>
 
-  <!-- ============ TRAIN (placeholder Parte 4) ============ -->
-  <section id="screen-train" class="screen">
+  <!-- ============ DAY DETAIL ============ -->
+  <section id="screen-day-detail" class="screen">
+    <div class="header-row">
+      <button class="back-btn" data-action="back-to-routine-detail">←</button>
+      <button class="ghost-btn" data-action="add-exercise">+ Ejercicio</button>
+    </div>
+
+    <div style="margin-bottom: 18px;">
+      <div class="eyebrow" id="dd-routine-name">—</div>
+      <h1 id="dd-day-name">—</h1>
+    </div>
+
+    <div id="dd-exercises"></div>
+
+    <div class="section" style="display: grid; gap: 8px; margin-top: 24px;">
+      <button class="ghost-btn full" data-action="rename-day">Renombrar día</button>
+      <button class="ghost-btn full danger" data-action="delete-day">Borrar día</button>
+    </div>
+  </section>
+
+  <!-- ============ TRAIN PICK ============ -->
+  <section id="screen-train-pick" class="screen">
     <div class="header-row">
       <div>
         <div class="eyebrow">Entrenamiento</div>
-        <h1>Entrenar</h1>
+        <h1>Empezar</h1>
+      </div>
+      <div class="unit-toggle" aria-label="Unidades">
+        <button type="button" data-action="set-units" data-unit="kg">kg</button>
+        <button type="button" data-action="set-units" data-unit="lb">lb</button>
       </div>
     </div>
-    <div class="empty-state">
-      <div class="emoji">🏋️</div>
-      <h3>Disponible en Parte 4</h3>
-      <p class="muted">Necesitamos primero crear rutinas, días y ejercicios.</p>
+
+    <div class="train-pick-card">
+      <label class="field-label">Fecha</label>
+      <input id="tp-date" type="date" />
     </div>
+
+    <div class="train-pick-card">
+      <label class="field-label">Rutina</label>
+      <select id="tp-routine"></select>
+    </div>
+
+    <div class="section">
+      <div class="header-row">
+        <h2 style="margin:0;">Elegí el día</h2>
+        <button class="ghost-btn" data-action="refresh-train-pick">Actualizar</button>
+      </div>
+      <div id="tp-days">
+        <div class="skeleton" style="height: 120px;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TRAIN ============ -->
+  <section id="screen-train" class="screen">
+    <div class="header-row">
+      <div>
+        <div class="eyebrow" id="train-meta">Entrenamiento</div>
+        <h1 id="train-day-name">—</h1>
+      </div>
+      <button class="ghost-btn" data-action="change-train-day">Cambiar</button>
+    </div>
+
+    <div class="card">
+      <label class="field-label">Peso corporal (opcional)</label>
+      <input id="train-bodyweight" type="number" step="0.1" placeholder="ej. 82.5" />
+    </div>
+
+    <div id="train-exercises"></div>
+    <button class="primary-btn full floating-save" data-action="save-session">Guardar sesión</button>
   </section>
 
   <!-- ============ SUMMARY (placeholder Parte 5) ============ -->
@@ -554,7 +671,7 @@
 
 </div>
 
-<nav class="bottom-nav hidden" id="bottom-nav">
+<nav class="bottom-nav">
   <button class="nav-btn active" data-go="home">Home</button>
   <button class="nav-btn" data-go="routines">Rutinas</button>
   <button class="nav-btn" data-go="train">Entrenar</button>
@@ -567,69 +684,52 @@
 
 <script>
 // ============================================================
-// CONFIG: API URL guardada en localStorage
+// API WRAPPER — GitHub Pages frontend + Apps Script backend
 // ============================================================
-const CFG_KEY = 'gymtracker:api-url';
-const UNITS_KEY = 'gymtracker:units';
+const backend = {
+  KEY: 'gymtracker:backend-url',
+  get url() { return localStorage.getItem(this.KEY) || ''; },
+  set(url) { localStorage.setItem(this.KEY, normalizeBackendUrl(url)); },
+};
 
-function getApiUrl() { return localStorage.getItem(CFG_KEY) || ''; }
-function setApiUrl(u) { localStorage.setItem(CFG_KEY, u); }
-function clearApiUrl() { localStorage.removeItem(CFG_KEY); }
+function normalizeBackendUrl(url) {
+  return (url || '').toString().trim().replace(/\/+$/, '');
+}
 
-// ============================================================
-// API: fetch a Apps Script con POST text/plain (sin preflight CORS)
-// ============================================================
-const api = new Proxy({}, {
-  get(_, action) {
-    return async (payload) => {
-      const url = getApiUrl();
-      if (!url) throw new Error('No hay URL configurada.');
+const gas = new Proxy({}, {
+  get(_, fnName) {
+    return async (...args) => {
+      const url = backend.url;
+      if (!url) throw new Error('Falta configurar la URL del backend.');
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action, payload: payload || {} }),
-        redirect: 'follow',
+        body: JSON.stringify({ fn: fnName, args }),
       });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      let json;
-      try { json = await res.json(); }
-      catch (err) { throw new Error('Respuesta no JSON. ¿La URL es correcta y el script esta deployado?'); }
-      if (!json.ok) throw new Error(json.error || 'Error desconocido');
-      return json.data;
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (err) {
+        throw new Error('Respuesta inválida del backend. Revisá que la URL termine en /exec.');
+      }
+      if (!data.ok) throw new Error(data.error || 'Error del backend.');
+      return data.result;
     };
   }
 });
 
 // ============================================================
-// UNITS (kg / lb) — toggle persistido
-// ============================================================
-const units = {
-  get current() { return localStorage.getItem(UNITS_KEY) || 'kg'; },
-  set(u) { localStorage.setItem(UNITS_KEY, u); },
-  KG_TO_LB: 2.2046226218,
-  toDisplay(kg) {
-    if (kg == null || kg === '') return '';
-    const n = Number(kg);
-    if (this.current === 'lb') return Math.round(n * this.KG_TO_LB * 2) / 2;
-    return n;
-  },
-  fromInput(val) {
-    if (val == null || val === '') return null;
-    const n = Number(val);
-    if (this.current === 'lb') return Math.round((n / this.KG_TO_LB) * 100) / 100;
-    return n;
-  },
-  label() { return this.current; },
-};
-
-// ============================================================
 // STATE
 // ============================================================
 const state = {
-  currentScreen: null,
+  currentScreen: 'home',
   screenParams: {},
   routines: [],
   currentRoutine: null,
+  currentDay: null,
+  trainDraft: null,
+  lastSetsByExercise: {},
 };
 
 // ============================================================
@@ -655,6 +755,7 @@ async function withLoader(promise) {
   finally { hideLoader(); }
 }
 
+// Modal manager
 const modal = {
   open({ title, bodyHtml, actions }) {
     const root = $('#modal-root');
@@ -684,7 +785,9 @@ const modal = {
     });
     return root;
   },
-  close() { $('#modal-root').innerHTML = ''; }
+  close() {
+    $('#modal-root').innerHTML = '';
+  }
 };
 
 function promptModal({ title, label, initial, placeholder, confirmText, danger }) {
@@ -730,12 +833,39 @@ function escapeHtml(s) {
     .replace(/'/g, '&#39;');
 }
 
+// ============================================================
+// FORMATTERS / UNITS (toggle kg/lb persistido en localStorage)
+// ============================================================
+const units = {
+  KEY: 'gymtracker:units',
+  get current() { return localStorage.getItem(this.KEY) || 'kg'; },
+  set(u) { localStorage.setItem(this.KEY, u); },
+  KG_TO_LB: 2.2046226218,
+  toDisplay(kg) {
+    if (kg == null || kg === '') return '';
+    const n = Number(kg);
+    if (this.current === 'lb') return Math.round(n * this.KG_TO_LB * 2) / 2;
+    return n;
+  },
+  fromInput(val) {
+    if (val == null || val === '') return null;
+    const n = Number(val);
+    if (this.current === 'lb') return Math.round((n / this.KG_TO_LB) * 100) / 100;
+    return n;
+  },
+  label() { return this.current; },
+};
+
 function formatDateLong(iso) {
   if (!iso) return '';
   const d = new Date(iso + (iso.length === 10 ? 'T12:00:00' : ''));
   const days = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
   const months = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
   return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
+}
+
+function todayInputValue() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 // ============================================================
@@ -753,22 +883,18 @@ function goTo(screenId, params) {
   const target = $('#screen-' + screenId);
   if (target) target.classList.add('active');
 
+  // Bottom nav highlight (mapeo screens hijas a su tab parent)
   const navMap = {
+    setup: 'home',
     home: 'home',
     routines: 'routines',
     'routine-detail': 'routines',
+    'day-detail': 'routines',
+    'train-pick': 'train',
     train: 'train',
     summary: 'train',
     progress: 'progress',
   };
-  const nav = $('#bottom-nav');
-  if (screenId === 'setup') {
-    nav.classList.add('hidden');
-    $('#app').classList.add('no-nav');
-  } else {
-    nav.classList.remove('hidden');
-    $('#app').classList.remove('no-nav');
-  }
   $$('.nav-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.go === navMap[screenId]);
   });
@@ -780,93 +906,33 @@ function goTo(screenId, params) {
 }
 
 // ============================================================
-// SETUP screen
+// HOME (placeholder hasta Parte 6)
 // ============================================================
 registerScreen('setup', {
   onEnter() {
-    const existing = getApiUrl();
-    if (existing) $('#setup-url').value = existing;
+    $('#setup-backend-url').value = backend.url;
   }
 });
 
-async function handleSaveSetup() {
-  const raw = ($('#setup-url').value || '').trim();
-  if (!raw) { toast('Pegá la URL primero', 'error'); return; }
-  if (!/^https:\/\/script\.google\.com\//i.test(raw)) {
-    toast('La URL debe empezar con https://script.google.com/', 'error');
-    return;
-  }
-  if (!/\/exec(\?|$)/.test(raw)) {
-    toast('Falta /exec al final de la URL', 'error');
-    return;
-  }
-  setApiUrl(raw);
-  try {
-    await withLoader(api.ping());
-    toast('Conectado', 'success');
-    goTo('home');
-  } catch (err) {
-    clearApiUrl();
-    toast(err.message || 'No conecta', 'error');
-  }
-}
-
-// ============================================================
-// SETTINGS modal (avatar tap)
-// ============================================================
-function openSettings() {
-  const url = getApiUrl();
-  modal.open({
-    title: 'Ajustes',
-    bodyHtml: `
-      <label class="field-label">URL del backend</label>
-      <div class="url-display">${escapeHtml(url || '(no configurada)')}</div>
-      <label class="field-label">Unidades</label>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px;">
-        <button class="${units.current === 'kg' ? 'primary-btn' : 'ghost-btn'} full" data-units="kg">kg</button>
-        <button class="${units.current === 'lb' ? 'primary-btn' : 'ghost-btn'} full" data-units="lb">lb</button>
-      </div>
-    `,
-    actions: [
-      { label: 'Cambiar URL', onClick: () => { modal.close(); changeApiUrl(); } },
-      { label: 'Cerrar', kind: 'primary', onClick: () => modal.close() },
-    ]
-  });
-  $$('[data-units]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      units.set(btn.dataset.units);
-      modal.close();
-      toast('Unidad: ' + btn.dataset.units, 'success');
-    });
-  });
-}
-
-async function changeApiUrl() {
-  const newUrl = await promptModal({
-    title: 'Cambiar URL del backend',
-    label: 'Nueva URL',
-    initial: getApiUrl(),
-    placeholder: 'https://script.google.com/macros/s/.../exec',
-    confirmText: 'Guardar',
-  });
-  if (!newUrl) return;
-  setApiUrl(newUrl);
-  try {
-    await withLoader(api.ping());
-    toast('Conectado', 'success');
-  } catch (err) {
-    toast(err.message || 'No conecta', 'error');
-  }
-}
-
-// ============================================================
-// HOME (placeholder hasta Parte 6)
-// ============================================================
 registerScreen('home', {
   onEnter() {
     $('#home-date').textContent = formatDateLong(new Date().toISOString().slice(0, 10));
   }
 });
+
+async function handleSaveBackendUrl() {
+  const input = $('#setup-backend-url');
+  const url = normalizeBackendUrl(input.value);
+  if (!url) { toast('Pegá la URL /exec', 'error'); return; }
+  backend.set(url);
+  try {
+    await withLoader(gas.ping());
+    toast('Backend conectado', 'success');
+    goTo('home');
+  } catch (err) {
+    toast(err.message || 'No se pudo conectar', 'error');
+  }
+}
 
 // ============================================================
 // ROUTINES — list, create
@@ -884,7 +950,7 @@ async function loadRoutines() {
     <div class="skeleton" style="height: 120px;"></div>
   `;
   try {
-    const routines = await api.listRoutines();
+    const routines = await gas.listRoutines();
     state.routines = routines;
     renderRoutines(routines);
   } catch (err) {
@@ -925,6 +991,30 @@ function renderRoutines(routines) {
   });
 }
 
+function renderDays(days) {
+  const el = $('#rd-days');
+  if (!days || days.length === 0) {
+    el.innerHTML = `
+      <div class="empty-state">
+        <div class="emoji">🗓️</div>
+        <h3>Sin días todavía</h3>
+        <p class="muted">Tocá <b>+ Día</b> para agregar el primero.</p>
+      </div>
+    `;
+    return;
+  }
+  el.innerHTML = `
+    <div class="day-grid">
+      ${days.map(d => `
+        <div class="day-card" data-action="open-day" data-day-id="${escapeHtml(d.day_id)}">
+          <h3 style="margin-bottom:4px;">${escapeHtml(d.day_name)}</h3>
+          <p class="muted-sm">${d.exercises.length} ejercicio${d.exercises.length === 1 ? '' : 's'}</p>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
 async function handleNewRoutine() {
   const name = await promptModal({
     title: 'Nueva rutina',
@@ -934,7 +1024,7 @@ async function handleNewRoutine() {
   });
   if (!name) return;
   try {
-    await withLoader(api.createRoutine({ name }));
+    await withLoader(gas.createRoutine(name));
     toast('Rutina creada', 'success');
     await loadRoutines();
   } catch (err) {
@@ -957,11 +1047,12 @@ async function loadRoutineDetail(routine_id) {
   $('#rd-name').textContent = '—';
   $('#rd-active-pill').style.display = 'none';
   try {
-    const r = await api.getRoutine({ routine_id });
+    const r = await gas.getRoutine(routine_id);
     state.currentRoutine = r;
     $('#rd-name').textContent = r.routine_name;
     $('#rd-active-pill').style.display = r.is_active ? 'inline-flex' : 'none';
     $('#rd-activate-btn').style.display = r.is_active ? 'none' : 'block';
+    renderDays(r.days);
   } catch (err) {
     toast(err.message || 'Error al cargar rutina', 'error');
     goTo('routines');
@@ -979,7 +1070,7 @@ async function handleRenameRoutine() {
   });
   if (!newName || newName === r.routine_name) return;
   try {
-    await withLoader(api.renameRoutine({ routine_id: r.routine_id, new_name: newName }));
+    await withLoader(gas.renameRoutine(r.routine_id, newName));
     toast('Renombrada', 'success');
     await loadRoutineDetail(r.routine_id);
   } catch (err) {
@@ -991,7 +1082,7 @@ async function handleActivateRoutine() {
   const r = state.currentRoutine;
   if (!r) return;
   try {
-    await withLoader(api.setActiveRoutine({ routine_id: r.routine_id }));
+    await withLoader(gas.setActiveRoutine(r.routine_id));
     toast('Rutina activada', 'success');
     await loadRoutineDetail(r.routine_id);
   } catch (err) {
@@ -1010,7 +1101,7 @@ async function handleDeleteRoutine() {
   });
   if (!ok) return;
   try {
-    await withLoader(api.deleteRoutine({ routine_id: r.routine_id }));
+    await withLoader(gas.deleteRoutine(r.routine_id));
     toast('Rutina borrada', 'success');
     state.currentRoutine = null;
     goTo('routines');
@@ -1020,32 +1111,586 @@ async function handleDeleteRoutine() {
 }
 
 // ============================================================
-// EVENT WIRING (delegacion)
+// DAY DETAIL — Parte 3
+// ============================================================
+registerScreen('day-detail', {
+  onEnter(params) {
+    const r = state.currentRoutine;
+    const day_id = params && params.day_id;
+    if (!r || !day_id) { goTo('routines'); return; }
+    const day = r.days.find(d => d.day_id === day_id);
+    if (!day) { goTo('routine-detail', { routine_id: r.routine_id }); return; }
+    state.currentDay = day;
+    renderDayDetail(day, r);
+  }
+});
+
+function renderDayDetail(day, routine) {
+  $('#dd-routine-name').textContent = routine.routine_name;
+  $('#dd-day-name').textContent = day.day_name;
+  renderExercises(day.exercises);
+}
+
+function renderExercises(exercises) {
+  const el = $('#dd-exercises');
+  if (!exercises || exercises.length === 0) {
+    el.innerHTML = `
+      <div class="empty-state">
+        <div class="emoji">🏋️</div>
+        <h3>Sin ejercicios</h3>
+        <p class="muted">Tocá <b>+ Ejercicio</b> para agregar el primero.</p>
+      </div>
+    `;
+    return;
+  }
+  el.innerHTML = exercises.map(e => `
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-row" style="align-items:flex-start;">
+        <div style="flex:1;min-width:0;">
+          <h3 style="margin-bottom:4px;word-break:break-word;">${escapeHtml(e.exercise_name)}</h3>
+          <p class="muted" style="font-size:12px;">${e.target_sets} series · ${e.target_reps_min}–${e.target_reps_max} reps${e.suggested_weight != null && e.suggested_weight !== '' ? ' · ' + units.toDisplay(e.suggested_weight) + ' ' + units.label() : ''}</p>
+          ${e.technique_note ? `<p class="muted-sm" style="margin-top:4px;">${escapeHtml(e.technique_note)}</p>` : ''}
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px;">
+          <button class="ghost-btn" data-action="edit-exercise" data-rex-id="${escapeHtml(e.routine_exercise_id)}" style="padding:8px 10px;font-size:13px;">Editar</button>
+          <button class="ghost-btn danger" data-action="delete-exercise" data-rex-id="${escapeHtml(e.routine_exercise_id)}" style="padding:8px 10px;font-size:13px;">✕</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function handleAddDay() {
+  const r = state.currentRoutine;
+  if (!r) return;
+  const name = await promptModal({
+    title: 'Nuevo día',
+    label: 'Nombre del día',
+    placeholder: 'Push 1',
+    confirmText: 'Crear',
+  });
+  if (!name) return;
+  try {
+    const updated = await withLoader(gas.addDay({ routine_id: r.routine_id, day_name: name }));
+    state.currentRoutine = updated;
+    renderDays(updated.days);
+    toast('Día agregado', 'success');
+  } catch (err) {
+    toast(err.message || 'Error al agregar día', 'error');
+  }
+}
+
+async function handleRenameDay() {
+  const day = state.currentDay;
+  if (!day) return;
+  const newName = await promptModal({
+    title: 'Renombrar día',
+    label: 'Nombre',
+    initial: day.day_name,
+    confirmText: 'Guardar',
+  });
+  if (!newName || newName === day.day_name) return;
+  try {
+    const updated = await withLoader(gas.renameDay({ day_id: day.day_id, new_name: newName }));
+    state.currentRoutine = updated;
+    const updatedDay = updated.days.find(d => d.day_id === day.day_id);
+    if (updatedDay) { state.currentDay = updatedDay; $('#dd-day-name').textContent = updatedDay.day_name; }
+    toast('Día renombrado', 'success');
+  } catch (err) {
+    toast(err.message || 'Error al renombrar', 'error');
+  }
+}
+
+async function handleDeleteDay() {
+  const day = state.currentDay;
+  const r   = state.currentRoutine;
+  if (!day || !r) return;
+  const ok = await confirmModal({
+    title: 'Borrar día',
+    message: `Vas a borrar "${day.day_name}" con todos sus ejercicios. Las sesiones quedan intactas. ¿Seguro?`,
+    confirmText: 'Borrar',
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    const updated = await withLoader(gas.deleteDay({ day_id: day.day_id }));
+    state.currentRoutine = updated;
+    state.currentDay = null;
+    toast('Día borrado', 'success');
+    goTo('routine-detail', { routine_id: r.routine_id });
+  } catch (err) {
+    toast(err.message || 'Error al borrar', 'error');
+  }
+}
+
+function exerciseModal({ title, initial }) {
+  initial = initial || {};
+  const v = Object.assign({ target_sets: 4, target_reps_min: 8, target_reps_max: 12 }, initial);
+  return new Promise((resolve) => {
+    modal.open({
+      title,
+      bodyHtml: `
+        <div style="display:grid;gap:12px;">
+          <div>
+            <label class="field-label">Ejercicio</label>
+            <input id="ex-name" type="text" value="${escapeHtml(v.exercise_name || '')}" placeholder="Press plano" maxlength="100" />
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+            <div>
+              <label class="field-label">Series</label>
+              <input id="ex-sets" type="number" value="${escapeHtml(v.target_sets)}" min="1" max="20" />
+            </div>
+            <div>
+              <label class="field-label">Reps mín</label>
+              <input id="ex-rmin" type="number" value="${escapeHtml(v.target_reps_min)}" min="1" max="100" />
+            </div>
+            <div>
+              <label class="field-label">Reps máx</label>
+              <input id="ex-rmax" type="number" value="${escapeHtml(v.target_reps_max)}" min="1" max="100" />
+            </div>
+          </div>
+          <div>
+            <label class="field-label">Peso sugerido (${units.label()}, opcional)</label>
+            <input id="ex-weight" type="number" step="0.5" value="${escapeHtml(v.suggested_weight != null && v.suggested_weight !== '' ? units.toDisplay(v.suggested_weight) : '')}" placeholder="ej. 70" min="0" />
+          </div>
+          <div>
+            <label class="field-label">Nota técnica (opcional)</label>
+            <textarea id="ex-note">${escapeHtml(v.technique_note || '')}</textarea>
+          </div>
+        </div>
+      `,
+      actions: [
+        {
+          label: initial.exercise_name ? 'Guardar cambios' : 'Agregar',
+          kind: 'primary',
+          onClick: () => {
+            const name = ($('#ex-name').value || '').trim();
+            const sets = parseInt($('#ex-sets').value, 10);
+            const rmin = parseInt($('#ex-rmin').value, 10);
+            const rmax = parseInt($('#ex-rmax').value, 10);
+            const wRaw = ($('#ex-weight').value || '').trim();
+            const weight = wRaw !== '' ? units.fromInput(Number(wRaw)) : null;
+            const note  = ($('#ex-note').value || '').trim();
+            if (!name) { toast('El nombre es obligatorio', 'error'); return; }
+            if (isNaN(sets) || sets < 1 || sets > 20) { toast('Series: 1-20', 'error'); return; }
+            if (isNaN(rmin) || rmin < 1 || rmin > 100) { toast('Reps mín: 1-100', 'error'); return; }
+            if (isNaN(rmax) || rmax < 1 || rmax > 100) { toast('Reps máx: 1-100', 'error'); return; }
+            if (rmin > rmax) { toast('Reps mín ≤ reps máx', 'error'); return; }
+            if (wRaw !== '' && (weight === null || isNaN(weight) || weight < 0)) { toast('Peso inválido', 'error'); return; }
+            modal.close();
+            resolve({
+              exercise_name:    name,
+              target_sets:      sets,
+              target_reps_min:  rmin,
+              target_reps_max:  rmax,
+              suggested_weight: wRaw !== '' ? weight : '',
+              technique_note:   note,
+            });
+          }
+        },
+        { label: 'Cancelar', onClick: () => { modal.close(); resolve(null); } }
+      ]
+    });
+    setTimeout(() => { const i = $('#ex-name'); if (i) i.focus(); }, 50);
+  });
+}
+
+async function handleAddExercise() {
+  const day = state.currentDay;
+  if (!day) return;
+  const data = await exerciseModal({ title: 'Nuevo ejercicio' });
+  if (!data) return;
+  try {
+    const updated = await withLoader(gas.addExercise(Object.assign({ day_id: day.day_id }, data)));
+    state.currentRoutine = updated;
+    const updatedDay = updated.days.find(d => d.day_id === day.day_id);
+    if (updatedDay) { state.currentDay = updatedDay; renderExercises(updatedDay.exercises); }
+    toast('Ejercicio agregado', 'success');
+  } catch (err) {
+    toast(err.message || 'Error al agregar', 'error');
+  }
+}
+
+async function handleEditExercise(rex_id) {
+  const day = state.currentDay;
+  if (!day) return;
+  const ex = day.exercises.find(e => e.routine_exercise_id === rex_id);
+  if (!ex) return;
+  const data = await exerciseModal({ title: 'Editar ejercicio', initial: ex });
+  if (!data) return;
+  try {
+    const updated = await withLoader(gas.updateExercise(Object.assign({ routine_exercise_id: rex_id }, data)));
+    state.currentRoutine = updated;
+    const updatedDay = updated.days.find(d => d.day_id === day.day_id);
+    if (updatedDay) { state.currentDay = updatedDay; renderExercises(updatedDay.exercises); }
+    toast('Ejercicio actualizado', 'success');
+  } catch (err) {
+    toast(err.message || 'Error al actualizar', 'error');
+  }
+}
+
+async function handleDeleteExercise(rex_id) {
+  const day = state.currentDay;
+  if (!day) return;
+  const ex = day.exercises.find(e => e.routine_exercise_id === rex_id);
+  if (!ex) return;
+  const ok = await confirmModal({
+    title: 'Borrar ejercicio',
+    message: `Vas a borrar "${ex.exercise_name}". Las series guardadas en sesiones anteriores se mantienen. ¿Seguro?`,
+    confirmText: 'Borrar',
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    const updated = await withLoader(gas.deleteExercise({ routine_exercise_id: rex_id }));
+    state.currentRoutine = updated;
+    const updatedDay = updated.days.find(d => d.day_id === day.day_id);
+    if (updatedDay) { state.currentDay = updatedDay; renderExercises(updatedDay.exercises); }
+    toast('Ejercicio borrado', 'success');
+  } catch (err) {
+    toast(err.message || 'Error al borrar', 'error');
+  }
+}
+
+// ============================================================
+// TRAIN — Parte 4
+// ============================================================
+registerScreen('train-pick', {
+  async onEnter() {
+    await loadTrainPick();
+  }
+});
+
+registerScreen('train', {
+  async onEnter(params) {
+    const routine_id = params && params.routine_id;
+    const day_id = params && params.day_id;
+    const date = params && params.date;
+    if (!routine_id || !day_id || !date) { goTo('train-pick'); return; }
+    await startTraining({ routine_id, day_id, date });
+  }
+});
+
+async function loadTrainPick() {
+  const dateEl = $('#tp-date');
+  if (!dateEl.value) dateEl.value = todayInputValue();
+  renderUnitToggle();
+  $('#tp-days').innerHTML = `<div class="skeleton" style="height: 120px;"></div>`;
+
+  try {
+    const routines = await gas.listRoutines();
+    state.routines = routines;
+    if (!routines.length) {
+      $('#tp-routine').innerHTML = '';
+      $('#tp-days').innerHTML = `
+        <div class="empty-state">
+          <div class="emoji">🏋️</div>
+          <h3>Primero creá una rutina</h3>
+          <p class="muted">Armá tus días y ejercicios desde Rutinas para poder entrenar.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const active = routines.find(r => r.is_active) || routines[0];
+    const currentValue = $('#tp-routine').value || active.routine_id;
+    $('#tp-routine').innerHTML = routines.map(r => `
+      <option value="${escapeHtml(r.routine_id)}" ${r.routine_id === currentValue ? 'selected' : ''}>${escapeHtml(r.routine_name)}${r.is_active ? ' · activa' : ''}</option>
+    `).join('');
+    await loadTrainRoutine($('#tp-routine').value || active.routine_id);
+  } catch (err) {
+    $('#tp-days').innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
+    toast('No se pudo preparar entrenamiento', 'error');
+  }
+}
+
+async function loadTrainRoutine(routine_id) {
+  if (!routine_id) return;
+  try {
+    const routine = await gas.getRoutine(routine_id);
+    state.currentRoutine = routine;
+    renderTrainDays(routine.days || []);
+  } catch (err) {
+    $('#tp-days').innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function renderTrainDays(days) {
+  const el = $('#tp-days');
+  if (!days.length) {
+    el.innerHTML = `
+      <div class="empty-state">
+        <div class="emoji">🗓️</div>
+        <h3>Esta rutina no tiene días</h3>
+        <p class="muted">Agregá días y ejercicios desde Rutinas.</p>
+      </div>
+    `;
+    return;
+  }
+  el.innerHTML = `
+    <div class="day-grid">
+      ${days.map(d => `
+        <div class="day-card" data-action="start-train-day" data-day-id="${escapeHtml(d.day_id)}">
+          <h3 style="margin-bottom:4px;">${escapeHtml(d.day_name)}</h3>
+          <p class="muted-sm">${d.exercises.length} ejercicio${d.exercises.length === 1 ? '' : 's'}</p>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+async function startTraining({ routine_id, day_id, date }) {
+  try {
+    let routine = state.currentRoutine;
+    if (!routine || routine.routine_id !== routine_id) routine = await gas.getRoutine(routine_id);
+    state.currentRoutine = routine;
+    const day = routine.days.find(d => d.day_id === day_id);
+    if (!day) throw new Error('Día no encontrado en esta rutina.');
+    state.currentDay = day;
+    state.lastSetsByExercise = await gas.getLastSessionForDay({ day_id, date });
+
+    $('#train-day-name').textContent = day.day_name;
+    $('#train-meta').textContent = `${routine.routine_name} · ${formatDateLong(date)}`;
+    $('#train-bodyweight').value = '';
+    renderTrainExercises(day.exercises || []);
+
+    const draft = loadSessionDraft(day_id, date);
+    if (draft) {
+      restoreTrainDraft(draft);
+      toast('Continuando sesión', 'success');
+    }
+    bindTrainAutosave(day_id, date);
+  } catch (err) {
+    toast(err.message || 'No se pudo iniciar', 'error');
+    goTo('train-pick');
+  }
+}
+
+function renderTrainExercises(exercises) {
+  const el = $('#train-exercises');
+  if (!exercises.length) {
+    el.innerHTML = `
+      <div class="empty-state">
+        <div class="emoji">🏋️</div>
+        <h3>Sin ejercicios</h3>
+        <p class="muted">Agregá ejercicios a este día antes de entrenar.</p>
+      </div>
+    `;
+    return;
+  }
+
+  el.innerHTML = exercises.map(ex => {
+    const last = state.lastSetsByExercise[ex.routine_exercise_id];
+    const lastChips = last && last.sets && last.sets.length
+      ? `
+        <p class="muted" style="margin-top:14px;">Última vez · ${formatDateLong(last.date)}</p>
+        <div class="last-set-row">
+          ${last.sets.map(s => `<span class="set-chip">${formatSetChip(s)}</span>`).join('')}
+        </div>
+      `
+      : `<p class="muted" style="margin-top:14px;margin-bottom:14px;">Sin datos previos</p>`;
+    const setRows = Array.from({ length: Number(ex.target_sets || 1) }, (_, i) => renderSetRow(ex, i + 1)).join('');
+    return `
+      <div class="exercise-card" data-train-exercise="${escapeHtml(ex.routine_exercise_id)}">
+        <div class="card-row" style="align-items:flex-start;">
+          <div style="flex:1;min-width:0;">
+            <h3 style="word-break:break-word;">${escapeHtml(ex.exercise_name)}</h3>
+            <p class="muted">${ex.target_sets} series · ${ex.target_reps_min}-${ex.target_reps_max} reps</p>
+          </div>
+          ${ex.suggested_weight != null && ex.suggested_weight !== '' ? `<span class="pill accent">${units.toDisplay(ex.suggested_weight)} ${units.label()}</span>` : ''}
+        </div>
+        ${ex.technique_note ? `<p class="muted-sm" style="margin-top:8px;">${escapeHtml(ex.technique_note)}</p>` : ''}
+        ${lastChips}
+        <p class="muted">Hoy</p>
+        <div data-set-list>${setRows}</div>
+        <button class="ghost-btn full" data-action="add-train-set" data-rex-id="${escapeHtml(ex.routine_exercise_id)}" style="margin-top:10px;">+ serie</button>
+        <div style="margin-top:12px;">
+          <label class="field-label">Nota (opcional)</label>
+          <textarea data-train-note="${escapeHtml(ex.routine_exercise_id)}" placeholder="Sensaciones, técnica, molestias..."></textarea>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderSetRow(ex, setNumber) {
+  const suggested = ex.suggested_weight != null && ex.suggested_weight !== '' ? units.toDisplay(ex.suggested_weight) : '';
+  return `
+    <div class="input-grid" data-set-row data-rex-id="${escapeHtml(ex.routine_exercise_id)}" data-set-number="${setNumber}">
+      <div class="set-number">${setNumber}</div>
+      <input type="number" step="0.5" inputmode="decimal" data-field="weight" placeholder="${units.label()}" value="${escapeHtml(suggested)}" />
+      <input type="number" step="1" inputmode="numeric" data-field="reps" placeholder="reps" />
+      <input type="number" step="1" inputmode="numeric" data-field="rir" placeholder="RIR" />
+    </div>
+  `;
+}
+
+function formatSetChip(set) {
+  const weight = set.weight == null ? '-' : `${units.toDisplay(set.weight)}`;
+  const reps = set.reps == null ? '-' : set.reps;
+  const rir = set.rir == null ? '' : ` · RIR ${set.rir}`;
+  return `${weight} ${units.label()} × ${reps}${rir}`;
+}
+
+function draftKey(day_id, date) {
+  return `gymtracker:session-draft:${day_id}:${date}`;
+}
+
+function collectTrainDraft() {
+  const exercises = {};
+  $$('[data-train-exercise]').forEach(card => {
+    const rexId = card.dataset.trainExercise;
+    exercises[rexId] = {
+      note: ($(`[data-train-note="${rexId}"]`) || {}).value || '',
+      sets: $$(`[data-set-row][data-rex-id="${rexId}"]`).map(row => ({
+        set_number: Number(row.dataset.setNumber),
+        weight: ($('[data-field="weight"]', row).value || '').trim(),
+        reps: ($('[data-field="reps"]', row).value || '').trim(),
+        rir: ($('[data-field="rir"]', row).value || '').trim(),
+      }))
+    };
+  });
+  return {
+    bodyweight: ($('#train-bodyweight').value || '').trim(),
+    exercises,
+    saved_at: new Date().toISOString(),
+  };
+}
+
+function saveSessionDraft(day_id, date) {
+  localStorage.setItem(draftKey(day_id, date), JSON.stringify(collectTrainDraft()));
+}
+
+function loadSessionDraft(day_id, date) {
+  const raw = localStorage.getItem(draftKey(day_id, date));
+  if (!raw) return null;
+  try { return JSON.parse(raw); }
+  catch (_) { return null; }
+}
+
+function restoreTrainDraft(draft) {
+  $('#train-bodyweight').value = draft.bodyweight || '';
+  Object.keys(draft.exercises || {}).forEach(rexId => {
+    const exDraft = draft.exercises[rexId];
+    const card = $(`[data-train-exercise="${rexId}"]`);
+    if (!card) return;
+    const rows = $$(`[data-set-row][data-rex-id="${rexId}"]`);
+    while (rows.length < (exDraft.sets || []).length) {
+      addTrainSet(rexId, false);
+      rows.push($$(`[data-set-row][data-rex-id="${rexId}"]`).slice(-1)[0]);
+    }
+    (exDraft.sets || []).forEach((set, i) => {
+      const row = $$(`[data-set-row][data-rex-id="${rexId}"]`)[i];
+      if (!row) return;
+      $('[data-field="weight"]', row).value = set.weight || '';
+      $('[data-field="reps"]', row).value = set.reps || '';
+      $('[data-field="rir"]', row).value = set.rir || '';
+    });
+    const note = $(`[data-train-note="${rexId}"]`);
+    if (note) note.value = exDraft.note || '';
+  });
+}
+
+function bindTrainAutosave(day_id, date) {
+  clearTimeout(bindTrainAutosave._t);
+  const root = $('#screen-train');
+  root.oninput = () => {
+    clearTimeout(bindTrainAutosave._t);
+    bindTrainAutosave._t = setTimeout(() => saveSessionDraft(day_id, date), 350);
+  };
+}
+
+function addTrainSet(rexId, persist) {
+  const day = state.currentDay;
+  if (!day) return;
+  const ex = day.exercises.find(e => e.routine_exercise_id === rexId);
+  const card = $(`[data-train-exercise="${rexId}"]`);
+  const list = card && $('[data-set-list]', card);
+  if (!ex || !list) return;
+  const next = $$(`[data-set-row][data-rex-id="${rexId}"]`).length + 1;
+  list.insertAdjacentHTML('beforeend', renderSetRow(ex, next));
+  if (persist !== false && state.screenParams.day_id && state.screenParams.date) {
+    saveSessionDraft(state.screenParams.day_id, state.screenParams.date);
+  }
+}
+
+function renderUnitToggle() {
+  $$('[data-action="set-units"]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.unit === units.current);
+  });
+}
+
+function handleSaveSessionPlaceholder() {
+  saveSessionDraft(state.screenParams.day_id, state.screenParams.date);
+  toast('Sesión guardada como borrador. Guardado real llega en Parte 5.', 'success');
+}
+
+// ============================================================
+// EVENT WIRING (delegación)
 // ============================================================
 document.addEventListener('click', (e) => {
   const t = e.target.closest('[data-action], [data-go]');
   if (!t) return;
 
-  if (t.dataset.go) { goTo(t.dataset.go); return; }
+  if (t.dataset.go) {
+    goTo(t.dataset.go);
+    return;
+  }
 
   const action = t.dataset.action;
   switch (action) {
-    case 'save-setup': handleSaveSetup(); break;
-    case 'open-settings': openSettings(); break;
-    case 'go-train': goTo('train'); break;
+    case 'go-train': goTo('train-pick'); break;
+    case 'save-backend-url': handleSaveBackendUrl(); break;
     case 'new-routine': handleNewRoutine(); break;
     case 'back-to-routines': goTo('routines'); break;
     case 'rename-routine': handleRenameRoutine(); break;
     case 'activate-routine': handleActivateRoutine(); break;
     case 'delete-routine': handleDeleteRoutine(); break;
-    case 'add-day': /* Parte 3 */ break;
+    case 'add-day': handleAddDay(); break;
+    case 'open-day': {
+      const r = state.currentRoutine;
+      if (r) {
+        const d = r.days.find(x => x.day_id === t.dataset.dayId);
+        if (d) { state.currentDay = d; goTo('day-detail', { routine_id: r.routine_id, day_id: d.day_id }); }
+      }
+      break;
+    }
+    case 'back-to-routine-detail': {
+      const r = state.currentRoutine;
+      goTo(r ? 'routine-detail' : 'routines', r ? { routine_id: r.routine_id } : {});
+      break;
+    }
+    case 'rename-day': handleRenameDay(); break;
+    case 'delete-day': handleDeleteDay(); break;
+    case 'add-exercise': handleAddExercise(); break;
+    case 'edit-exercise': handleEditExercise(t.dataset.rexId); break;
+    case 'delete-exercise': handleDeleteExercise(t.dataset.rexId); break;
+    case 'refresh-train-pick': loadTrainPick(); break;
+    case 'start-train-day': {
+      const r = state.currentRoutine;
+      const date = $('#tp-date').value || todayInputValue();
+      if (r) goTo('train', { routine_id: r.routine_id, day_id: t.dataset.dayId, date });
+      break;
+    }
+    case 'change-train-day': goTo('train-pick'); break;
+    case 'add-train-set': addTrainSet(t.dataset.rexId); break;
+    case 'save-session': handleSaveSessionPlaceholder(); break;
+    case 'set-units': {
+      if (state.currentScreen === 'train' && state.screenParams.day_id && state.screenParams.date) {
+        saveSessionDraft(state.screenParams.day_id, state.screenParams.date);
+      }
+      units.set(t.dataset.unit);
+      renderUnitToggle();
+      if (state.currentScreen === 'train') goTo('train', state.screenParams);
+      if (state.currentScreen === 'train-pick') loadTrainPick();
+      break;
+    }
   }
 });
 
-// Enter en setup-url envía
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && state.currentScreen === 'setup') {
-    handleSaveSetup();
+document.addEventListener('change', (e) => {
+  if (e.target && e.target.id === 'tp-routine') {
+    loadTrainRoutine(e.target.value);
   }
 });
 
@@ -1054,19 +1699,15 @@ document.addEventListener('keydown', (e) => {
 // ============================================================
 (async function boot() {
   $('#home-date').textContent = formatDateLong(new Date().toISOString().slice(0, 10));
-
-  if (!getApiUrl()) {
+  if (!backend.url) {
     goTo('setup');
     return;
   }
-
-  goTo('home');
-
-  // Verificación silenciosa de conexión
   try {
-    await api.ping();
+    await gas.ping();
   } catch (err) {
-    toast('No conecta con el backend. Tocá el avatar para revisar la URL.', 'error');
+    goTo('setup');
+    toast('No conecta con el backend. Revisá la URL /exec.', 'error');
   }
 })();
 </script>
