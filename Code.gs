@@ -104,6 +104,7 @@ function getApi_() {
     getHomeStats,
     listRecentSessions,
     listSessionDates,
+    listBodyweightHistory,
     listAllExerciseNames,
     listExerciseHistory,
   };
@@ -1163,6 +1164,27 @@ function listSessionDates(params) {
         session_ids: byDate[date].session_ids,
       })),
   };
+}
+
+function listBodyweightHistory(params) {
+  params = params || {};
+  const limit = Math.max(1, Math.min(Number(params.limit || 30), 100));
+  return readAll_(SHEETS.SESSIONS)
+    .filter(s => s.bodyweight !== '' && s.bodyweight !== null && s.bodyweight !== undefined)
+    .map(s => ({
+      session_id: s.session_id,
+      date: normalizeDate_(s.date),
+      created_at: (s.created_at || '').toString(),
+      bodyweight: Number(s.bodyweight),
+    }))
+    .filter(s => !isNaN(s.bodyweight))
+    .sort((a, b) => {
+      const dateCmp = b.date.localeCompare(a.date);
+      if (dateCmp !== 0) return dateCmp;
+      return b.created_at.localeCompare(a.created_at);
+    })
+    .slice(0, limit)
+    .reverse();
 }
 
 function getWeekRange_(isoDate) {

@@ -62,11 +62,11 @@
     - Backend: `listSessionDates({ days })` devuelve fechas, cantidad de sesiones, volumen total y `session_ids`.
     - Base completa; a futuro se puede extender a 3-6 meses con navegación por rango.
 
-12. **Evolución del peso corporal:**
-    - Gráfico de línea con el `bodyweight` registrado en cada sesión a lo largo del tiempo.
-    - Datos ya existen en `Sessions.bodyweight`; solo falta la vista.
-    - Backend: `listBodyweightHistory()` — devuelve `[{ date, bodyweight }]` de sesiones que tienen bodyweight cargado, ordenado por fecha.
-    - Mostrar en una sección de Progreso o como pestaña dentro de la pantalla de Inicio.
+12. ✅ **Evolución del peso corporal:**
+    - Agregada vista `Peso corporal` dentro de `screen-progress`.
+    - Gráfico de línea SVG con el `bodyweight` registrado en cada sesión.
+    - Backend: `listBodyweightHistory({ limit })` devuelve `date`, `bodyweight` y `session_id`.
+    - Muestra último peso, cambio vs anterior, cambio total y registros recientes clickeables.
     - Toggle kg/lb respetado.
 
 13. **Volumen por grupo muscular a lo largo del tiempo:**

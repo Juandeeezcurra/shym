@@ -93,6 +93,7 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
 - Modal de ejercicio tiene autocomplete por `listAllExerciseNames()` e inputs numericos optimizados para iPhone.
 - Analitica sin schema: `calcSetMetrics_` calcula volumen, peso maximo y 1RM estimado Epley. Summary marca PRs automaticos de peso y/o 1RM comparando contra historial previo. Progreso muestra 1RM estimado por sesion.
 - Calendario de actividad base completo: `listSessionDates({ days })` agrupa sesiones por fecha y `screen-history` muestra grilla de 13 semanas con filtro por dia.
+- Peso corporal completo: `listBodyweightHistory({ limit })` usa `Sessions.bodyweight`, y `screen-progress` tiene vista segmentada Ejercicio/Peso corporal con grafico SVG y registros clickeables.
 - Lista de pendientes viva: `docs/pending.md`. Leerla antes de decidir el siguiente bloque.
 
 ## Prioridades Actuales
@@ -102,9 +103,7 @@ Segun `docs/pending.md` actualizado el 2026-05-02:
 1. Primero arreglar UX chica sin schema:
    - definir metricas finales de las cards del Home;
    - evaluar si el Historial necesita filtros por rutina/dia o rangos mas largos.
-2. Despues features de analitica sin schema:
-   - evolucion de peso corporal.
-3. Mas adelante features con schema/migracion:
+2. Mas adelante features con schema/migracion:
    - `muscle_group` en ejercicios;
    - volumen por grupo muscular;
    - calendario semanal por dia de rutina;
