@@ -103,6 +103,7 @@ function getApi_() {
     deleteSession,
     getHomeStats,
     listRecentSessions,
+    listSessionDates,
     listAllExerciseNames,
     listExerciseHistory,
   };
@@ -1119,6 +1120,49 @@ function listRecentSessions(params) {
     readAll_(SHEETS.DAYS),
     limit
   );
+}
+
+function listSessionDates(params) {
+  params = params || {};
+  const daysBack = Math.max(30, Math.min(Number(params.days || 180), 366));
+  const today = todayIso_();
+  const start = addDaysIso_(today, -(daysBack - 1));
+  const sessions = readAll_(SHEETS.SESSIONS)
+    .filter(s => {
+      const d = normalizeDate_(s.date);
+      return d >= start && d <= today;
+    });
+  const sets = readAll_(SHEETS.SETS);
+  const byDate = {};
+
+  sessions.forEach(session => {
+    const date = normalizeDate_(session.date);
+    if (!byDate[date]) {
+      byDate[date] = {
+        date,
+        session_count: 0,
+        total_volume: 0,
+        session_ids: [],
+      };
+    }
+    const sessionSets = sets.filter(set => set.session_id === session.session_id);
+    byDate[date].session_count++;
+    byDate[date].total_volume += calcRawVolume_(sessionSets);
+    byDate[date].session_ids.push(session.session_id);
+  });
+
+  return {
+    start,
+    end: today,
+    days: Object.keys(byDate)
+      .sort()
+      .map(date => ({
+        date,
+        session_count: byDate[date].session_count,
+        total_volume: Math.round(byDate[date].total_volume * 100) / 100,
+        session_ids: byDate[date].session_ids,
+      })),
+  };
 }
 
 function getWeekRange_(isoDate) {

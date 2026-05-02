@@ -406,6 +406,35 @@
     width: 24px;
     height: 24px;
   }
+  .activity-grid {
+    display: grid;
+    grid-template-columns: repeat(13, minmax(0, 1fr));
+    gap: 5px;
+  }
+  .activity-cell {
+    aspect-ratio: 1;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #0b0e11;
+    cursor: pointer;
+    min-width: 0;
+  }
+  .activity-cell.level-1 { background: rgba(255, 90, 42, 0.22); border-color: rgba(255, 90, 42, 0.28); }
+  .activity-cell.level-2 { background: rgba(255, 90, 42, 0.42); border-color: rgba(255, 90, 42, 0.45); }
+  .activity-cell.level-3 { background: rgba(255, 90, 42, 0.68); border-color: rgba(255, 90, 42, 0.7); }
+  .activity-cell.level-4 { background: var(--accent); border-color: var(--accent); }
+  .activity-cell.selected { outline: 2px solid var(--text); outline-offset: 2px; }
+  .activity-cell.future {
+    opacity: 0.25;
+    cursor: default;
+  }
+  .activity-legend {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-top: 12px;
+  }
 
   /* Empty state */
   .empty-state {
@@ -816,6 +845,12 @@
       <button class="ghost-btn" data-action="refresh-history">Actualizar</button>
     </div>
 
+    <div id="history-activity" class="card">
+      <div class="skeleton" style="height: 110px;"></div>
+    </div>
+
+    <div id="history-filter" style="display:none;margin-bottom:12px;"></div>
+
     <div id="history-list">
       <div class="skeleton" style="height: 120px;"></div>
     </div>
@@ -890,6 +925,9 @@ const state = {
   lastSummary: null,
   currentSession: null,
   sessionReturnScreen: 'home',
+  historySessions: [],
+  historyActivity: null,
+  historySelectedDate: null,
   progressExercises: [],
   exerciseNameSuggestions: null,
 };
@@ -1028,6 +1066,18 @@ function formatDateLong(iso) {
 
 function todayInputValue() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function parseIsoDateLocalClient(iso) {
+  const parts = String(iso || todayInputValue()).split('-').map(Number);
+  return new Date(parts[0], parts[1] - 1, parts[2]);
+}
+
+function formatIsoDateClient(date) {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 // ============================================================
@@ -2107,9 +2157,20 @@ function renderExerciseHistory(history) {
 
 async function loadHistory() {
   const el = $('#history-list');
+  const activityEl = $('#history-activity');
+  const filterEl = $('#history-filter');
   el.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
+  activityEl.innerHTML = `<div class="skeleton" style="height:110px;"></div>`;
+  filterEl.style.display = 'none';
   try {
-    const sessions = await gas.listRecentSessions({ limit: 30 });
+    const [sessions, activity] = await Promise.all([
+      gas.listRecentSessions({ limit: 60 }),
+      gas.listSessionDates({ days: 91 }),
+    ]);
+    state.historySessions = sessions;
+    state.historyActivity = activity;
+    state.historySelectedDate = null;
+    renderActivityCalendar(activity);
     if (!sessions.length) {
       el.innerHTML = `
         <div class="empty-state">
@@ -2120,11 +2181,131 @@ async function loadHistory() {
       `;
       return;
     }
-    el.innerHTML = sessions.map(renderSessionListItem).join('');
+    renderHistoryList(sessions);
   } catch (err) {
     el.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
+    activityEl.innerHTML = `<p class="muted">No se pudo cargar el calendario.</p>`;
     toast('No se pudo cargar el historial', 'error');
   }
+}
+
+function renderHistoryList(sessions) {
+  $('#history-list').innerHTML = sessions.map(renderSessionListItem).join('');
+}
+
+function renderActivityCalendar(activity) {
+  const el = $('#history-activity');
+  const days = buildActivityDays(activity);
+  const byDate = {};
+  (activity.days || []).forEach(d => { byDate[d.date] = d; });
+  const trainedDays = (activity.days || []).length;
+  const totalSessions = (activity.days || []).reduce((sum, d) => sum + Number(d.session_count || 0), 0);
+
+  el.innerHTML = `
+    <div class="card-row">
+      <div>
+        <h3>Actividad</h3>
+        <p class="muted">Últimas 13 semanas</p>
+      </div>
+      <span class="pill accent">${totalSessions} sesión${totalSessions === 1 ? '' : 'es'}</span>
+    </div>
+    <div class="activity-grid" style="margin-top:14px;">
+      ${days.map(day => {
+        const data = byDate[day.date];
+        const level = activityLevel(data);
+        return `
+          <button
+            type="button"
+            class="activity-cell level-${level}${day.future ? ' future' : ''}${state.historySelectedDate === day.date ? ' selected' : ''}"
+            data-action="select-history-date"
+            data-date="${escapeHtml(day.date)}"
+            ${day.future ? 'disabled' : ''}
+            title="${escapeHtml(formatActivityTitle(day.date, data))}"
+            aria-label="${escapeHtml(formatActivityTitle(day.date, data))}">
+          </button>
+        `;
+      }).join('')}
+    </div>
+    <div class="activity-legend">
+      <p class="muted-sm">${trainedDays} día${trainedDays === 1 ? '' : 's'} con entrenamiento</p>
+      <div style="display:flex;gap:4px;align-items:center;">
+        <span class="muted-sm">Menos</span>
+        <span class="activity-cell level-0" style="width:12px;height:12px;aspect-ratio:auto;"></span>
+        <span class="activity-cell level-1" style="width:12px;height:12px;aspect-ratio:auto;"></span>
+        <span class="activity-cell level-2" style="width:12px;height:12px;aspect-ratio:auto;"></span>
+        <span class="activity-cell level-3" style="width:12px;height:12px;aspect-ratio:auto;"></span>
+        <span class="muted-sm">Más</span>
+      </div>
+    </div>
+  `;
+}
+
+function buildActivityDays(activity) {
+  const end = parseIsoDateLocalClient(activity.end || todayInputValue());
+  const start = new Date(end);
+  start.setDate(start.getDate() - 90);
+  const offset = start.getDay() === 0 ? 6 : start.getDay() - 1;
+  start.setDate(start.getDate() - offset);
+
+  const today = parseIsoDateLocalClient(todayInputValue());
+  return Array.from({ length: 91 }, (_, i) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    return {
+      date: formatIsoDateClient(d),
+      future: d > today,
+    };
+  });
+}
+
+function activityLevel(data) {
+  if (!data || !data.session_count) return 0;
+  if (data.session_count >= 3 || data.total_volume >= 15000) return 4;
+  if (data.session_count >= 2 || data.total_volume >= 8000) return 3;
+  if (data.total_volume >= 2500) return 2;
+  return 1;
+}
+
+function formatActivityTitle(date, data) {
+  if (!data || !data.session_count) return `${formatDateLong(date)} · sin sesiones`;
+  return `${formatDateLong(date)} · ${data.session_count} sesión${data.session_count === 1 ? '' : 'es'} · ${formatCompactNumber(data.total_volume)} kg`;
+}
+
+function handleSelectHistoryDate(date) {
+  const activity = state.historyActivity;
+  if (!activity || !date) return;
+  const data = (activity.days || []).find(d => d.date === date);
+  if (!data || !data.session_count) {
+    state.historySelectedDate = null;
+    renderActivityCalendar(activity);
+    $('#history-filter').style.display = 'none';
+    renderHistoryList(state.historySessions);
+    return;
+  }
+
+  if (data.session_ids && data.session_ids.length === 1) {
+    openSessionDetail(data.session_ids[0]);
+    return;
+  }
+
+  state.historySelectedDate = date;
+  renderActivityCalendar(activity);
+  const filtered = state.historySessions.filter(s => s.date === date);
+  $('#history-filter').style.display = 'block';
+  $('#history-filter').innerHTML = `
+    <div class="card-row">
+      <span class="pill accent">${formatDateLong(date)}</span>
+      <button class="ghost-btn" data-action="clear-history-date">Ver todo</button>
+    </div>
+  `;
+  renderHistoryList(filtered);
+}
+
+function clearHistoryDateFilter() {
+  state.historySelectedDate = null;
+  if (state.historyActivity) renderActivityCalendar(state.historyActivity);
+  $('#history-filter').style.display = 'none';
+  renderHistoryList(state.historySessions);
 }
 
 function progressDotClass(trend) {
@@ -2377,6 +2558,8 @@ document.addEventListener('click', (e) => {
   switch (action) {
     case 'go-train': goTo('train-pick'); break;
     case 'refresh-history': loadHistory(); break;
+    case 'select-history-date': handleSelectHistoryDate(t.dataset.date); break;
+    case 'clear-history-date': clearHistoryDateFilter(); break;
     case 'save-backend-url': handleSaveBackendUrl(); break;
     case 'new-routine': handleNewRoutine(); break;
     case 'back-to-routines': goTo('routines'); break;

@@ -55,12 +55,12 @@
     - También aparece en el summary por ejercicio.
     - No requiere cambios de schema; se calcula en backend sobre los sets existentes.
 
-11. **Calendario de sesiones:**
-    - Vista tipo "GitHub contributions" en la pantalla de Inicio o una pestaña nueva.
-    - Grilla de semanas (últimos 3-6 meses), cada celda = un día, color si entrenaste ese día.
-    - Al tocar una celda con sesión, navegar al detalle de esa sesión.
-    - Backend: `listSessionDates()` — lista de fechas con sesión (no hace falta más). O reusar datos del Home.
-    - Complementa el streak sin necesitar una métrica explícita.
+11. ✅ **Calendario de sesiones:**
+    - Agregada vista tipo "GitHub contributions" en `screen-history`.
+    - Grilla de últimas 13 semanas, cada celda = un día, intensidad según sesiones/volumen.
+    - Al tocar una celda con 1 sesión, abre detalle. Si hay varias, filtra el historial a ese día.
+    - Backend: `listSessionDates({ days })` devuelve fechas, cantidad de sesiones, volumen total y `session_ids`.
+    - Base completa; a futuro se puede extender a 3-6 meses con navegación por rango.
 
 12. **Evolución del peso corporal:**
     - Gráfico de línea con el `bodyweight` registrado en cada sesión a lo largo del tiempo.
