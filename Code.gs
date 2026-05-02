@@ -97,6 +97,7 @@ function getApi_() {
     getLastSessionForDay,
     saveSession,
     getSession,
+    deleteSession,
     getHomeStats,
   };
 }
@@ -722,6 +723,25 @@ function getSession(params) {
     created_at: session.created_at,
     exercises: Object.keys(grouped).map(k => grouped[k]),
   };
+}
+
+function deleteSession(params) {
+  params = params || {};
+  const session_id = (params.session_id || '').toString().trim();
+  if (!session_id) throw new Error('session_id requerido.');
+
+  const session = readAll_(SHEETS.SESSIONS).find(s => s.session_id === session_id);
+  if (!session) throw new Error('Sesión no encontrada.');
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    deleteRowsWhere_(SHEETS.SETS, set => set.session_id === session_id);
+    deleteRowById_(SHEETS.SESSIONS, 'session_id', session_id);
+    return { ok: true, session_id };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function prepareSessionExercises_(items) {
