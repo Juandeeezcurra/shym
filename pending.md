@@ -13,7 +13,7 @@ Estado y plan de trabajo restante. Última actualización: 2026-05-01.
 - ✅ **Fix arquitectura híbrida real** — `Code.gs` expone API JSON (`doPost`) y `index.html` usa `fetch` contra la URL `/exec` guardada en `localStorage`. Ya no hace falta pegar HTML en Apps Script.
 - ✅ **Parte 3** — Días + Ejercicios CRUD. Backend y frontend completos: crear/renombrar/borrar días, crear/editar/borrar ejercicios, validaciones, grid de días, pantalla detalle de día y modal reutilizable de ejercicio.
 - ✅ **Parte 4 base completa** — Selección de entrenamiento + precarga: `getActiveRoutine`, `getLastSessionForDay`, pantalla `train-pick`, pantalla `train`, autosave local, toggle kg/lb y series extras.
-- 🟡 **Parte 5 iniciada** — Guardado real de sesión + resumen post-entreno + detalle/borrado de sesión. Pendiente: editar sesión desde UI.
+- ✅ **Parte 5 base completa** — Guardado real de sesión + resumen post-entreno + detalle/edición/borrado de sesión.
 - 🟡 **Parte 6 iniciada** — Home con stats reales y última sesión clickeable.
 
 **Vivo en producción (asumiendo deploy hecho):**
@@ -103,13 +103,13 @@ Cada mutación devuelve el `getRoutine` completo para que el frontend re-renderi
 
 ### Parte 5 — Guardar sesión + Resumen
 
-**Estado:** iniciada el 2026-05-01. Guardar sesión real y summary ya implementados; edición/borrado queda pendiente.
+**Estado:** base completa el 2026-05-01. Guardar sesión real, summary, detalle, edición y borrado ya implementados.
 
 **Backend:**
 - ✅ `saveSession({ date, routine_id, day_id, bodyweight, notes, exercises: [{ routine_exercise_id, exercise_name, sets: [{ weight, reps, rir, note }] }] })` — escribe `Sessions` + `Session_Sets`, filtra sets vacíos (kg+reps ambos null). Devuelve `{ session, summary }`.
 - ✅ `getSession({ session_id })` — devuelve sesión con sets agrupados por ejercicio
 - ✅ `deleteSession({ session_id })` — borra sesión + todos sus sets
-- `editSession({ session_id, ...campos editables })` — permite cambiar fecha, notes, bodyweight, sets
+- ✅ `editSession({ session_id, ...campos editables })` — permite cambiar fecha, notes, bodyweight, sets
 
 **Backend lógica de resumen:**
 Por cada ejercicio guardado, comparar contra última sesión previa con mismo `routine_exercise_id`:
@@ -137,8 +137,7 @@ sugerencia (basada en target_reps_max):
 - ✅ Por ejercicio: card con sets de hoy, estado (pill), sugerencia (con dot de color)
 - ✅ Botones: "Volver al Home", "Entrenar otro día"
 - ✅ Pantalla `screen-session-detail`: abre la última sesión desde Home, muestra sets y permite borrar
-- Pendiente: botón "Editar sesión" (lleva a edit modal)
-- Pantalla `screen-session-edit`: vista similar a train pero con datos cargados, botón "Guardar cambios" / "Borrar sesión"
+- ✅ Pantalla `screen-session-edit`: vista similar a train pero con datos cargados, botón "Guardar cambios"
 
 **Decisión locked:** sets vacíos (sin kg ni reps) se ignoran al guardar. No se requiere completar todos.
 

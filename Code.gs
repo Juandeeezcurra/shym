@@ -97,6 +97,7 @@ function getApi_() {
     getLastSessionForDay,
     saveSession,
     getSession,
+    editSession,
     deleteSession,
     getHomeStats,
   };
@@ -739,6 +740,60 @@ function deleteSession(params) {
     deleteRowsWhere_(SHEETS.SETS, set => set.session_id === session_id);
     deleteRowById_(SHEETS.SESSIONS, 'session_id', session_id);
     return { ok: true, session_id };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function editSession(params) {
+  params = params || {};
+  const session_id = (params.session_id || '').toString().trim();
+  if (!session_id) throw new Error('session_id requerido.');
+
+  const existing = readAll_(SHEETS.SESSIONS).find(s => s.session_id === session_id);
+  if (!existing) throw new Error('Sesión no encontrada.');
+
+  const date = normalizeDate_(params.date || existing.date);
+  const routine_id = (params.routine_id || existing.routine_id || '').toString().trim();
+  const day_id = (params.day_id || existing.day_id || '').toString().trim();
+  const bodyweight = normalizeOptionalNumber_(params.bodyweight, 'bodyweight');
+  const notes = (params.notes || '').toString().trim();
+  const prepared = prepareSessionExercises_(params.exercises || []);
+  if (prepared.setCount === 0) throw new Error('Cargá al menos una serie con peso o reps.');
+
+  const routine = readAll_(SHEETS.ROUTINES).find(r => r.routine_id === routine_id);
+  const day = readAll_(SHEETS.DAYS).find(d => d.day_id === day_id);
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const session = updateRowById_(SHEETS.SESSIONS, 'session_id', session_id, {
+      date,
+      routine_id,
+      day_id,
+      bodyweight: bodyweight === null ? '' : bodyweight,
+      notes,
+    });
+
+    deleteRowsWhere_(SHEETS.SETS, set => set.session_id === session_id);
+    prepared.exercises.forEach(ex => {
+      ex.sets.forEach(set => {
+        appendRow_(SHEETS.SETS, {
+          set_id: genId_('set'),
+          session_id,
+          routine_exercise_id: ex.routine_exercise_id,
+          exercise_name: ex.exercise_name,
+          set_number: set.set_number,
+          weight: set.weight === null ? '' : set.weight,
+          reps: set.reps === null ? '' : set.reps,
+          rir: set.rir === null ? '' : set.rir,
+          note: set.note || '',
+        });
+      });
+    });
+
+    const summary = buildSessionSummary_(session, prepared.exercises, routine || {}, day || {});
+    return { session: getSession({ session_id }), summary };
   } finally {
     lock.releaseLock();
   }

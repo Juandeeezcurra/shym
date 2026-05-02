@@ -693,7 +693,10 @@
   <section id="screen-session-detail" class="screen">
     <div class="header-row">
       <button class="back-btn" data-action="session-back-home">←</button>
-      <button class="ghost-btn danger" data-action="delete-session">Borrar</button>
+      <div style="display:flex;gap:8px;">
+        <button class="ghost-btn" data-action="edit-session">Editar</button>
+        <button class="ghost-btn danger" data-action="delete-session">Borrar</button>
+      </div>
     </div>
 
     <div style="margin-bottom: 18px;">
@@ -713,6 +716,32 @@
     </div>
 
     <div id="sd-exercises"></div>
+  </section>
+
+  <!-- ============ SESSION EDIT ============ -->
+  <section id="screen-session-edit" class="screen">
+    <div class="header-row">
+      <button class="back-btn" data-action="edit-session-cancel">←</button>
+      <button class="primary-btn" data-action="save-session-edit">Guardar</button>
+    </div>
+
+    <div style="margin-bottom: 18px;">
+      <div class="eyebrow" id="se-meta">Editar sesión</div>
+      <h1 id="se-title">—</h1>
+    </div>
+
+    <div class="card">
+      <label class="field-label">Fecha</label>
+      <input id="se-date" type="date" />
+    </div>
+
+    <div class="card">
+      <label class="field-label">Peso corporal (opcional)</label>
+      <input id="se-bodyweight" type="number" step="0.1" />
+    </div>
+
+    <div id="se-exercises"></div>
+    <button class="primary-btn full floating-save" data-action="save-session-edit">Guardar cambios</button>
   </section>
 
   <!-- ============ PROGRESS (placeholder Parte 7) ============ -->
@@ -957,6 +986,7 @@ function goTo(screenId, params) {
     train: 'train',
     summary: 'train',
     'session-detail': 'home',
+    'session-edit': 'home',
     progress: 'progress',
   };
   $$('.nav-btn').forEach(btn => {
@@ -1819,6 +1849,16 @@ registerScreen('session-detail', {
   }
 });
 
+registerScreen('session-edit', {
+  onEnter() {
+    if (!state.currentSession) {
+      goTo('home');
+      return;
+    }
+    renderSessionEdit(state.currentSession);
+  }
+});
+
 function renderSessionDetail(session) {
   const volume = calcClientVolume(session.exercises || []);
   const setCount = (session.exercises || []).reduce((sum, ex) => sum + (ex.sets || []).length, 0);
@@ -1864,6 +1904,87 @@ function calcClientVolume(exercises) {
       return sum + (isNaN(w) || isNaN(r) ? 0 : w * r);
     }, 0);
   }, 0);
+}
+
+function renderSessionEdit(session) {
+  $('#se-meta').textContent = `${session.routine_name || ''} · ${session.day_name || ''}`;
+  $('#se-title').textContent = 'Editar sesión';
+  $('#se-date').value = session.date || todayInputValue();
+  $('#se-bodyweight').value = session.bodyweight == null ? '' : units.toDisplay(session.bodyweight);
+
+  $('#se-exercises').innerHTML = (session.exercises || []).map(ex => `
+    <div class="exercise-card" data-edit-exercise="${escapeHtml(ex.routine_exercise_id)}">
+      <div class="card-row" style="align-items:flex-start;">
+        <div style="flex:1;min-width:0;">
+          <h3 style="word-break:break-word;">${escapeHtml(ex.exercise_name)}</h3>
+          <p class="muted">${(ex.sets || []).length} serie${(ex.sets || []).length === 1 ? '' : 's'}</p>
+        </div>
+      </div>
+      <div data-edit-set-list>
+        ${(ex.sets || []).map((set, i) => renderEditSetRow(ex, set, i + 1)).join('')}
+      </div>
+      <button class="ghost-btn full" data-action="add-edit-set" data-rex-id="${escapeHtml(ex.routine_exercise_id)}" style="margin-top:10px;">+ serie</button>
+    </div>
+  `).join('');
+}
+
+function renderEditSetRow(ex, set, fallbackNumber) {
+  return `
+    <div class="input-grid" data-edit-set-row data-rex-id="${escapeHtml(ex.routine_exercise_id)}" data-set-number="${escapeHtml(set.set_number || fallbackNumber)}">
+      <div class="set-number">${escapeHtml(set.set_number || fallbackNumber)}</div>
+      <input type="number" step="0.5" inputmode="decimal" data-field="weight" placeholder="${units.label()}" value="${set.weight == null ? '' : escapeHtml(units.toDisplay(set.weight))}" />
+      <input type="number" step="1" inputmode="numeric" data-field="reps" placeholder="reps" value="${set.reps == null ? '' : escapeHtml(set.reps)}" />
+      <input type="number" step="1" inputmode="numeric" data-field="rir" placeholder="RIR" value="${set.rir == null ? '' : escapeHtml(set.rir)}" />
+    </div>
+  `;
+}
+
+function addEditSet(rexId) {
+  const session = state.currentSession;
+  if (!session) return;
+  const ex = (session.exercises || []).find(e => e.routine_exercise_id === rexId);
+  const card = $(`[data-edit-exercise="${rexId}"]`);
+  const list = card && $('[data-edit-set-list]', card);
+  if (!ex || !list) return;
+  const next = $$(`[data-edit-set-row][data-rex-id="${rexId}"]`).length + 1;
+  list.insertAdjacentHTML('beforeend', renderEditSetRow(ex, { set_number: next }, next));
+}
+
+function buildEditPayload() {
+  const session = state.currentSession;
+  if (!session) throw new Error('No hay sesión cargada.');
+  const exercises = (session.exercises || []).map(ex => ({
+    routine_exercise_id: ex.routine_exercise_id,
+    exercise_name: ex.exercise_name,
+    sets: $$(`[data-edit-set-row][data-rex-id="${ex.routine_exercise_id}"]`).map((row, i) => ({
+      set_number: i + 1,
+      weight: ($('[data-field="weight"]', row).value || '').trim() === '' ? null : units.fromInput($('[data-field="weight"]', row).value),
+      reps: ($('[data-field="reps"]', row).value || '').trim() === '' ? null : Number($('[data-field="reps"]', row).value),
+      rir: ($('[data-field="rir"]', row).value || '').trim() === '' ? null : Number($('[data-field="rir"]', row).value),
+      note: '',
+    }))
+  }));
+  return {
+    session_id: session.session_id,
+    date: $('#se-date').value || session.date,
+    routine_id: session.routine_id,
+    day_id: session.day_id,
+    bodyweight: ($('#se-bodyweight').value || '').trim() === '' ? null : units.fromInput($('#se-bodyweight').value),
+    notes: session.notes || '',
+    exercises,
+  };
+}
+
+async function handleSaveSessionEdit() {
+  try {
+    const result = await withLoader(gas.editSession(buildEditPayload()));
+    state.currentSession = result.session;
+    state.lastSummary = result.summary;
+    toast('Sesión actualizada', 'success');
+    goTo('session-detail');
+  } catch (err) {
+    toast(err.message || 'No se pudo guardar', 'error');
+  }
 }
 
 async function handleDeleteSession() {
@@ -1994,6 +2115,10 @@ document.addEventListener('click', (e) => {
     case 'summary-train-again': goTo('train-pick'); break;
     case 'open-session': openSessionDetail(t.dataset.sessionId); break;
     case 'session-back-home': goTo('home'); break;
+    case 'edit-session': goTo('session-edit'); break;
+    case 'edit-session-cancel': goTo('session-detail'); break;
+    case 'add-edit-set': addEditSet(t.dataset.rexId); break;
+    case 'save-session-edit': handleSaveSessionEdit(); break;
     case 'delete-session': handleDeleteSession(); break;
     case 'set-units': {
       if (state.currentScreen === 'train' && state.screenParams.day_id && state.screenParams.date) {
