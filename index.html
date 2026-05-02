@@ -744,7 +744,7 @@
     <button class="primary-btn full floating-save" data-action="save-session-edit">Guardar cambios</button>
   </section>
 
-  <!-- ============ PROGRESS (placeholder Parte 7) ============ -->
+  <!-- ============ PROGRESS ============ -->
   <section id="screen-progress" class="screen">
     <div class="header-row">
       <div>
@@ -752,10 +752,18 @@
         <h1>Progreso</h1>
       </div>
     </div>
-    <div class="empty-state">
-      <div class="emoji">📊</div>
-      <h3>Disponible en Parte 7</h3>
-      <p class="muted">Cuando empieces a guardar sesiones, vas a poder ver tu progreso por ejercicio.</p>
+
+    <div class="card">
+      <label class="field-label">Ejercicio</label>
+      <select id="progress-exercise"></select>
+    </div>
+
+    <div id="progress-content">
+      <div class="empty-state">
+        <div class="emoji">📊</div>
+        <h3>Sin historial todavía</h3>
+        <p class="muted">Cuando guardes sesiones, vas a poder ver tu progreso por ejercicio.</p>
+      </div>
     </div>
   </section>
 
@@ -822,6 +830,7 @@ const state = {
   lastSetsByExercise: {},
   lastSummary: null,
   currentSession: null,
+  progressExercises: [],
 };
 
 // ============================================================
@@ -1859,6 +1868,106 @@ registerScreen('session-edit', {
   }
 });
 
+registerScreen('progress', {
+  async onEnter() {
+    await loadProgress();
+  }
+});
+
+async function loadProgress() {
+  const select = $('#progress-exercise');
+  const content = $('#progress-content');
+  content.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
+  try {
+    const names = await gas.listAllExerciseNames();
+    state.progressExercises = names;
+    if (!names.length) {
+      select.innerHTML = '';
+      content.innerHTML = `
+        <div class="empty-state">
+          <div class="emoji">📊</div>
+          <h3>Sin ejercicios</h3>
+          <p class="muted">Agregá ejercicios o guardá sesiones para ver progreso.</p>
+        </div>
+      `;
+      return;
+    }
+    const current = select.value && names.indexOf(select.value) >= 0 ? select.value : names[0];
+    select.innerHTML = names.map(name => `<option value="${escapeHtml(name)}" ${name === current ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('');
+    await loadExerciseHistory(current);
+  } catch (err) {
+    content.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
+    toast('No se pudo cargar progreso', 'error');
+  }
+}
+
+async function loadExerciseHistory(exerciseName) {
+  const content = $('#progress-content');
+  if (!exerciseName) return;
+  content.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
+  try {
+    const history = await gas.listExerciseHistory({ exercise_name: exerciseName, limit: 8 });
+    renderExerciseHistory(history);
+  } catch (err) {
+    content.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function renderExerciseHistory(history) {
+  const sessions = history.sessions || [];
+  if (!sessions.length) {
+    $('#progress-content').innerHTML = `
+      <div class="empty-state">
+        <div class="emoji">📊</div>
+        <h3>Sin sesiones para este ejercicio</h3>
+        <p class="muted">Cuando lo entrenes, aparece el historial acá.</p>
+      </div>
+    `;
+    return;
+  }
+
+  $('#progress-content').innerHTML = `
+    <div class="card">
+      <div class="card-row">
+        <div>
+          <h3>${escapeHtml(history.exercise_name)}</h3>
+          <p class="muted">Últimas ${sessions.length} sesiones</p>
+        </div>
+        <span class="pill ${history.trend === 'Tendencia positiva' ? 'good' : (history.trend === 'Tendencia negativa' ? 'bad' : 'warn')}">${escapeHtml(history.trend)}</span>
+      </div>
+    </div>
+    ${sessions.map(s => `
+      <div class="card" data-action="open-session" data-session-id="${escapeHtml(s.session_id)}" style="cursor:pointer;">
+        <div class="card-row" style="align-items:flex-start;">
+          <div style="flex:1;min-width:0;">
+            <h3>${formatDateLong(s.date)}</h3>
+            <p class="muted">${escapeHtml(s.day_name || s.routine_name || '')}</p>
+            <p class="muted-sm" style="margin-top:4px;">${escapeHtml(formatSetsLine(s.sets || []))}</p>
+          </div>
+          <span class="pill accent">${formatCompactNumber(s.volume)} kg</span>
+        </div>
+        <div class="summary-status">
+          <span class="dot ${progressDotClass(s.trend)}"></span>
+          <p class="muted">${formatProgressDelta(s)}</p>
+        </div>
+      </div>
+    `).join('')}
+  `;
+}
+
+function progressDotClass(trend) {
+  if (trend === 'down') return 'bad';
+  if (trend === 'flat' || trend === 'neutral') return 'warn';
+  return '';
+}
+
+function formatProgressDelta(session) {
+  if (session.delta_volume == null) return 'Primera sesión registrada para este ejercicio.';
+  if (session.delta_volume > 0) return `+${formatCompactNumber(session.delta_volume)} kg vs anterior.`;
+  if (session.delta_volume < 0) return `${formatCompactNumber(session.delta_volume)} kg vs anterior.`;
+  return 'Mismo volumen que la sesión anterior.';
+}
+
 function renderSessionDetail(session) {
   const volume = calcClientVolume(session.exercises || []);
   const setCount = (session.exercises || []).reduce((sum, ex) => sum + (ex.sets || []).length, 0);
@@ -2136,6 +2245,9 @@ document.addEventListener('click', (e) => {
 document.addEventListener('change', (e) => {
   if (e.target && e.target.id === 'tp-routine') {
     loadTrainRoutine(e.target.value);
+  }
+  if (e.target && e.target.id === 'progress-exercise') {
+    loadExerciseHistory(e.target.value);
   }
 });
 

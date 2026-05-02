@@ -100,6 +100,8 @@ function getApi_() {
     editSession,
     deleteSession,
     getHomeStats,
+    listAllExerciseNames,
+    listExerciseHistory,
   };
 }
 
@@ -1094,5 +1096,102 @@ function getLastSessionSummary_(sessions, sets, routines, days) {
       acc[set.routine_exercise_id || set.exercise_name] = true;
       return acc;
     }, {})).length,
+  };
+}
+
+// ============================================================
+// PROGRESS API — Parte 7
+// ============================================================
+
+function listAllExerciseNames() {
+  const names = {};
+  readAll_(SHEETS.EXERCISES).forEach(ex => {
+    if (ex.exercise_name) names[ex.exercise_name.toString().trim()] = true;
+  });
+  readAll_(SHEETS.SETS).forEach(set => {
+    if (set.exercise_name) names[set.exercise_name.toString().trim()] = true;
+  });
+  return Object.keys(names)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function listExerciseHistory(params) {
+  params = params || {};
+  const exerciseName = (params.exercise_name || '').toString().trim();
+  const limit = Math.max(1, Math.min(Number(params.limit || 8), 30));
+  if (!exerciseName) throw new Error('exercise_name requerido.');
+
+  const sessions = readAll_(SHEETS.SESSIONS);
+  const sets = readAll_(SHEETS.SETS)
+    .filter(set => (set.exercise_name || '').toString().trim() === exerciseName);
+  const routines = readAll_(SHEETS.ROUTINES);
+  const days = readAll_(SHEETS.DAYS);
+
+  const bySession = {};
+  sets.forEach(set => {
+    const session = sessions.find(s => s.session_id === set.session_id);
+    if (!session) return;
+    if (!bySession[session.session_id]) {
+      const routine = routines.find(r => r.routine_id === session.routine_id) || {};
+      const day = days.find(d => d.day_id === session.day_id) || {};
+      bySession[session.session_id] = {
+        session_id: session.session_id,
+        date: normalizeDate_(session.date),
+        created_at: session.created_at || '',
+        routine_name: routine.routine_name || '',
+        day_name: day.day_name || '',
+        sets: [],
+      };
+    }
+    bySession[session.session_id].sets.push({
+      set_number: Number(set.set_number || 0),
+      weight: set.weight === '' ? null : Number(set.weight),
+      reps: set.reps === '' ? null : Number(set.reps),
+      rir: set.rir === '' ? null : Number(set.rir),
+      note: set.note || '',
+    });
+  });
+
+  const chronological = Object.keys(bySession).map(k => bySession[k])
+    .sort((a, b) => {
+      const dateCmp = a.date.localeCompare(b.date);
+      if (dateCmp !== 0) return dateCmp;
+      return a.created_at.localeCompare(b.created_at);
+    })
+    .map(item => {
+      item.sets.sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0));
+      const metrics = calcSetMetrics_(item.sets);
+      item.volume = Math.round(metrics.volume * 100) / 100;
+      item.weight_max = metrics.weight_max;
+      item.reps_total = metrics.reps_total;
+      return item;
+    });
+
+  chronological.forEach((item, idx) => {
+    if (idx === 0) {
+      item.delta_volume = null;
+      item.trend = 'neutral';
+      return;
+    }
+    const prev = chronological[idx - 1];
+    item.delta_volume = Math.round((item.volume - prev.volume) * 100) / 100;
+    item.trend = item.volume > prev.volume ? 'up' : (item.volume < prev.volume ? 'down' : 'flat');
+  });
+
+  const recentAsc = chronological.slice(-4);
+  let trend = 'Sin datos suficientes';
+  if (recentAsc.length >= 2) {
+    const first = recentAsc[0].volume;
+    const last = recentAsc[recentAsc.length - 1].volume;
+    if (last > first) trend = 'Tendencia positiva';
+    else if (last < first) trend = 'Tendencia negativa';
+    else trend = 'Tendencia estable';
+  }
+
+  return {
+    exercise_name: exerciseName,
+    trend,
+    sessions: chronological.reverse().slice(0, limit),
   };
 }

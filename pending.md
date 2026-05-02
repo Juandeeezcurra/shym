@@ -15,6 +15,7 @@ Estado y plan de trabajo restante. Última actualización: 2026-05-01.
 - ✅ **Parte 4 base completa** — Selección de entrenamiento + precarga: `getActiveRoutine`, `getLastSessionForDay`, pantalla `train-pick`, pantalla `train`, autosave local, toggle kg/lb y series extras.
 - ✅ **Parte 5 base completa** — Guardado real de sesión + resumen post-entreno + detalle/edición/borrado de sesión.
 - 🟡 **Parte 6 iniciada** — Home con stats reales y última sesión clickeable.
+- ✅ **Parte 7 base completa** — Progreso por ejercicio con selector, historial reciente, volumen, delta y tendencia simple.
 
 **Vivo en producción (asumiendo deploy hecho):**
 - App: https://juandeeezcurra.github.io/shym/
@@ -166,15 +167,17 @@ sugerencia (basada en target_reps_max):
 
 ### Parte 7 — Progreso por ejercicio
 
+**Estado:** base completa el 2026-05-01.
+
 **Backend:**
-- `listAllExerciseNames()` — distinct `exercise_name` que aparecen en `Day_Exercises` o `Session_Sets`
-- `listExerciseHistory({ exercise_name, limit })` — últimas `limit` sesiones con ese ejercicio. Por sesión devuelve fecha + sets + volumen + peso_max + delta vs anterior
+- ✅ `listAllExerciseNames()` — distinct `exercise_name` que aparecen en `Day_Exercises` o `Session_Sets`
+- ✅ `listExerciseHistory({ exercise_name, limit })` — últimas `limit` sesiones con ese ejercicio. Por sesión devuelve fecha + sets + volumen + peso_max + delta vs anterior
 
 **Frontend:**
-- Selector de ejercicio (datalist con todos los nombres)
-- Lista de sesiones recientes (default 8)
-- Por cada sesión: dot de tendencia (verde/amarillo/rojo) + fecha + resumen en una línea (`70×6,6,5,5`)
-- Pill "Tendencia positiva/negativa/estable" arriba calculada sobre las últimas 4 sesiones
+- ✅ Selector de ejercicio
+- ✅ Lista de sesiones recientes (default 8)
+- ✅ Por cada sesión: dot de tendencia (verde/amarillo/rojo) + fecha + resumen en una línea (`70×6,6,5,5`)
+- ✅ Pill "Tendencia positiva/negativa/estable" arriba calculada sobre las últimas 4 sesiones
 
 **Decisión locked:** MVP solo muestra historial. Sin gráficos. Sin filtros por rutina/día (eso si llega después, en Parte 8 hipotética).
 
