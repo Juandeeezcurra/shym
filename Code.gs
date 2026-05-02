@@ -29,7 +29,7 @@ const HEADERS = {
   [SHEETS.EXERCISES]: [
     'routine_exercise_id', 'day_id', 'exercise_order', 'exercise_name',
     'target_sets', 'target_reps_min', 'target_reps_max',
-    'suggested_weight', 'technique_note'
+    'suggested_weight', 'technique_note', 'muscle_group'
   ],
   [SHEETS.SESSIONS]: [
     'session_id', 'date', 'routine_id', 'day_id',
@@ -243,6 +243,16 @@ function isTrue_(v) {
   return v === true || v === 'TRUE' || v === 'true' || v === 1;
 }
 
+function normalizeMuscleGroup_(value) {
+  const v = (value || '').toString().trim().toLowerCase();
+  const allowed = ['pecho', 'espalda', 'hombros', 'bicep', 'tricep', 'core', 'piernas'];
+  if (!v) return '';
+  if (v === 'bícep' || v === 'biceps' || v === 'bíceps') return 'bicep';
+  if (v === 'trícep' || v === 'triceps' || v === 'tríceps') return 'tricep';
+  if (allowed.indexOf(v) < 0) throw new Error('Grupo muscular invalido.');
+  return v;
+}
+
 // ============================================================
 // PING — usado por el frontend para verificar conexion
 // ============================================================
@@ -360,6 +370,7 @@ function duplicateRoutine(params) {
             target_reps_max: Number(ex.target_reps_max || 0),
             suggested_weight: ex.suggested_weight,
             technique_note: ex.technique_note || '',
+            muscle_group: normalizeMuscleGroup_(ex.muscle_group),
           });
         });
     });
@@ -434,6 +445,7 @@ function getRoutine(routine_id) {
         target_reps_max: Number(e.target_reps_max || 0),
         suggested_weight: e.suggested_weight === '' ? null : Number(e.suggested_weight),
         technique_note: e.technique_note || '',
+        muscle_group: normalizeMuscleGroup_(e.muscle_group),
       })),
   }));
 
@@ -536,6 +548,7 @@ function addExercise(params) {
   const rmax          = parseInt(params.target_reps_max, 10);
   const swRaw         = params.suggested_weight;
   const technique_note = (params.technique_note || '').toString().trim();
+  const muscle_group = normalizeMuscleGroup_(params.muscle_group);
 
   if (!day_id)        throw new Error('day_id requerido.');
   if (!exercise_name) throw new Error('El nombre del ejercicio no puede estar vacío.');
@@ -570,6 +583,7 @@ function addExercise(params) {
     target_reps_max: rmax,
     suggested_weight,
     technique_note,
+    muscle_group,
   });
   return getRoutine(day.routine_id);
 }
@@ -614,6 +628,9 @@ function updateExercise(params) {
   }
   if (params.technique_note !== undefined) {
     partial.technique_note = params.technique_note.toString().trim();
+  }
+  if (params.muscle_group !== undefined) {
+    partial.muscle_group = normalizeMuscleGroup_(params.muscle_group);
   }
 
   updateRowById_(SHEETS.EXERCISES, 'routine_exercise_id', rex_id, partial);

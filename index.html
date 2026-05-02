@@ -1507,6 +1507,7 @@ function renderExercises(exercises) {
         <div style="flex:1;min-width:0;">
           <h3 style="margin-bottom:4px;word-break:break-word;">${escapeHtml(e.exercise_name)}</h3>
           <p class="muted" style="font-size:12px;">${e.target_sets} series · ${e.target_reps_min}–${e.target_reps_max} reps${e.suggested_weight != null && e.suggested_weight !== '' ? ' · ' + units.toDisplay(e.suggested_weight) + ' ' + units.label() : ''}</p>
+          ${e.muscle_group ? `<span class="pill" style="margin-top:8px;">${escapeHtml(formatMuscleGroup(e.muscle_group))}</span>` : ''}
           ${e.technique_note ? `<p class="muted-sm" style="margin-top:4px;">${escapeHtml(e.technique_note)}</p>` : ''}
         </div>
         <div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px;">
@@ -1516,6 +1517,22 @@ function renderExercises(exercises) {
       </div>
     </div>
   `).join('');
+}
+
+const MUSCLE_GROUPS = [
+  { value: '', label: 'Sin asignar' },
+  { value: 'pecho', label: 'Pecho' },
+  { value: 'espalda', label: 'Espalda' },
+  { value: 'hombros', label: 'Hombros' },
+  { value: 'bicep', label: 'Bícep' },
+  { value: 'tricep', label: 'Trícep' },
+  { value: 'core', label: 'Core' },
+  { value: 'piernas', label: 'Piernas' },
+];
+
+function formatMuscleGroup(value) {
+  const found = MUSCLE_GROUPS.find(g => g.value === value);
+  return found ? found.label : value;
 }
 
 async function handleAddDay() {
@@ -1651,6 +1668,12 @@ async function exerciseModal({ title, initial }) {
             <input id="ex-weight" type="number" step="0.5" value="${escapeHtml(v.suggested_weight != null && v.suggested_weight !== '' ? units.toDisplay(v.suggested_weight) : '')}" placeholder="ej. 70" min="0" />
           </div>
           <div>
+            <label class="field-label">Grupo muscular</label>
+            <select id="ex-muscle">
+              ${MUSCLE_GROUPS.map(group => `<option value="${escapeHtml(group.value)}" ${group.value === (v.muscle_group || '') ? 'selected' : ''}>${escapeHtml(group.label)}</option>`).join('')}
+            </select>
+          </div>
+          <div>
             <label class="field-label">Nota técnica (opcional)</label>
             <textarea id="ex-note">${escapeHtml(v.technique_note || '')}</textarea>
           </div>
@@ -1667,6 +1690,7 @@ async function exerciseModal({ title, initial }) {
             const rmax = parseInt($('#ex-rmax').value, 10);
             const wRaw = ($('#ex-weight').value || '').trim();
             const weight = wRaw !== '' ? units.fromInput(Number(wRaw)) : null;
+            const muscle = ($('#ex-muscle').value || '').trim();
             const note  = ($('#ex-note').value || '').trim();
             if (!name) { toast('El nombre es obligatorio', 'error'); return; }
             if (isNaN(sets) || sets < 1 || sets > 20) { toast('Series: 1-20', 'error'); return; }
@@ -1681,6 +1705,7 @@ async function exerciseModal({ title, initial }) {
               target_reps_min:  rmin,
               target_reps_max:  rmax,
               suggested_weight: wRaw !== '' ? weight : '',
+              muscle_group:     muscle,
               technique_note:   note,
             });
           }

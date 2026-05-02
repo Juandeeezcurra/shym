@@ -71,7 +71,7 @@ Sheets:
 
 - `Routines`: `routine_id`, `routine_name`, `created_at`, `is_active`
 - `Routine_Days`: `day_id`, `routine_id`, `day_name`, `day_order`
-- `Day_Exercises`: `routine_exercise_id`, `day_id`, `exercise_order`, `exercise_name`, `target_sets`, `target_reps_min`, `target_reps_max`, `suggested_weight`, `technique_note`
+- `Day_Exercises`: `routine_exercise_id`, `day_id`, `exercise_order`, `exercise_name`, `target_sets`, `target_reps_min`, `target_reps_max`, `suggested_weight`, `technique_note`, `muscle_group`
 - `Sessions`: `session_id`, `date`, `routine_id`, `day_id`, `bodyweight`, `notes`, `created_at`
 - `Session_Sets`: `set_id`, `session_id`, `routine_exercise_id`, `exercise_name`, `set_number`, `weight`, `reps`, `rir`, `note`
 
@@ -95,6 +95,7 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
 - Calendario de actividad base completo: `listSessionDates({ days })` agrupa sesiones por fecha y `screen-history` muestra grilla de 13 semanas con filtro por dia.
 - Peso corporal completo: `listBodyweightHistory({ limit })` usa `Sessions.bodyweight`, y `screen-progress` tiene vista segmentada Ejercicio/Peso corporal con grafico SVG y registros clickeables.
 - Duplicar rutina completo: `duplicateRoutine({ routine_id, new_name })` clona rutina, dias y ejercicios con IDs nuevos; no copia sesiones.
+- Muscle group base completo: `Day_Exercises.muscle_group` con opciones `pecho`, `espalda`, `hombros`, `bicep`, `tricep`, `core`, `piernas`. El modal de ejercicio guarda el grupo y las cards muestran chip. Requiere correr `setup()` tras actualizar Apps Script para agregar la columna.
 - Lista de pendientes viva: `docs/pending.md`. Leerla antes de decidir el siguiente bloque.
 
 ## Prioridades Actuales
@@ -105,7 +106,6 @@ Segun `docs/pending.md` actualizado el 2026-05-02:
    - definir metricas finales de las cards del Home;
    - evaluar si el Historial necesita filtros por rutina/dia o rangos mas largos.
 2. Mas adelante features con schema/migracion:
-   - `muscle_group` en ejercicios;
    - volumen por grupo muscular;
    - calendario semanal por dia de rutina;
    - goals;

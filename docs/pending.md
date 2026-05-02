@@ -27,11 +27,13 @@
 
 8. **Grupos musculares — feature grande, múltiples etapas:**
 
-   **8a. Etiqueta de músculo en ejercicios (base de todo lo demás):**
-   - Agregar campo `muscle_group` a `Day_Exercises` (y opcionalmente a `Session_Sets` para historial).
-   - Opciones fijas: `pecho` · `espalda` · `hombros` · `bícep` · `trícep` · `core` · `piernas`.
-   - El modal de ejercicio incluye un selector de grupo muscular (chips o select).
-   - Backend: agregar `muscle_group` a `HEADERS[SHEETS.EXERCISES]` y a `addExercise` / `updateExercise`. Requiere `setup()` para agregar la columna a la sheet existente, o migración manual.
+   ✅ **8a. Etiqueta de músculo en ejercicios (base de todo lo demás):**
+   - Agregado campo `muscle_group` a `Day_Exercises`.
+   - Opciones fijas: `pecho` · `espalda` · `hombros` · `bicep` · `tricep` · `core` · `piernas`.
+   - El modal de ejercicio incluye selector de grupo muscular.
+   - Las cards de ejercicio muestran chip de músculo si está asignado.
+   - Backend: `HEADERS[SHEETS.EXERCISES]`, `addExercise`, `updateExercise`, `getRoutine` y `duplicateRoutine` soportan `muscle_group`.
+   - Requiere pegar `Code.gs`, correr `setup()` una vez para agregar la columna y deployar New version.
 
    **8b. Orden por músculo en pantallas de rutina y progreso:**
    - En `screen-day-detail`: opción de ver ejercicios agrupados por músculo además del orden actual.
