@@ -76,10 +76,10 @@
     - Depende de que 8a (campo `muscle_group` en ejercicios) esté implementado primero.
     - Backend: agregar filtro por `muscle_group` en `getHomeStats` o nuevo endpoint `getVolumeByMuscle({ weeks })`.
 
-14. **Duplicar rutina:**
-    - Clonar una rutina existente con todos sus días y ejercicios, asignándole un nombre nuevo (ej: "Push Pull Legs (copia)").
-    - Backend: `duplicateRoutine({ routine_id, new_name })` — crea nuevos IDs para rutina, días y ejercicios copiando todos los campos. No copia sesiones ni historial.
-    - Frontend: botón en el detalle de rutina o en el menú de opciones de cada rutina en la lista.
+14. ✅ **Duplicar rutina:**
+    - Clona una rutina existente con todos sus días y ejercicios, asignándole un nombre nuevo (ej: "Push Pull Legs (copia)").
+    - Backend: `duplicateRoutine({ routine_id, new_name })` crea nuevos IDs para rutina, días y ejercicios copiando todos los campos. No copia sesiones ni historial.
+    - Frontend: botón "Duplicar rutina" en el detalle de rutina.
 
 15. **Calendario semanal — asignar días de la semana a la rutina:**
     - En cada día de la rutina, opción de asignar uno o más días de la semana (lunes, martes… domingo).

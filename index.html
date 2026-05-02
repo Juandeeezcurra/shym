@@ -681,6 +681,7 @@
     <div class="section" style="display: grid; gap: 8px;">
       <button class="ghost-btn full" data-action="rename-routine">Renombrar rutina</button>
       <button class="ghost-btn full" data-action="activate-routine" id="rd-activate-btn">Marcar como activa</button>
+      <button class="ghost-btn full" data-action="duplicate-routine">Duplicar rutina</button>
       <button class="ghost-btn full danger" data-action="delete-routine">Borrar rutina</button>
     </div>
   </section>
@@ -1420,6 +1421,26 @@ async function handleActivateRoutine() {
     await loadRoutineDetail(r.routine_id);
   } catch (err) {
     toast(err.message || 'Error', 'error');
+  }
+}
+
+async function handleDuplicateRoutine() {
+  const r = state.currentRoutine;
+  if (!r) return;
+  const name = await promptModal({
+    title: 'Duplicar rutina',
+    label: 'Nombre de la copia',
+    initial: `${r.routine_name} (copia)`,
+    confirmText: 'Duplicar',
+  });
+  if (!name) return;
+  try {
+    const duplicated = await withLoader(gas.duplicateRoutine({ routine_id: r.routine_id, new_name: name }));
+    state.currentRoutine = duplicated;
+    toast('Rutina duplicada', 'success');
+    goTo('routine-detail', { routine_id: duplicated.routine_id });
+  } catch (err) {
+    toast(err.message || 'Error al duplicar', 'error');
   }
 }
 
@@ -2712,6 +2733,7 @@ document.addEventListener('click', (e) => {
     case 'back-to-routines': goTo('routines'); break;
     case 'rename-routine': handleRenameRoutine(); break;
     case 'activate-routine': handleActivateRoutine(); break;
+    case 'duplicate-routine': handleDuplicateRoutine(); break;
     case 'delete-routine': handleDeleteRoutine(); break;
     case 'add-day': handleAddDay(); break;
     case 'open-day': {

@@ -84,6 +84,7 @@ function getApi_() {
     listRoutines,
     createRoutine,
     renameRoutine,
+    duplicateRoutine,
     setActiveRoutine,
     deleteRoutine,
     getRoutine,
@@ -302,6 +303,71 @@ function renameRoutine(routine_id, new_name) {
   if (!new_name) throw new Error('El nombre no puede estar vacio.');
   if (new_name.length > 80) throw new Error('Nombre demasiado largo.');
   return updateRowById_(SHEETS.ROUTINES, 'routine_id', routine_id, { routine_name: new_name });
+}
+
+function duplicateRoutine(params) {
+  params = params || {};
+  const routine_id = (params.routine_id || '').toString().trim();
+  let new_name = (params.new_name || '').toString().trim();
+  if (!routine_id) throw new Error('routine_id requerido.');
+  if (!new_name) throw new Error('El nombre no puede estar vacio.');
+  if (new_name.length > 80) throw new Error('Nombre demasiado largo.');
+
+  const routines = readAll_(SHEETS.ROUTINES);
+  const source = routines.find(r => r.routine_id === routine_id);
+  if (!source) throw new Error('Rutina no encontrada.');
+
+  const sourceDays = readAll_(SHEETS.DAYS)
+    .filter(d => d.routine_id === routine_id)
+    .sort((a, b) => Number(a.day_order || 0) - Number(b.day_order || 0));
+  const allExercises = readAll_(SHEETS.EXERCISES);
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const newRoutineId = genId_('r');
+    appendRow_(SHEETS.ROUTINES, {
+      routine_id: newRoutineId,
+      routine_name: new_name,
+      created_at: nowIso_(),
+      is_active: false,
+    });
+
+    const dayIdMap = {};
+    sourceDays.forEach(day => {
+      const newDayId = genId_('day');
+      dayIdMap[day.day_id] = newDayId;
+      appendRow_(SHEETS.DAYS, {
+        day_id: newDayId,
+        routine_id: newRoutineId,
+        day_name: day.day_name,
+        day_order: Number(day.day_order || 0),
+      });
+    });
+
+    sourceDays.forEach(day => {
+      allExercises
+        .filter(ex => ex.day_id === day.day_id)
+        .sort((a, b) => Number(a.exercise_order || 0) - Number(b.exercise_order || 0))
+        .forEach(ex => {
+          appendRow_(SHEETS.EXERCISES, {
+            routine_exercise_id: genId_('rex'),
+            day_id: dayIdMap[day.day_id],
+            exercise_order: Number(ex.exercise_order || 0),
+            exercise_name: ex.exercise_name,
+            target_sets: Number(ex.target_sets || 0),
+            target_reps_min: Number(ex.target_reps_min || 0),
+            target_reps_max: Number(ex.target_reps_max || 0),
+            suggested_weight: ex.suggested_weight,
+            technique_note: ex.technique_note || '',
+          });
+        });
+    });
+
+    return getRoutine(newRoutineId);
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function setActiveRoutine(routine_id) {

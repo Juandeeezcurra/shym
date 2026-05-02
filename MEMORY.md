@@ -94,6 +94,7 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
 - Analitica sin schema: `calcSetMetrics_` calcula volumen, peso maximo y 1RM estimado Epley. Summary marca PRs automaticos de peso y/o 1RM comparando contra historial previo. Progreso muestra 1RM estimado por sesion.
 - Calendario de actividad base completo: `listSessionDates({ days })` agrupa sesiones por fecha y `screen-history` muestra grilla de 13 semanas con filtro por dia.
 - Peso corporal completo: `listBodyweightHistory({ limit })` usa `Sessions.bodyweight`, y `screen-progress` tiene vista segmentada Ejercicio/Peso corporal con grafico SVG y registros clickeables.
+- Duplicar rutina completo: `duplicateRoutine({ routine_id, new_name })` clona rutina, dias y ejercicios con IDs nuevos; no copia sesiones.
 - Lista de pendientes viva: `docs/pending.md`. Leerla antes de decidir el siguiente bloque.
 
 ## Prioridades Actuales
