@@ -102,6 +102,7 @@ function getApi_() {
     editSession,
     deleteSession,
     getHomeStats,
+    listRecentSessions,
     listAllExerciseNames,
     listExerciseHistory,
   };
@@ -1050,6 +1051,7 @@ function getHomeStats() {
 
   const improved = countImprovedLatest_(sessions, sets);
   const lastSession = getLastSessionSummary_(sessions, sets, routines, days);
+  const recentSessions = buildRecentSessionSummaries_(sessions, sets, routines, days, 5);
 
   return {
     sesiones_semana: weekSessions.length,
@@ -1057,7 +1059,20 @@ function getHomeStats() {
     ejercicios_en_progreso: Object.keys(exerciseNames).length,
     marcas_mejoradas: improved,
     last_session: lastSession,
+    recent_sessions: recentSessions,
   };
+}
+
+function listRecentSessions(params) {
+  params = params || {};
+  const limit = Math.max(1, Math.min(Number(params.limit || 20), 60));
+  return buildRecentSessionSummaries_(
+    readAll_(SHEETS.SESSIONS),
+    readAll_(SHEETS.SETS),
+    readAll_(SHEETS.ROUTINES),
+    readAll_(SHEETS.DAYS),
+    limit
+  );
 }
 
 function getWeekRange_(isoDate) {
@@ -1130,12 +1145,25 @@ function countImprovedLatest_(sessions, sets) {
 
 function getLastSessionSummary_(sessions, sets, routines, days) {
   if (!sessions.length) return null;
-  const sorted = sessions.slice().sort((a, b) => {
+  const sorted = sortSessionsDesc_(sessions);
+  return buildSessionListItem_(sorted[0], sets, routines, days);
+}
+
+function buildRecentSessionSummaries_(sessions, sets, routines, days, limit) {
+  return sortSessionsDesc_(sessions)
+    .slice(0, limit)
+    .map(session => buildSessionListItem_(session, sets, routines, days));
+}
+
+function sortSessionsDesc_(sessions) {
+  return sessions.slice().sort((a, b) => {
     const dateCmp = normalizeDate_(b.date).localeCompare(normalizeDate_(a.date));
     if (dateCmp !== 0) return dateCmp;
     return (b.created_at || '').toString().localeCompare((a.created_at || '').toString());
   });
-  const session = sorted[0];
+}
+
+function buildSessionListItem_(session, sets, routines, days) {
   const sessionSets = sets.filter(set => set.session_id === session.session_id);
   const routine = routines.find(r => r.routine_id === session.routine_id) || {};
   const day = days.find(d => d.day_id === session.day_id) || {};

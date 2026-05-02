@@ -86,6 +86,33 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
 - Parte 5 base completa: guardar sesion real, resumen, detalle, edicion y borrado completos.
 - Parte 6 iniciada: Home stats reales y ultima sesion clickeable completos.
 - Parte 7 base completa: progreso por ejercicio con selector, historial, volumen, delta y tendencia simple.
+- Reorder completo: dias y ejercicios tienen flechas arriba/abajo y endpoints `reorderDay` / `reorderExercise`.
+- App icon/manifest completo: iconos PNG en `assets/`, `manifest.webmanifest` y tags PWA basicos en `index.html`.
+- UX/nav inicial completo: train-pick ajustado para iPhone, bottom nav de 5 items con CTA central, pantalla `screen-history` y endpoint `listRecentSessions`.
+- Home ya no muestra volumen semanal. Progreso muestra `Último máx.` del ejercicio en vez de volumen total como metrica principal.
+- Modal de ejercicio tiene autocomplete por `listAllExerciseNames()` e inputs numericos optimizados para iPhone.
+- Lista de pendientes viva: `docs/pending.md`. Leerla antes de decidir el siguiente bloque.
+
+## Prioridades Actuales
+
+Segun `docs/pending.md` actualizado el 2026-05-02:
+
+1. Primero arreglar UX chica sin schema:
+   - definir metricas finales de las cards del Home;
+   - evaluar si el Historial necesita filtros o calendario visual.
+2. Despues features de analitica sin schema:
+   - 1RM estimado;
+   - PRs automaticos calculados desde `Session_Sets`;
+   - calendario de sesiones;
+   - evolucion de peso corporal.
+3. Mas adelante features con schema/migracion:
+   - `muscle_group` en ejercicios;
+   - volumen por grupo muscular;
+   - calendario semanal por dia de rutina;
+   - goals;
+   - duracion de sesion.
+
+No implementar features grandes de schema sin avisar que requieren actualizar `Code.gs`, correr/ajustar `setup()` o migrar columnas existentes en Sheets, y redeployar Apps Script.
 
 ## Reglas de Implementacion
 
@@ -97,6 +124,7 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
 - Al guardar sesion exitosamente, borrar draft `gymtracker:session-draft:<day_id>:<date>`.
 - Si cambia `Code.gs`, avisar que hay que redeployar Apps Script.
 - Si cambia `index.html`, avisar que hay que pushear y refrescar GitHub Pages.
+- Si cambia `manifest.webmanifest` o assets de icono, avisar que GitHub Pages puede cachear y que iOS puede requerir quitar/agregar de nuevo a Home Screen.
 
 ## Señales De Problema
 

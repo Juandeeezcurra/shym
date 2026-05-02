@@ -1,224 +1,131 @@
 # Pending — Gym Tracker
 
-Estado y plan de trabajo restante. Última actualización: 2026-05-01.
+Última actualización: 2026-05-02.
 
 ---
 
-## Estado actual
+## Por hacer — UI/UX
 
-**Hecho:**
-- ✅ **Parte 1** — Esqueleto + data layer. 5 sheets, helpers de lectura/escritura, `setup()`, `ping()`.
-- ✅ **Parte 2** — Rutinas CRUD. Backend: `listRoutines`, `createRoutine`, `renameRoutine`, `setActiveRoutine`, `deleteRoutine`, `getRoutine`. Frontend: pantalla Rutinas + Detalle con renombrar/activar/borrar.
-- ✅ **Refactor a arquitectura híbrida** — Backend como API JSON (Apps Script `doGet`/`doPost`) + frontend estático en GitHub Pages. URL: https://juandeeezcurra.github.io/shym/. Configuración del backend vía pantalla de setup que persiste en `localStorage`.
-- ✅ **Fix arquitectura híbrida real** — `Code.gs` expone API JSON (`doPost`) y `index.html` usa `fetch` contra la URL `/exec` guardada en `localStorage`. Ya no hace falta pegar HTML en Apps Script.
-- ✅ **Parte 3** — Días + Ejercicios CRUD. Backend y frontend completos: crear/renombrar/borrar días, crear/editar/borrar ejercicios, validaciones, grid de días, pantalla detalle de día y modal reutilizable de ejercicio.
-- ✅ **Parte 4 base completa** — Selección de entrenamiento + precarga: `getActiveRoutine`, `getLastSessionForDay`, pantalla `train-pick`, pantalla `train`, autosave local, toggle kg/lb y series extras.
-- ✅ **Parte 5 base completa** — Guardado real de sesión + resumen post-entreno + detalle/edición/borrado de sesión.
-- 🟡 **Parte 6 iniciada** — Home con stats reales y última sesión clickeable.
-- ✅ **Parte 7 base completa** — Progreso por ejercicio con selector, historial reciente, volumen, delta y tendencia simple.
+1. ✅ **Borde superior raro (screen-train-pick):** ajustado padding/safe-area del header de selección de entrenamiento.
 
-**Vivo en producción (asumiendo deploy hecho):**
-- App: https://juandeeezcurra.github.io/shym/
-- Repo: https://github.com/Juandeeezcurra/shym
-- Frontend canonical: `index.html` en GitHub Pages. No usar `Index.html`.
-- Backend canonical: `Code.gs` en Apps Script como API JSON.
+2. ✅ **Campo de fecha se sale de los límites:** corregido con `min-width: 0`, `max-width: 100%`, `overflow: hidden` en la card y `appearance: none` en el input de fecha.
 
----
+3. ✅ **Bottom nav — nueva estructura y botón central:** reemplazada por 5 ítems:
+   - Inicio · Rutinas · **⬤ mancuerna** (CTA central) · Progreso · Historial
+   - El botón central usa SVG inline de mancuerna y abre `screen-train-pick`.
+   - Agregada pantalla `screen-history` y endpoint `listRecentSessions({ limit })`.
 
-## Pasos pendientes del usuario (one-time)
+4. ✅ **Quitar "5.5k kg de volumen semanal" de toda la app:**
+   - Eliminado ese stat del Home.
+   - En Progreso, el header del ejercicio ahora muestra **Último máx.** usando `weight_max` de la sesión más reciente.
 
-Cada vez que cambie `Code.gs`, hace falta:
-1. Copiar `Code.gs` desde [raw GitHub](https://raw.githubusercontent.com/Juandeeezcurra/shym/main/Code.gs)
-2. Pegar en Apps Script (reemplazando el contenido)
-3. 💾 Guardar
-4. **Deploy → Manage deployments → ✏️ → Version: New version → Deploy**
-5. Web app config: **Execute as: Me** y **Access: Anyone**
+5. 🟡 **Rediseño de tarjetas de stats del Home (pendiente de discutir):** parcialmente resuelto. Ya no hay 3 tarjetas ni volumen semanal; quedan 2 tarjetas (`ejercicios en progreso`, `marcas mejoradas`). **A definir qué métricas finales van.**
 
-Nunca pegar `index.html` en Apps Script. `index.html` se actualiza solo en GitHub Pages después del push (refresh y listo). Si la app pide backend, pegar en la pantalla de setup la URL del deploy de Apps Script que termina en `/exec`.
+6. ✅ **Autocomplete de nombres de ejercicio:** implementado con `datalist` usando `listAllExerciseNames()`.
 
----
+7. ✅ **Inputs numéricos en ejercicios:** `target_sets`, reps mín y reps máx ahora tienen `type="number"`, `inputmode="numeric"` y `pattern="[0-9]*"`.
 
-## Por hacer
+8. **Grupos musculares — feature grande, múltiples etapas:**
 
-### Parte 3 — Días + Ejercicios CRUD
+   **8a. Etiqueta de músculo en ejercicios (base de todo lo demás):**
+   - Agregar campo `muscle_group` a `Day_Exercises` (y opcionalmente a `Session_Sets` para historial).
+   - Opciones fijas: `pecho` · `espalda` · `hombros` · `bícep` · `trícep` · `core` · `piernas`.
+   - El modal de ejercicio incluye un selector de grupo muscular (chips o select).
+   - Backend: agregar `muscle_group` a `HEADERS[SHEETS.EXERCISES]` y a `addExercise` / `updateExercise`. Requiere `setup()` para agregar la columna a la sheet existente, o migración manual.
 
-**Estado:** completada el 2026-05-01.
+   **8b. Orden por músculo en pantallas de rutina y progreso:**
+   - En `screen-day-detail`: opción de ver ejercicios agrupados por músculo además del orden actual.
+   - En `screen-progress`: selector de músculo para filtrar el historial (en lugar de solo por nombre de ejercicio).
 
-**Backend (`Code.gs`):**
-- `addDay({ routine_id, day_name })` — calcula `day_order` siguiente, retorna `getRoutine` actualizado
-- `renameDay({ day_id, new_name })`
-- `deleteDay({ day_id })` — cascade a ejercicios; sesiones intactas
-- `addExercise({ day_id, exercise_name, target_sets, target_reps_min, target_reps_max, suggested_weight, technique_note })`
-- `updateExercise({ routine_exercise_id, ...campos })`
-- `deleteExercise({ routine_exercise_id })`
+   **8c. Heatmap corporal en Progreso (exploratoria):**
+   - SVG de cuerpo humano (frontal + dorsal) con zonas clicables por grupo muscular.
+   - Color/intensidad según volumen o frecuencia de entrenamiento de cada grupo en los últimos 7/14/30 días.
+   - Al tocar una zona, filtra el historial a ese grupo.
+   - Ideas todavía abiertas: qué métrica pinta el heatmap (volumen, frecuencia, progreso relativo), si mostrar solo frontal o también dorsal, granularidad (¿separar bícep/trícep o solo "brazo"?).
+   - **No implementar hasta definir el diseño visual y las métricas.**
 
-Cada mutación devuelve el `getRoutine` completo para que el frontend re-renderice sin roundtrip extra.
+9. **PRs automáticos — récords personales:**
+   - Al guardar una sesión, comparar cada ejercicio contra su máximo histórico de peso (`weight_max`) y de 1RM estimado.
+   - Si se supera alguno, mostrarlo en el summary con highlight visual (badge "🏆 Nuevo PR" o similar).
+   - Backend: `getPersonalRecords(exercise_name)` — devuelve el PR histórico de peso y 1RM para un ejercicio. Se puede calcular escaneando `Session_Sets`.
+   - El summary ya recibe ejercicios procesados; se puede agregar `is_pr: true` en el objeto de cada ejercicio al guardar.
 
-**Frontend (`index.html`):**
-- Cuando hay días, renderizar grid 2-col en `screen-routine-detail` con cada día (nombre + count de ejercicios)
-- Habilitar botón "+ Día" → modal con input de nombre
-- Nueva pantalla `screen-day-detail` con back button, lista de ejercicios, "+ Ejercicio", acciones (Renombrar día / Borrar día)
-- Modal de ejercicio (create + edit comparten el mismo): nombre, sets objetivo (default 4), reps min (8), reps max (12), peso sugerido (opcional), nota técnica (opcional)
+10. **1RM estimado (fórmula de Epley):**
+    - Para cada set: `1RM = peso × (1 + reps / 30)`. Tomar el máximo del set de la sesión.
+    - Mostrarlo en el historial de ejercicio (`screen-progress`) como una métrica más: "1RM est. X kg".
+    - Útil para comparar sesiones donde cambiaron reps y peso (ej: 100×5 vs 90×10).
+    - No requiere cambios de schema; se calcula en frontend o backend sobre los sets existentes.
 
-**Validaciones backend:**
-- Nombre día: 1-50 chars
-- Nombre ejercicio: 1-100 chars
-- target_sets: 1-20
-- target_reps_min ≤ target_reps_max, ambos 1-100
-- suggested_weight: opcional, ≥ 0
+11. **Calendario de sesiones:**
+    - Vista tipo "GitHub contributions" en la pantalla de Inicio o una pestaña nueva.
+    - Grilla de semanas (últimos 3-6 meses), cada celda = un día, color si entrenaste ese día.
+    - Al tocar una celda con sesión, navegar al detalle de esa sesión.
+    - Backend: `listSessionDates()` — lista de fechas con sesión (no hace falta más). O reusar datos del Home.
+    - Complementa el streak sin necesitar una métrica explícita.
 
-**Decisión locked:** sin drag-and-drop. Orden por `*_order` auto-incrementales.
+12. **Evolución del peso corporal:**
+    - Gráfico de línea con el `bodyweight` registrado en cada sesión a lo largo del tiempo.
+    - Datos ya existen en `Sessions.bodyweight`; solo falta la vista.
+    - Backend: `listBodyweightHistory()` — devuelve `[{ date, bodyweight }]` de sesiones que tienen bodyweight cargado, ordenado por fecha.
+    - Mostrar en una sección de Progreso o como pestaña dentro de la pantalla de Inicio.
+    - Toggle kg/lb respetado.
 
----
+13. **Volumen por grupo muscular a lo largo del tiempo:**
+    - Complementa el heatmap corporal (ítem 8c).
+    - Gráfico de barras apiladas por semana, desglosado por `muscle_group`.
+    - Permite ver si estás descuidando algún grupo o sobreentrenando otro.
+    - Depende de que 8a (campo `muscle_group` en ejercicios) esté implementado primero.
+    - Backend: agregar filtro por `muscle_group` en `getHomeStats` o nuevo endpoint `getVolumeByMuscle({ weeks })`.
 
-### Parte 4 — Entrenar (selección + precarga)
+14. **Duplicar rutina:**
+    - Clonar una rutina existente con todos sus días y ejercicios, asignándole un nombre nuevo (ej: "Push Pull Legs (copia)").
+    - Backend: `duplicateRoutine({ routine_id, new_name })` — crea nuevos IDs para rutina, días y ejercicios copiando todos los campos. No copia sesiones ni historial.
+    - Frontend: botón en el detalle de rutina o en el menú de opciones de cada rutina en la lista.
 
-**Estado:** iniciada el 2026-05-01. Falta probar contra Apps Script deployado y ajustar detalles visuales/UX si aparece algo en celular.
+15. **Calendario semanal — asignar días de la semana a la rutina:**
+    - En cada día de la rutina, opción de asignar uno o más días de la semana (lunes, martes… domingo).
+    - En el Home, mostrar "Hoy te toca: [nombre del día]" si el día actual tiene un día asignado en la rutina activa.
+    - Schema: agregar columna `week_days` a `Routine_Days` (ej: `"1,3"` para lunes y miércoles, o JSON array).
+    - Frontend: selector de días en el detalle de día, chip por día de la semana.
 
-**Backend:**
-- ✅ `getLastSessionForDay({ day_id, date })` — para cada `routine_exercise_id` del día, devuelve las series de la última sesión previa (date < fecha elegida) que use ese mismo `rex_id`.
-- ✅ `getActiveRoutine()` — atajo, devuelve la rutina marcada `is_active`. Si ninguna, lanza error claro.
+16. **Goals por ejercicio:**
+    - Setear un objetivo de peso o 1RM estimado para un ejercicio ("quiero hacer 100 kg en press banca").
+    - En el historial de ese ejercicio, mostrar barra de progreso hacia la meta y el % alcanzado.
+    - Schema: tabla nueva `Exercise_Goals` con `goal_id, exercise_name, target_weight, target_1rm, created_at` — o columna extra en `Day_Exercises`.
+    - Backend: `setExerciseGoal({ exercise_name, target_weight, target_1rm })` y `getExerciseGoal({ exercise_name })`.
 
-**Frontend:**
-- ✅ Pantalla `screen-train-pick`: botón "Empezar entrenamiento" del Home arranca acá:
-  - Input fecha (default hoy, editable)
-  - Selector de rutina (default: activa)
-  - Cards de días disponibles (al elegir → arranca train)
-  - Selector de unidades kg/lb
-- ✅ Pantalla `screen-train`: la sesión en curso
-  - Header con día + fecha + botón cambiar
-  - Card de bodyweight (opcional)
-  - Por cada ejercicio:
-    - Header con nombre + objetivo (sets · reps) + peso sugerido
-    - Chips "Última vez" si hay datos previos
-    - Grid de inputs: kg / reps / RIR por set (cantidad = `target_sets`)
-    - Field opcional de nota
-  - Botón flotante "Guardar sesión"
-- ✅ **localStorage autosave:** key `gymtracker:session-draft:<day_id>:<date>`, se escribe debounced en cada input. Al entrar al train screen, si hay draft para ese day+date, se restaura con toast "Continuando sesión".
-- ✅ **Toggle kg/lb cableado:** los inputs respetan `units.current`.
-- ✅ Parte 5 conectada: al guardar exitosamente, limpia draft y convierte/envía pesos a kg.
+17. **Duración de sesión:**
+    - Registrar `started_at` (timestamp) al entrar a la pantalla de train.
+    - Al guardar la sesión, calcular duración y mandarla junto con los demás datos.
+    - Backend: agregar columna `duration_minutes` a `Sessions`.
+    - Mostrar duración en el summary post-sesión y en el detalle de sesión.
+    - `started_at` se guarda en el draft de localStorage para sobrevivir recargas.
 
-**Decisión locked:** sets generados según `target_sets`. Si querés agregar series extras durante el entrenamiento, botón "+ serie" debajo del último set.
+18. **Streak semanal:**
+    - Contador de semanas consecutivas en que se entrenó al menos N días (configurable, default 3).
+    - Mostrado en el Home con número prominente y un label ("4 semanas seguidas").
+    - Backend: `getStreakStats()` — recorre sesiones hacia atrás agrupadas por semana, cuenta racha continua.
+    - Si la semana actual todavía no llega al mínimo, mostrar cuántas sesiones faltan para mantener la racha.
 
----
-
-### Parte 5 — Guardar sesión + Resumen
-
-**Estado:** base completa el 2026-05-01. Guardar sesión real, summary, detalle, edición y borrado ya implementados.
-
-**Backend:**
-- ✅ `saveSession({ date, routine_id, day_id, bodyweight, notes, exercises: [{ routine_exercise_id, exercise_name, sets: [{ weight, reps, rir, note }] }] })` — escribe `Sessions` + `Session_Sets`, filtra sets vacíos (kg+reps ambos null). Devuelve `{ session, summary }`.
-- ✅ `getSession({ session_id })` — devuelve sesión con sets agrupados por ejercicio
-- ✅ `deleteSession({ session_id })` — borra sesión + todos sus sets
-- ✅ `editSession({ session_id, ...campos editables })` — permite cambiar fecha, notes, bodyweight, sets
-
-**Backend lógica de resumen:**
-Por cada ejercicio guardado, comparar contra última sesión previa con mismo `routine_exercise_id`:
-```
-volumen = Σ(weight × reps)
-peso_max = max(weight)
-reps_totales = Σ(reps)
-
-estado:
-  sin sets vs anterior → "Mejoró" (es la primera vez registrada con datos)
-  volumen actual > anterior y peso_max ≥ anterior → "Mejoró"
-  volumen ±5% del anterior y peso_max ≥ anterior → "Igual"
-  volumen < anterior - 5% → "Bajó"
-  no hay sesión anterior → "Sin datos previos"
-
-sugerencia (basada en target_reps_max):
-  todas las series alcanzaron target_reps_max → "Subir carga próxima vez"
-  todas dentro del rango → "Mantener carga, cerrar el rango"
-  alguna debajo de target_reps_min → "Repetir o bajar; revisar fatiga/técnica"
-```
-
-**Frontend:**
-- ✅ Botón Guardar sesión llama a `saveSession`, limpia draft y navega a resumen
-- ✅ Pantalla `screen-summary`: hero con día + fecha + volumen total + delta vs anterior
-- ✅ Por ejercicio: card con sets de hoy, estado (pill), sugerencia (con dot de color)
-- ✅ Botones: "Volver al Home", "Entrenar otro día"
-- ✅ Pantalla `screen-session-detail`: abre la última sesión desde Home, muestra sets y permite borrar
-- ✅ Pantalla `screen-session-edit`: vista similar a train pero con datos cargados, botón "Guardar cambios"
-
-**Decisión locked:** sets vacíos (sin kg ni reps) se ignoran al guardar. No se requiere completar todos.
+19. **Resumen semanal en el Home:**
+    - Card en el Home que muestra el snapshot de la semana anterior: sesiones, volumen total, PRs conseguidos.
+    - Aparece los lunes (o siempre, mostrando "semana pasada").
+    - Backend: reusar lógica de `getHomeStats` con rango de fechas de la semana previa, más contar PRs de esa semana.
+    - Diseño: card colapsable o fija debajo de las stats actuales.
 
 ---
 
-### Parte 6 — Home dashboard real
+## Decisiones abiertas
 
-**Estado:** iniciada el 2026-05-01. Stats reales y última sesión ya implementados.
+1. **PWA / Offline:** `manifest.json` + service worker para instalar desde Safari y funcionar sin señal. Idea guardada para el futuro.
 
-**Backend:**
-- ✅ `getHomeStats()` — calcula:
-  - `sesiones_semana`: count de sesiones cuya fecha cae en la semana actual (lunes-domingo)
-  - `volumen_semana`: Σ(weight × reps) de todas las series de esas sesiones
-  - `ejercicios_en_progreso`: count de `exercise_name` distintos que aparecen en sesiones de los últimos 14 días
-  - `marcas_mejoradas`: count de `routine_exercise_id` cuya última sesión superó la anterior en volumen total
-  - `last_session`: última sesión (si existe), con day_name + routine_name + volumen + conteos
-
-**Frontend:**
-- ✅ Reemplazar placeholders del Home con números reales
-- ✅ Card "Última sesión" con info real y tap para abrir detalle
-- ✅ Si no hay sesiones todavía: empty state
-
-**Decisión locked:** semana = lunes a domingo en timezone del script.
+2. **Backup / export:** el Sheet ya es backup natural. Botón "Exportar JSON" si se quiere migrar a otra herramienta. Idea guardada para el futuro.
 
 ---
 
-### Parte 7 — Progreso por ejercicio
+## Riesgos operativos
 
-**Estado:** base completa el 2026-05-01.
-
-**Backend:**
-- ✅ `listAllExerciseNames()` — distinct `exercise_name` que aparecen en `Day_Exercises` o `Session_Sets`
-- ✅ `listExerciseHistory({ exercise_name, limit })` — últimas `limit` sesiones con ese ejercicio. Por sesión devuelve fecha + sets + volumen + peso_max + delta vs anterior
-
-**Frontend:**
-- ✅ Selector de ejercicio
-- ✅ Lista de sesiones recientes (default 8)
-- ✅ Por cada sesión: dot de tendencia (verde/amarillo/rojo) + fecha + resumen en una línea (`70×6,6,5,5`)
-- ✅ Pill "Tendencia positiva/negativa/estable" arriba calculada sobre las últimas 4 sesiones
-
-**Decisión locked:** MVP solo muestra historial. Sin gráficos. Sin filtros por rutina/día (eso si llega después, en Parte 8 hipotética).
-
----
-
-## Decisiones todavía abiertas
-
-1. **PWA / Offline:** idea guardada para el futuro. manifest.json + service worker para instalar desde Safari y funcionar sin señal.
-
-2. ~~**Auth simple**~~ — descartado.
-
-3. ~~**Notas por ejercicio**~~ — ya implementado (notas por set durante el entrenamiento).
-
-4. ~~**Reorder de días/ejercicios**~~ — implementado el 2026-05-02. Arrows ↑↓ en días y ejercicios, backend swap por `*_order`.
-
-5. **Backup / export:** el Sheet ya es backup natural. Botón "Exportar JSON" para el futuro si se quiere migrar a otra herramienta.
-
----
-
-## Plan de ejecución (cuando esté solo)
-
-Voy en este orden, commit + push después de cada parte para que veas el progreso:
-
-1. Parte 3 (días + ejercicios)
-2. Parte 4 (entrenar — el grueso)
-3. Parte 5 (guardar + summary)
-4. Parte 6 (home real)
-5. Parte 7 (progreso)
-
-Tests funcionales que voy a verificar mentalmente en cada parte (no hay test runner — single-user, riesgo aceptable):
-- Parte 3: crear rutina → agregar día → agregar ejercicio → editar → borrar; cascadas funcionan
-- Parte 4: precarga muestra última vez correcta; autosave restaura; sets extras
-- Parte 5: guardar genera summary correcto en todos los estados (Mejoró/Igual/Bajó/Sin datos)
-- Parte 6: stats coinciden con datos manualmente verificados en el Sheet
-- Parte 7: historial ordenado correctamente
-
----
-
-## Riesgos / cosas que pueden romperse
-
-- **Apps Script timeout:** si la sheet tiene >10k filas, `readAll_` lee todo. Para MVP no es problema, pero a futuro hay que paginar o usar `getRangeByName`.
-- **Concurrencia:** dos pestañas simultáneas escribiendo pueden generar IDs duplicados en teoría (UUID minimiza el riesgo). Single-user, riesgo bajo.
-- **Cache del navegador:** GitHub Pages cachea agresivamente. Si el usuario no ve cambios después del push, pedir "hard refresh" (Cmd+Shift+R en desktop, en iPhone Safari: Settings → Safari → Clear History).
-- **Apps Script deployments:** si el usuario olvida hacer "New version" después de pegar Code.gs nuevo, el backend sigue corriendo el código viejo. Hay que recordárselo en cada cambio backend.
+- **Apps Script timeout:** si la sheet tiene >10k filas, `readAll_` lee todo. Para MVP no es problema; a futuro paginar o usar `getRangeByName`.
+- **Concurrencia:** dos pestañas simultáneas pueden generar IDs duplicados en teoría (UUID minimiza el riesgo). Single-user, riesgo bajo.
+- **Cache del navegador:** GitHub Pages cachea agresivamente. Si el usuario no ve cambios tras el push: hard refresh (`Cmd+Shift+R`). En iPhone Safari: Settings → Safari → Clear History.
+- **Apps Script deploy:** si se olvida hacer "New version" después de pegar `Code.gs` nuevo, el backend sigue corriendo el código viejo.
