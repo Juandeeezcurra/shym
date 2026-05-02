@@ -310,6 +310,7 @@
   }
   .ghost-btn.full { width: 100%; }
   .ghost-btn.danger { color: var(--bad); border-color: rgba(255, 107, 107, 0.3); }
+  .ghost-btn.reorder-btn:disabled { opacity: 0.2; cursor: default; }
 
   /* Inputs */
   input, select, textarea {
@@ -1166,10 +1167,16 @@ function renderDays(days) {
   }
   el.innerHTML = `
     <div class="day-grid">
-      ${days.map(d => `
-        <div class="day-card" data-action="open-day" data-day-id="${escapeHtml(d.day_id)}">
-          <h3 style="margin-bottom:4px;">${escapeHtml(d.day_name)}</h3>
-          <p class="muted-sm">${d.exercises.length} ejercicio${d.exercises.length === 1 ? '' : 's'}</p>
+      ${days.map((d, i) => `
+        <div class="day-card" style="display:flex;align-items:center;gap:8px;">
+          <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;">
+            <button class="ghost-btn reorder-btn" data-action="reorder-day" data-day-id="${escapeHtml(d.day_id)}" data-direction="up" ${i === 0 ? 'disabled' : ''} style="padding:2px 7px;font-size:13px;line-height:1;">↑</button>
+            <button class="ghost-btn reorder-btn" data-action="reorder-day" data-day-id="${escapeHtml(d.day_id)}" data-direction="down" ${i === days.length - 1 ? 'disabled' : ''} style="padding:2px 7px;font-size:13px;line-height:1;">↓</button>
+          </div>
+          <div style="flex:1;min-width:0;" data-action="open-day" data-day-id="${escapeHtml(d.day_id)}">
+            <h3 style="margin-bottom:4px;">${escapeHtml(d.day_name)}</h3>
+            <p class="muted-sm">${d.exercises.length} ejercicio${d.exercises.length === 1 ? '' : 's'}</p>
+          </div>
         </div>
       `).join('')}
     </div>
@@ -1304,9 +1311,13 @@ function renderExercises(exercises) {
     `;
     return;
   }
-  el.innerHTML = exercises.map(e => `
+  el.innerHTML = exercises.map((e, i) => `
     <div class="card" style="margin-bottom:10px;">
       <div class="card-row" style="align-items:flex-start;">
+        <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;margin-right:8px;">
+          <button class="ghost-btn reorder-btn" data-action="reorder-exercise" data-rex-id="${escapeHtml(e.routine_exercise_id)}" data-direction="up" ${i === 0 ? 'disabled' : ''} style="padding:2px 7px;font-size:13px;line-height:1;">↑</button>
+          <button class="ghost-btn reorder-btn" data-action="reorder-exercise" data-rex-id="${escapeHtml(e.routine_exercise_id)}" data-direction="down" ${i === exercises.length - 1 ? 'disabled' : ''} style="padding:2px 7px;font-size:13px;line-height:1;">↓</button>
+        </div>
         <div style="flex:1;min-width:0;">
           <h3 style="margin-bottom:4px;word-break:break-word;">${escapeHtml(e.exercise_name)}</h3>
           <p class="muted" style="font-size:12px;">${e.target_sets} series · ${e.target_reps_min}–${e.target_reps_max} reps${e.suggested_weight != null && e.suggested_weight !== '' ? ' · ' + units.toDisplay(e.suggested_weight) + ' ' + units.label() : ''}</p>
@@ -1381,6 +1392,31 @@ async function handleDeleteDay() {
     goTo('routine-detail', { routine_id: r.routine_id });
   } catch (err) {
     toast(err.message || 'Error al borrar', 'error');
+  }
+}
+
+async function handleReorderDay(day_id, direction) {
+  const r = state.currentRoutine;
+  if (!r) return;
+  try {
+    const updated = await withLoader(gas.reorderDay({ day_id, direction }));
+    state.currentRoutine = updated;
+    renderDays(updated.days);
+  } catch (err) {
+    toast(err.message || 'Error al reordenar', 'error');
+  }
+}
+
+async function handleReorderExercise(routine_exercise_id, direction) {
+  const day = state.currentDay;
+  if (!day) return;
+  try {
+    const updated = await withLoader(gas.reorderExercise({ routine_exercise_id, direction }));
+    state.currentRoutine = updated;
+    const updatedDay = updated.days.find(d => d.day_id === day.day_id);
+    if (updatedDay) { state.currentDay = updatedDay; renderExercises(updatedDay.exercises); }
+  } catch (err) {
+    toast(err.message || 'Error al reordenar', 'error');
   }
 }
 
@@ -2210,6 +2246,8 @@ document.addEventListener('click', (e) => {
     case 'add-exercise': handleAddExercise(); break;
     case 'edit-exercise': handleEditExercise(t.dataset.rexId); break;
     case 'delete-exercise': handleDeleteExercise(t.dataset.rexId); break;
+    case 'reorder-day': handleReorderDay(t.dataset.dayId, t.dataset.direction); break;
+    case 'reorder-exercise': handleReorderExercise(t.dataset.rexId, t.dataset.direction); break;
     case 'refresh-train-pick': loadTrainPick(); break;
     case 'start-train-day': {
       const r = state.currentRoutine;

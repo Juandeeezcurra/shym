@@ -90,9 +90,11 @@ function getApi_() {
     addDay,
     renameDay,
     deleteDay,
+    reorderDay,
     addExercise,
     updateExercise,
     deleteExercise,
+    reorderExercise,
     getActiveRoutine,
     getLastSessionForDay,
     saveSession,
@@ -428,6 +430,31 @@ function deleteDay(params) {
   return getRoutine(day.routine_id);
 }
 
+function reorderDay(params) {
+  const day_id   = (params.day_id   || '').toString().trim();
+  const direction = (params.direction || '').toString().trim();
+  if (!day_id) throw new Error('day_id requerido.');
+  if (direction !== 'up' && direction !== 'down') throw new Error('direction debe ser "up" o "down".');
+
+  const allDays = readAll_(SHEETS.DAYS);
+  const day = allDays.find(d => d.day_id === day_id);
+  if (!day) throw new Error('Día no encontrado.');
+
+  const siblings = allDays
+    .filter(d => d.routine_id === day.routine_id)
+    .sort((a, b) => Number(a.day_order) - Number(b.day_order));
+
+  const idx = siblings.findIndex(d => d.day_id === day_id);
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= siblings.length) return getRoutine(day.routine_id);
+
+  const target = siblings[swapIdx];
+  const tempOrder = Number(day.day_order);
+  updateRowById_(SHEETS.DAYS, 'day_id', day_id,      { day_order: Number(target.day_order) });
+  updateRowById_(SHEETS.DAYS, 'day_id', target.day_id, { day_order: tempOrder });
+  return getRoutine(day.routine_id);
+}
+
 // ============================================================
 // EXERCISES API — Parte 3
 // ============================================================
@@ -538,6 +565,36 @@ function deleteExercise(params) {
   if (!day) throw new Error('Día no encontrado.');
 
   deleteRowById_(SHEETS.EXERCISES, 'routine_exercise_id', rex_id);
+  return getRoutine(day.routine_id);
+}
+
+function reorderExercise(params) {
+  const rex_id   = (params.routine_exercise_id || '').toString().trim();
+  const direction = (params.direction || '').toString().trim();
+  if (!rex_id) throw new Error('routine_exercise_id requerido.');
+  if (direction !== 'up' && direction !== 'down') throw new Error('direction debe ser "up" o "down".');
+
+  const allEx = readAll_(SHEETS.EXERCISES);
+  const ex = allEx.find(e => e.routine_exercise_id === rex_id);
+  if (!ex) throw new Error('Ejercicio no encontrado.');
+
+  const siblings = allEx
+    .filter(e => e.day_id === ex.day_id)
+    .sort((a, b) => Number(a.exercise_order) - Number(b.exercise_order));
+
+  const idx = siblings.findIndex(e => e.routine_exercise_id === rex_id);
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= siblings.length) {
+    const day = readAll_(SHEETS.DAYS).find(d => d.day_id === ex.day_id);
+    return getRoutine(day.routine_id);
+  }
+
+  const target = siblings[swapIdx];
+  const tempOrder = Number(ex.exercise_order);
+  updateRowById_(SHEETS.EXERCISES, 'routine_exercise_id', rex_id,         { exercise_order: Number(target.exercise_order) });
+  updateRowById_(SHEETS.EXERCISES, 'routine_exercise_id', target.routine_exercise_id, { exercise_order: tempOrder });
+
+  const day = readAll_(SHEETS.DAYS).find(d => d.day_id === ex.day_id);
   return getRoutine(day.routine_id);
 }
 

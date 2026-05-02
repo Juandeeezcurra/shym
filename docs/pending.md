@@ -183,17 +183,17 @@ sugerencia (basada en target_reps_max):
 
 ---
 
-## Decisiones todavía abiertas (para discutir cuando vuelva)
+## Decisiones todavía abiertas
 
-1. **PWA / Offline:** ¿agregamos manifest.json + service worker para que la app funcione offline y se instale como app real desde Safari? Costo: ~30 min. Beneficio: si entrenás en un sótano sin señal, igual podés cargar la sesión y sincroniza después. Sin esto, sin internet la app no abre.
+1. **PWA / Offline:** idea guardada para el futuro. manifest.json + service worker para instalar desde Safari y funcionar sin señal.
 
-2. **Auth simple:** la URL del Apps Script `/exec` es accesible para cualquiera que la tenga. Si te da paranoia que alguien la "encuentre" y meta basura en tu Sheet, agregamos un shared secret hardcodeado en `index.html` que el backend valida. ~10 líneas.
+2. ~~**Auth simple**~~ — descartado.
 
-3. **Notas pre-sesión vs post-sesión:** el spec dice "nota general del ejercicio" pero no aclara cuándo se carga. Asumo que se carga durante el entrenamiento y queda persistida en `Session_Sets.note` por set. Si querés notas a nivel ejercicio (no set), se agrega una columna `Sessions.exercise_notes` o algo similar.
+3. ~~**Notas por ejercicio**~~ — ya implementado (notas por set durante el entrenamiento).
 
-4. **Reorder de días/ejercicios:** lo dejé fuera del MVP. Si en algún momento te molesta no poder reordenar, agregamos arrows ↑↓ en cada item (15 min cada uno).
+4. ~~**Reorder de días/ejercicios**~~ — implementado el 2026-05-02. Arrows ↑↓ en días y ejercicios, backend swap por `*_order`.
 
-5. **Backup / export:** el Sheet ya es backup natural. ¿Querés un botón "Exportar JSON" en settings? Útil si querés migrar a otra herramienta más adelante.
+5. **Backup / export:** el Sheet ya es backup natural. Botón "Exportar JSON" para el futuro si se quiere migrar a otra herramienta.
 
 ---
 
