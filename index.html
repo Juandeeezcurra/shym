@@ -2065,6 +2065,7 @@ function renderExerciseHistory(history) {
   }
 
   const latestMax = sessions[0].weight_max || 0;
+  const latestE1rm = sessions[0].e1rm_max || 0;
   $('#progress-content').innerHTML = `
     <div class="card">
       <div class="card-row">
@@ -2072,7 +2073,10 @@ function renderExerciseHistory(history) {
           <h3>${escapeHtml(history.exercise_name)}</h3>
           <p class="muted">Últimas ${sessions.length} sesiones</p>
         </div>
-        <span class="pill accent">Último máx. ${latestMax ? units.toDisplay(latestMax) + ' ' + units.label() : '-'}</span>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+          <span class="pill accent">Último máx. ${latestMax ? units.toDisplay(latestMax) + ' ' + units.label() : '-'}</span>
+          <span class="pill">1RM est. ${latestE1rm ? units.toDisplay(latestE1rm) + ' ' + units.label() : '-'}</span>
+        </div>
       </div>
       <div class="summary-status">
         <span class="dot ${history.trend === 'Tendencia negativa' ? 'bad' : (history.trend === 'Tendencia positiva' ? '' : 'warn')}"></span>
@@ -2087,7 +2091,10 @@ function renderExerciseHistory(history) {
             <p class="muted">${escapeHtml(s.day_name || s.routine_name || '')}</p>
             <p class="muted-sm" style="margin-top:4px;">${escapeHtml(formatSetsLine(s.sets || []))}</p>
           </div>
-          <span class="pill accent">${formatCompactNumber(s.volume)} kg</span>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+            <span class="pill accent">${formatCompactNumber(s.volume)} kg</span>
+            <span class="pill">1RM ${s.e1rm_max ? units.toDisplay(s.e1rm_max) + ' ' + units.label() : '-'}</span>
+          </div>
         </div>
         <div class="summary-status">
           <span class="dot ${progressDotClass(s.trend)}"></span>
@@ -2297,9 +2304,13 @@ function renderSummary(summary) {
         <div style="flex:1;min-width:0;">
           <h3 style="word-break:break-word;">${escapeHtml(ex.exercise_name)}</h3>
           <p class="muted">${escapeHtml(formatSetsLine(ex.sets))}</p>
+          <p class="muted-sm" style="margin-top:4px;">Máx. ${formatWeight(ex.metrics && ex.metrics.weight_max)} · 1RM est. ${formatWeight(ex.metrics && ex.metrics.e1rm_max)}</p>
           ${ex.previous_sets && ex.previous_sets.length ? `<p class="muted-sm" style="margin-top:4px;">Última: ${escapeHtml(formatSetsLine(ex.previous_sets))}</p>` : ''}
         </div>
-        <span class="pill ${statusClass(ex.status)}">${escapeHtml(ex.status)}</span>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
+          ${ex.is_pr ? `<span class="pill good">${escapeHtml(formatPrBadge(ex))}</span>` : ''}
+          <span class="pill ${statusClass(ex.status)}">${escapeHtml(ex.status)}</span>
+        </div>
       </div>
       <div class="summary-status">
         <span class="dot ${statusDotClass(ex.status)}"></span>
@@ -2321,6 +2332,20 @@ function formatSetsLine(sets) {
     const r = s.reps == null ? '-' : s.reps;
     return `${w}×${r}`;
   }).join(' · ');
+}
+
+function formatWeight(kg) {
+  const n = Number(kg || 0);
+  if (!n) return '-';
+  return `${units.toDisplay(n)} ${units.label()}`;
+}
+
+function formatPrBadge(ex) {
+  const types = ex.pr_types || {};
+  if (types.weight && types.e1rm) return 'Nuevo PR peso + 1RM';
+  if (types.weight) return 'Nuevo PR peso';
+  if (types.e1rm) return 'Nuevo PR 1RM';
+  return 'Nuevo PR';
 }
 
 function statusClass(status) {

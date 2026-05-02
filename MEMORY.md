@@ -91,6 +91,7 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
 - UX/nav inicial completo: train-pick ajustado para iPhone, bottom nav de 5 items con CTA central, pantalla `screen-history` y endpoint `listRecentSessions`.
 - Home ya no muestra volumen semanal. Progreso muestra `Último máx.` del ejercicio en vez de volumen total como metrica principal.
 - Modal de ejercicio tiene autocomplete por `listAllExerciseNames()` e inputs numericos optimizados para iPhone.
+- Analitica sin schema: `calcSetMetrics_` calcula volumen, peso maximo y 1RM estimado Epley. Summary marca PRs automaticos de peso y/o 1RM comparando contra historial previo. Progreso muestra 1RM estimado por sesion.
 - Lista de pendientes viva: `docs/pending.md`. Leerla antes de decidir el siguiente bloque.
 
 ## Prioridades Actuales
@@ -101,8 +102,6 @@ Segun `docs/pending.md` actualizado el 2026-05-02:
    - definir metricas finales de las cards del Home;
    - evaluar si el Historial necesita filtros o calendario visual.
 2. Despues features de analitica sin schema:
-   - 1RM estimado;
-   - PRs automaticos calculados desde `Session_Sets`;
    - calendario de sesiones;
    - evolucion de peso corporal.
 3. Mas adelante features con schema/migracion:

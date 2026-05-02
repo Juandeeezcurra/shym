@@ -44,17 +44,16 @@
    - Ideas todavía abiertas: qué métrica pinta el heatmap (volumen, frecuencia, progreso relativo), si mostrar solo frontal o también dorsal, granularidad (¿separar bícep/trícep o solo "brazo"?).
    - **No implementar hasta definir el diseño visual y las métricas.**
 
-9. **PRs automáticos — récords personales:**
-   - Al guardar una sesión, comparar cada ejercicio contra su máximo histórico de peso (`weight_max`) y de 1RM estimado.
-   - Si se supera alguno, mostrarlo en el summary con highlight visual (badge "🏆 Nuevo PR" o similar).
-   - Backend: `getPersonalRecords(exercise_name)` — devuelve el PR histórico de peso y 1RM para un ejercicio. Se puede calcular escaneando `Session_Sets`.
-   - El summary ya recibe ejercicios procesados; se puede agregar `is_pr: true` en el objeto de cada ejercicio al guardar.
+9. ✅ **PRs automáticos — récords personales:**
+   - Al guardar/editar una sesión, cada ejercicio se compara contra su máximo histórico previo de peso (`weight_max`) y de 1RM estimado.
+   - El summary muestra badge cuando hay `Nuevo PR peso`, `Nuevo PR 1RM` o ambos.
+   - No requiere schema nuevo; se calcula escaneando `Session_Sets` y excluyendo la sesión actual.
 
-10. **1RM estimado (fórmula de Epley):**
-    - Para cada set: `1RM = peso × (1 + reps / 30)`. Tomar el máximo del set de la sesión.
-    - Mostrarlo en el historial de ejercicio (`screen-progress`) como una métrica más: "1RM est. X kg".
-    - Útil para comparar sesiones donde cambiaron reps y peso (ej: 100×5 vs 90×10).
-    - No requiere cambios de schema; se calcula en frontend o backend sobre los sets existentes.
+10. ✅ **1RM estimado (fórmula de Epley):**
+    - Para cada set: `1RM = peso × (1 + reps / 30)`. Se toma el máximo de la sesión.
+    - Se muestra en el historial de ejercicio (`screen-progress`) como "1RM est. X kg".
+    - También aparece en el summary por ejercicio.
+    - No requiere cambios de schema; se calcula en backend sobre los sets existentes.
 
 11. **Calendario de sesiones:**
     - Vista tipo "GitHub contributions" en la pantalla de Inicio o una pestaña nueva.

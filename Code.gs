@@ -921,10 +921,15 @@ function normalizeOptionalInteger_(value, field) {
 }
 
 function buildSessionSummary_(session, exercises, routine, day) {
+  const allSessions = readAll_(SHEETS.SESSIONS);
+  const allSets = readAll_(SHEETS.SETS);
   const exerciseSummaries = exercises.map(ex => {
     const previousSets = getPreviousSetsForExercise_(ex.routine_exercise_id, session.day_id, normalizeDate_(session.date));
     const currentMetrics = calcSetMetrics_(ex.sets);
     const previousMetrics = calcSetMetrics_(previousSets);
+    const historicalPrs = getHistoricalPrsForExercise_(ex.exercise_name, session, allSessions, allSets);
+    const weightPr = historicalPrs.weight_max > 0 && currentMetrics.weight_max > historicalPrs.weight_max;
+    const e1rmPr = historicalPrs.e1rm_max > 0 && currentMetrics.e1rm_max > historicalPrs.e1rm_max;
     const status = compareMetrics_(currentMetrics, previousMetrics, previousSets.length > 0);
     return {
       routine_exercise_id: ex.routine_exercise_id,
@@ -933,6 +938,12 @@ function buildSessionSummary_(session, exercises, routine, day) {
       previous_sets: previousSets,
       metrics: currentMetrics,
       previous_metrics: previousSets.length > 0 ? previousMetrics : null,
+      historical_prs: historicalPrs,
+      is_pr: weightPr || e1rmPr,
+      pr_types: {
+        weight: weightPr,
+        e1rm: e1rmPr,
+      },
       status,
       suggestion: buildSuggestion_(ex.sets, ex.template),
     };
@@ -990,8 +1001,43 @@ function calcSetMetrics_(sets) {
     acc.volume += weight * reps;
     acc.reps_total += reps;
     acc.weight_max = Math.max(acc.weight_max, weight);
+    acc.e1rm_max = Math.max(acc.e1rm_max, calcEstimatedOneRepMax_(weight, reps));
     return acc;
-  }, { volume: 0, reps_total: 0, weight_max: 0, set_count: clean.length });
+  }, { volume: 0, reps_total: 0, weight_max: 0, e1rm_max: 0, set_count: clean.length });
+}
+
+function calcEstimatedOneRepMax_(weight, reps) {
+  weight = Number(weight || 0);
+  reps = Number(reps || 0);
+  if (!weight || !reps) return 0;
+  return Math.round((weight * (1 + reps / 30)) * 100) / 100;
+}
+
+function getHistoricalPrsForExercise_(exerciseName, currentSession, sessions, sets) {
+  const currentDate = normalizeDate_(currentSession.date);
+  const currentCreated = (currentSession.created_at || '').toString();
+  const previousSessionIds = {};
+  sessions.forEach(s => {
+    if (s.session_id === currentSession.session_id) return;
+    const d = normalizeDate_(s.date);
+    const created = (s.created_at || '').toString();
+    if (d < currentDate || (d === currentDate && created < currentCreated)) {
+      previousSessionIds[s.session_id] = true;
+    }
+  });
+
+  const exerciseSets = sets
+    .filter(set => previousSessionIds[set.session_id])
+    .filter(set => (set.exercise_name || '').toString().trim() === exerciseName);
+  const metrics = calcSetMetrics_(exerciseSets.map(set => ({
+    weight: set.weight === '' ? null : Number(set.weight),
+    reps: set.reps === '' ? null : Number(set.reps),
+  })));
+
+  return {
+    weight_max: metrics.weight_max,
+    e1rm_max: metrics.e1rm_max,
+  };
 }
 
 function compareMetrics_(current, previous, hasPrevious) {
@@ -1249,6 +1295,7 @@ function listExerciseHistory(params) {
       const metrics = calcSetMetrics_(item.sets);
       item.volume = Math.round(metrics.volume * 100) / 100;
       item.weight_max = metrics.weight_max;
+      item.e1rm_max = metrics.e1rm_max;
       item.reps_total = metrics.reps_total;
       return item;
     });
@@ -1261,6 +1308,7 @@ function listExerciseHistory(params) {
     }
     const prev = chronological[idx - 1];
     item.delta_volume = Math.round((item.volume - prev.volume) * 100) / 100;
+    item.delta_e1rm = Math.round((item.e1rm_max - prev.e1rm_max) * 100) / 100;
     item.trend = item.volume > prev.volume ? 'up' : (item.volume < prev.volume ? 'down' : 'flat');
   });
 
