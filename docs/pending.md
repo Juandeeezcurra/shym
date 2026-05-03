@@ -1,5 +1,9 @@
 # Pendientes Shym
 
+Archivo historico: esta lista quedo completada. La fuente activa de estado y prioridades es `MEMORY.md`.
+
+## Completados
+
 Prioridad alta:
 - [x] Mejorar tiempos de carga. La app se siente pesada y esto es la prioridad.
 - [x] Evitar que al tocar una rutina se muestren dias de una rutina anterior.

@@ -70,10 +70,11 @@ Funciones permitidas viven en `getApi_()` dentro de `Code.gs`. Si se agrega un e
 Sheets:
 
 - `Routines`: `routine_id`, `routine_name`, `created_at`, `is_active`
-- `Routine_Days`: `day_id`, `routine_id`, `day_name`, `day_order`
+- `Routine_Days`: `day_id`, `routine_id`, `day_name`, `day_order`, `week_days`
 - `Day_Exercises`: `routine_exercise_id`, `day_id`, `exercise_order`, `exercise_name`, `target_sets`, `target_reps_min`, `target_reps_max`, `suggested_weight`, `technique_note`, `muscle_group`
-- `Sessions`: `session_id`, `date`, `routine_id`, `day_id`, `bodyweight`, `notes`, `created_at`
-- `Session_Sets`: `set_id`, `session_id`, `routine_exercise_id`, `exercise_name`, `set_number`, `weight`, `reps`, `rir`, `note`
+- `Sessions`: `session_id`, `date`, `routine_id`, `day_id`, `bodyweight`, `notes`, `created_at`, `routine_name`, `day_name`
+- `Session_Sets`: `set_id`, `session_id`, `routine_exercise_id`, `exercise_name`, `set_number`, `weight`, `reps`, `rir`, `note`, `muscle_group`
+- `Exercise_Goals`: `goal_id`, `exercise_name`, `target_weight`, `target_1rm`, `created_at`, `updated_at`
 
 Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
 
@@ -87,7 +88,7 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
 - Parte 6 iniciada: Home stats reales y ultima sesion clickeable completos.
 - Parte 7 base completa: progreso por ejercicio con selector, historial, volumen, delta y tendencia simple.
 - Reorder completo: dias y ejercicios tienen flechas arriba/abajo y endpoints `reorderDay` / `reorderExercise`.
-- App icon/manifest completo: iconos PNG en `assets/`, `manifest.webmanifest` y tags PWA basicos en `index.html`.
+- App icon/manifest completo: iconos PNG en `assets/`, `manifest.webmanifest` y tags PWA basicos en `index.html`. Version activa: `v3`, recortada sin borde blanco (`assets/app-icon-192-v3.png`, `assets/app-icon-512-v3.png`, `assets/apple-touch-icon-v3.png`, `manifest.webmanifest?v=3`).
 - UX/nav inicial completo: train-pick ajustado para iPhone, bottom nav de 5 items con CTA central, pantalla `screen-history` y endpoint `listRecentSessions`.
 - Home ya no muestra volumen semanal. Progreso muestra `Último máx.` del ejercicio en vez de volumen total como metrica principal.
 - Modal de ejercicio tiene autocomplete por `listAllExerciseNames()` e inputs numericos optimizados para iPhone.
@@ -96,20 +97,25 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
 - Peso corporal completo: `listBodyweightHistory({ limit })` usa `Sessions.bodyweight`, y `screen-progress` tiene vista segmentada Ejercicio/Peso corporal con grafico SVG y registros clickeables.
 - Duplicar rutina completo: `duplicateRoutine({ routine_id, new_name })` clona rutina, dias y ejercicios con IDs nuevos; no copia sesiones.
 - Muscle group base completo: `Day_Exercises.muscle_group` con opciones `pecho`, `espalda`, `hombros`, `bicep`, `tricep`, `core`, `piernas`. El modal de ejercicio guarda el grupo y las cards muestran chip. Requiere correr `setup()` tras actualizar Apps Script para agregar la columna.
-- Lista de pendientes viva: `docs/pending.md`. Leerla antes de decidir el siguiente bloque.
+- Home actual completo: muestra sesiones de la semana, "Hoy te toca" segun `week_days`, 2 tarjetas de stats (`ejercicios activos en 14 dias` y `ejercicios con mas volumen`), racha semanal y resumen de semana pasada.
+- Calendario semanal completo: cada dia de rutina puede tener `week_days` ISO (`1,3` = lunes y miercoles). Home, detalle de rutina, detalle de dia y seleccion de entrenamiento muestran chips.
+- Streak semanal completo: `getStreakStatsFromSessions_(sessions, today, targetDays)` cuenta semanas consecutivas con al menos 3 dias unicos entrenados por semana.
+- Resumen semanal completo: `getPreviousWeekSummary_(sessions, sets, today)` calcula sesiones, volumen y PRs de la semana anterior.
+- Progreso por musculo completo:
+  - `listMuscleGroupHistory({ muscle_group, limit })` muestra historial agregado por grupo muscular.
+  - `getVolumeByMuscle({ weeks })` alimenta vista **Musculos** con barras apiladas por semana.
+  - `getMuscleHeatmap({ days })` alimenta vista **Cuerpo** con SVG frontal+dorsal e intensidad por volumen relativo de los ultimos 30 dias.
+  - El grupo muscular principal es obligatorio al crear/editar ejercicios, porque alimenta heatmap y graficos.
+- Goals por ejercicio existen en codigo: `Exercise_Goals`, `getExerciseGoal`, `setExerciseGoal`, card de Meta en historial de ejercicio. Mantener salvo que el usuario pida explicitamente sacarlo.
+- Auditoria tecnica guardada en `docs/tech-audit.md`. Arreglos aplicados: boot del Home, fecha local, goals tolerantes a hoja faltante, drafts canonicos en kg, validacion de bodyweight, notas preservadas, retorno desde Progreso, snapshots historicos, duplicacion con musculo obligatorio/inferido e historial de 91 dias.
+- Snapshots historicos: sesiones nuevas guardan `routine_name`/`day_name`; sets nuevos guardan `muscle_group`. `setup()` corre migracion historica y tambien existe `migrateHistoricalSnapshots()` para backfill manual. La migracion solo recupera datos inferibles desde IDs actuales o nombres equivalentes.
+- `docs/pending.md` ya no es fuente activa: queda como archivo historico de pendientes completados. Usar este `MEMORY.md` como fuente de estado.
 
-## Prioridades Actuales
+## Ideas Futuras Guardadas
 
-Segun `docs/pending.md` actualizado el 2026-05-02:
-
-1. Primero arreglar UX chica sin schema:
-   - definir metricas finales de las cards del Home;
-   - evaluar si el Historial necesita filtros por rutina/dia o rangos mas largos.
-2. Mas adelante features con schema/migracion:
-   - volumen por grupo muscular;
-   - calendario semanal por dia de rutina;
-   - goals;
-   - duracion de sesion.
+- PWA/offline: por ahora no implementar. Si se retoma, preferir PWA basica primero (instalable + cache de archivos + drafts locales existentes). No hacer sync offline completa sin definir conflictos.
+- Backup/export: por ahora no implementar. El Google Sheet ya funciona como backup natural. Si se retoma, preferir Export JSON completo para migracion/respaldo.
+- Historial: a futuro se podria agregar filtros por rutina/dia o rangos mas largos si el uso real lo pide.
 
 No implementar features grandes de schema sin avisar que requieren actualizar `Code.gs`, correr/ajustar `setup()` o migrar columnas existentes en Sheets, y redeployar Apps Script.
 
