@@ -1569,7 +1569,7 @@ function listSessionDates(params) {
       const d = normalizeDate_(s.date);
       return d >= start && d <= today;
     });
-  const sets = readAll_(SHEETS.SETS);
+  const setsBySession = groupBy_(readAll_(SHEETS.SETS), 'session_id');
   const byDate = {};
 
   sessions.forEach(session => {
@@ -1582,7 +1582,7 @@ function listSessionDates(params) {
         session_ids: [],
       };
     }
-    const sessionSets = sets.filter(set => set.session_id === session.session_id);
+    const sessionSets = setsBySession[session.session_id] || [];
     byDate[date].session_count++;
     byDate[date].total_volume += calcRawVolume_(sessionSets);
     byDate[date].session_ids.push(session.session_id);
@@ -1660,11 +1660,12 @@ function calcRawVolume_(sets) {
 }
 
 function countImprovedLatest_(sessions, sets) {
+  const sessionsById = indexBy_(sessions, 'session_id');
   const byExercise = {};
   sets.forEach(set => {
     const rexId = set.routine_exercise_id;
     if (!rexId) return;
-    const session = sessions.find(s => s.session_id === set.session_id);
+    const session = sessionsById[set.session_id];
     if (!session) return;
     if (!byExercise[rexId]) byExercise[rexId] = {};
     if (!byExercise[rexId][session.session_id]) {
@@ -1693,14 +1694,22 @@ function countImprovedLatest_(sessions, sets) {
 
 function getLastSessionSummary_(sessions, sets, routines, days) {
   if (!sessions.length) return null;
-  const sorted = sortSessionsDesc_(sessions);
-  return buildSessionListItem_(sorted[0], sets, routines, days);
+  const summaries = buildRecentSessionSummaries_(sessions, sets, routines, days, 1);
+  return summaries[0] || null;
 }
 
 function buildRecentSessionSummaries_(sessions, sets, routines, days, limit) {
+  const setsBySession = groupBy_(sets, 'session_id');
+  const routinesById = indexBy_(routines, 'routine_id');
+  const daysById = indexBy_(days, 'day_id');
   return sortSessionsDesc_(sessions)
     .slice(0, limit)
-    .map(session => buildSessionListItem_(session, sets, routines, days));
+    .map(session => buildSessionListItem_(
+      session,
+      setsBySession[session.session_id] || [],
+      routinesById[session.routine_id] || {},
+      daysById[session.day_id] || {}
+    ));
 }
 
 function sortSessionsDesc_(sessions) {
@@ -1711,11 +1720,25 @@ function sortSessionsDesc_(sessions) {
   });
 }
 
-function buildSessionListItem_(session, sets, routines, days) {
-  const sessionSets = sets.filter(set => set.session_id === session.session_id);
-  const routine = routines.find(r => r.routine_id === session.routine_id) || {};
-  const day = days.find(d => d.day_id === session.day_id) || {};
+function indexBy_(items, field) {
+  return (items || []).reduce((acc, item) => {
+    const key = item && item[field];
+    if (key !== undefined && key !== null && key !== '') acc[key] = item;
+    return acc;
+  }, {});
+}
 
+function groupBy_(items, field) {
+  return (items || []).reduce((acc, item) => {
+    const key = item && item[field];
+    if (key === undefined || key === null || key === '') return acc;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+}
+
+function buildSessionListItem_(session, sessionSets, routine, day) {
   return {
     session_id: session.session_id,
     date: normalizeDate_(session.date),
@@ -1760,14 +1783,17 @@ function listExerciseHistory(params) {
     .filter(set => (set.exercise_name || '').toString().trim() === exerciseName);
   const routines = readAll_(SHEETS.ROUTINES);
   const days = readAll_(SHEETS.DAYS);
+  const sessionsById = indexBy_(sessions, 'session_id');
+  const routinesById = indexBy_(routines, 'routine_id');
+  const daysById = indexBy_(days, 'day_id');
 
   const bySession = {};
   sets.forEach(set => {
-    const session = sessions.find(s => s.session_id === set.session_id);
+    const session = sessionsById[set.session_id];
     if (!session) return;
     if (!bySession[session.session_id]) {
-      const routine = routines.find(r => r.routine_id === session.routine_id) || {};
-      const day = days.find(d => d.day_id === session.day_id) || {};
+      const routine = routinesById[session.routine_id] || {};
+      const day = daysById[session.day_id] || {};
       bySession[session.session_id] = {
         session_id: session.session_id,
         date: normalizeDate_(session.date),
@@ -2041,17 +2067,20 @@ function listMuscleGroupHistory(params) {
   const days = readAll_(SHEETS.DAYS);
   const exercises = readAll_(SHEETS.EXERCISES);
   const exerciseMeta = buildExerciseMuscleMeta_(exercises);
+  const sessionsById = indexBy_(sessions, 'session_id');
+  const routinesById = indexBy_(routines, 'routine_id');
+  const daysById = indexBy_(days, 'day_id');
 
   const bySession = {};
   sets.forEach(set => {
     const group = resolveSetMuscleGroup_(set, exerciseMeta);
     if (group !== muscleGroup) return;
 
-    const session = sessions.find(s => s.session_id === set.session_id);
+    const session = sessionsById[set.session_id];
     if (!session) return;
     if (!bySession[session.session_id]) {
-      const routine = routines.find(r => r.routine_id === session.routine_id) || {};
-      const day = days.find(d => d.day_id === session.day_id) || {};
+      const routine = routinesById[session.routine_id] || {};
+      const day = daysById[session.day_id] || {};
       bySession[session.session_id] = {
         session_id: session.session_id,
         date: normalizeDate_(session.date),

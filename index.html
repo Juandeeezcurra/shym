@@ -1138,8 +1138,9 @@ const state = {
   progressMuscle: 'pecho',
   exerciseNameSuggestions: null,
   dayExerciseView: 'order',
-  requestSeq: 0,
   navSeq: 0,
+  loadTokens: {},
+  actionLocks: {},
   lastTap: { key: '', at: 0 },
 };
 
@@ -1149,6 +1150,8 @@ const state = {
 function $(sel, root) { return (root || document).querySelector(sel); }
 function $$(sel, root) { return Array.from((root || document).querySelectorAll(sel)); }
 
+let loaderDepth = 0;
+
 function toast(msg, kind) {
   const el = $('#toast');
   el.textContent = msg;
@@ -1157,8 +1160,15 @@ function toast(msg, kind) {
   toast._t = setTimeout(() => { el.className = 'toast'; }, 2500);
 }
 
-function showLoader() { $('#loader').classList.remove('hidden'); }
-function hideLoader() { $('#loader').classList.add('hidden'); }
+function showLoader() {
+  loaderDepth += 1;
+  $('#loader').classList.remove('hidden');
+}
+
+function hideLoader() {
+  loaderDepth = Math.max(0, loaderDepth - 1);
+  if (loaderDepth === 0) $('#loader').classList.add('hidden');
+}
 
 async function withLoader(promise) {
   showLoader();
@@ -1376,6 +1386,26 @@ function shouldIgnoreRapidTap(target) {
   return false;
 }
 
+function nextLoadToken(scope) {
+  const token = (state.loadTokens[scope] || 0) + 1;
+  state.loadTokens[scope] = token;
+  return token;
+}
+
+function isCurrentLoad(scope, token, screenId, navToken) {
+  if (state.loadTokens[scope] !== token) return false;
+  if (screenId && state.currentScreen !== screenId) return false;
+  if (navToken && !isCurrentNav(navToken, screenId)) return false;
+  return true;
+}
+
+async function runLockedAction(key, fn) {
+  if (state.actionLocks[key]) return;
+  state.actionLocks[key] = true;
+  try { return await fn(); }
+  finally { delete state.actionLocks[key]; }
+}
+
 // ============================================================
 // HOME
 // ============================================================
@@ -1563,14 +1593,19 @@ function renderSessionListItem(session) {
 
 async function openSessionDetail(session_id) {
   if (!session_id) return;
+  const loadToken = nextLoadToken('session-open');
+  const originScreen = state.currentScreen;
+  const originNavSeq = state.navSeq;
   try {
     const session = await withLoader(gas.getSession({ session_id }));
+    if (!isCurrentLoad('session-open', loadToken) || state.navSeq !== originNavSeq || state.currentScreen !== originScreen) return;
     state.currentSession = session;
     state.sessionReturnScreen = state.currentScreen === 'history'
       ? 'history'
       : (state.currentScreen === 'progress' ? 'progress' : 'home');
     goTo('session-detail');
   } catch (err) {
+    if (!isCurrentLoad('session-open', loadToken) || state.navSeq !== originNavSeq || state.currentScreen !== originScreen) return;
     toast(err.message || 'No se pudo abrir la sesión', 'error');
   }
 }
@@ -1593,12 +1628,13 @@ async function handleSaveBackendUrl() {
 // ROUTINES — list, create
 // ============================================================
 registerScreen('routines', {
-  async onEnter() {
-    await loadRoutines();
+  async onEnter(params, navToken) {
+    await loadRoutines(navToken);
   }
 });
 
-async function loadRoutines() {
+async function loadRoutines(navToken) {
+  const loadToken = nextLoadToken('routines');
   const listEl = $('#routines-list');
   listEl.innerHTML = `
     <div class="skeleton" style="height: 120px;"></div>
@@ -1606,9 +1642,11 @@ async function loadRoutines() {
   `;
   try {
     const routines = await gas.listRoutines();
+    if (!isCurrentLoad('routines', loadToken, 'routines', navToken)) return;
     state.routines = routines;
     renderRoutines(routines);
   } catch (err) {
+    if (!isCurrentLoad('routines', loadToken, 'routines', navToken)) return;
     listEl.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
     toast('No se pudieron cargar las rutinas', 'error');
   }
@@ -1698,27 +1736,28 @@ async function handleNewRoutine() {
 // ROUTINE DETAIL — rename, activate, delete
 // ============================================================
 registerScreen('routine-detail', {
-  async onEnter(params) {
+  async onEnter(params, navToken) {
     const id = params.routine_id;
     if (!id) { goTo('routines'); return; }
-    await loadRoutineDetail(id);
+    await loadRoutineDetail(id, navToken);
   }
 });
 
-async function loadRoutineDetail(routine_id) {
-  const requestId = ++state.requestSeq;
+async function loadRoutineDetail(routine_id, navToken) {
+  const loadToken = nextLoadToken('routine-detail');
   $('#rd-name').textContent = '—';
   $('#rd-active-pill').style.display = 'none';
   $('#rd-days').innerHTML = `<div class="skeleton" style="height: 120px;"></div>`;
   try {
     const r = await gas.getRoutine(routine_id);
-    if (requestId !== state.requestSeq || state.currentScreen !== 'routine-detail' || state.screenParams.routine_id !== routine_id) return;
+    if (!isCurrentLoad('routine-detail', loadToken, 'routine-detail', navToken) || state.screenParams.routine_id !== routine_id) return;
     state.currentRoutine = r;
     $('#rd-name').textContent = r.routine_name;
     $('#rd-active-pill').style.display = r.is_active ? 'inline-flex' : 'none';
     $('#rd-activate-btn').style.display = r.is_active ? 'none' : 'block';
     renderDays(r.days);
   } catch (err) {
+    if (!isCurrentLoad('routine-detail', loadToken, 'routine-detail', navToken) || state.screenParams.routine_id !== routine_id) return;
     toast(err.message || 'Error al cargar rutina', 'error');
     goTo('routines');
   }
@@ -1799,18 +1838,21 @@ async function handleDeleteRoutine() {
 // DAY DETAIL — Parte 3
 // ============================================================
 registerScreen('day-detail', {
-  async onEnter(params) {
+  async onEnter(params, navToken) {
     let r = state.currentRoutine;
     if (params && params.routine_id && (!r || r.routine_id !== params.routine_id)) {
       try {
         r = await gas.getRoutine(params.routine_id);
+        if (navToken && !isCurrentNav(navToken, 'day-detail')) return;
         state.currentRoutine = r;
       } catch (err) {
+        if (navToken && !isCurrentNav(navToken, 'day-detail')) return;
         toast(err.message || 'Error al cargar rutina', 'error');
         goTo('routines');
         return;
       }
     }
+    if (navToken && !isCurrentNav(navToken, 'day-detail')) return;
     const day_id = params && params.day_id;
     if (!r || !day_id) { goTo('routines'); return; }
     const day = r.days.find(d => d.day_id === day_id);
@@ -2305,6 +2347,7 @@ registerScreen('train', {
 });
 
 async function loadTrainPick(navToken) {
+  const loadToken = nextLoadToken('train-pick');
   const dateEl = $('#tp-date');
   if (!dateEl.value) dateEl.value = todayInputValue();
   renderUnitToggle();
@@ -2312,7 +2355,7 @@ async function loadTrainPick(navToken) {
 
   try {
     const routines = await gas.listRoutines();
-    if (navToken && !isCurrentNav(navToken, 'train-pick')) return;
+    if (!isCurrentLoad('train-pick', loadToken, 'train-pick', navToken)) return;
     state.routines = routines;
     if (!routines.length) {
       $('#tp-routine').innerHTML = '';
@@ -2333,7 +2376,7 @@ async function loadTrainPick(navToken) {
     `).join('');
     await loadTrainRoutine($('#tp-routine').value || active.routine_id, navToken);
   } catch (err) {
-    if (navToken && !isCurrentNav(navToken, 'train-pick')) return;
+    if (!isCurrentLoad('train-pick', loadToken, 'train-pick', navToken)) return;
     $('#tp-days').innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
     toast('No se pudo preparar entrenamiento', 'error');
   }
@@ -2341,16 +2384,15 @@ async function loadTrainPick(navToken) {
 
 async function loadTrainRoutine(routine_id, navToken) {
   if (!routine_id) return;
-  const requestId = ++state.requestSeq;
+  const loadToken = nextLoadToken('train-routine');
   $('#tp-days').innerHTML = `<div class="skeleton" style="height: 120px;"></div>`;
   try {
     const routine = await gas.getRoutine(routine_id);
-    if (navToken && !isCurrentNav(navToken, 'train-pick')) return;
-    if (requestId !== state.requestSeq || state.currentScreen !== 'train-pick' || $('#tp-routine').value !== routine_id) return;
+    if (!isCurrentLoad('train-routine', loadToken, 'train-pick', navToken) || $('#tp-routine').value !== routine_id) return;
     state.currentRoutine = routine;
     renderTrainDays(routine.days || []);
   } catch (err) {
-    if (navToken && !isCurrentNav(navToken, 'train-pick')) return;
+    if (!isCurrentLoad('train-routine', loadToken, 'train-pick', navToken)) return;
     $('#tp-days').innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
   }
 }
@@ -2620,15 +2662,18 @@ function renderUnitToggle() {
   });
 }
 
-async function handleSaveSession() {
+async function handleSaveSession(button) {
+  const navToken = state.navSeq;
   try {
     const payload = buildSavePayload();
-    const result = await withLoader(gas.saveSession(payload));
+    const result = await withButtonLoading(button, gas.saveSession(payload), 'Guardando');
     clearSessionDraft(payload.day_id, payload.date);
+    if (!isCurrentNav(navToken, 'train')) return;
     state.lastSummary = result.summary;
     toast('Sesión guardada', 'success');
     goTo('summary');
   } catch (err) {
+    if (!isCurrentNav(navToken, 'train')) return;
     toast(err.message || 'No se pudo guardar', 'error');
   }
 }
@@ -2679,29 +2724,30 @@ registerScreen('progress', {
 });
 
 registerScreen('history', {
-  async onEnter() {
-    await loadHistory();
+  async onEnter(params, navToken) {
+    await loadHistory(navToken);
   }
 });
 
 async function loadProgress(navToken) {
+  const loadToken = nextLoadToken('progress');
   renderProgressMode();
   if (state.progressView === 'bodyweight') {
-    await loadBodyweightHistory(navToken);
+    await loadBodyweightHistory(navToken, loadToken);
     return;
   }
   if (state.progressView === 'heatmap') {
-    await loadMuscleHeatmap(navToken);
+    await loadMuscleHeatmap(navToken, loadToken);
     return;
   }
   if (state.progressView === 'muscles') {
-    await loadMuscleVolume(navToken);
+    await loadMuscleVolume(navToken, loadToken);
     return;
   }
 
   if (state.progressFilter === 'muscle') {
     setupProgressMuscleSelect();
-    await loadMuscleGroupHistory($('#progress-muscle').value || state.progressMuscle, navToken);
+    await loadMuscleGroupHistory($('#progress-muscle').value || state.progressMuscle, navToken, loadToken);
     return;
   }
 
@@ -2710,7 +2756,7 @@ async function loadProgress(navToken) {
   const select = $('#progress-exercise');
   try {
     const names = await gas.listAllExerciseNames();
-    if (navToken && !isCurrentNav(navToken, 'progress')) return;
+    if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     state.progressExercises = names;
     if (!names.length) {
       select.innerHTML = '';
@@ -2725,9 +2771,9 @@ async function loadProgress(navToken) {
     }
     const current = select.value && names.indexOf(select.value) >= 0 ? select.value : names[0];
     select.innerHTML = names.map(name => `<option value="${escapeHtml(name)}" ${name === current ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('');
-    await loadExerciseHistory(current, navToken);
+    await loadExerciseHistory(current, navToken, loadToken);
   } catch (err) {
-    if (navToken && !isCurrentNav(navToken, 'progress')) return;
+    if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     content.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
     toast('No se pudo cargar progreso', 'error');
   }
@@ -2755,15 +2801,16 @@ function setupProgressMuscleSelect() {
   state.progressMuscle = select.value || current;
 }
 
-async function loadBodyweightHistory(navToken) {
+async function loadBodyweightHistory(navToken, loadToken) {
+  loadToken = loadToken || nextLoadToken('progress');
   const content = $('#progress-content');
   content.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
   try {
     const history = await gas.listBodyweightHistory({ limit: 40 });
-    if (navToken && !isCurrentNav(navToken, 'progress')) return;
+    if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     renderBodyweightHistory(history);
   } catch (err) {
-    if (navToken && !isCurrentNav(navToken, 'progress')) return;
+    if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     content.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
     toast('No se pudo cargar peso corporal', 'error');
   }
@@ -2840,57 +2887,61 @@ function renderBodyweightChart(points) {
   `;
 }
 
-async function loadExerciseHistory(exerciseName, navToken) {
+async function loadExerciseHistory(exerciseName, navToken, loadToken) {
   const content = $('#progress-content');
   if (!exerciseName) return;
+  loadToken = loadToken || nextLoadToken('progress');
   content.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
   try {
     const history = await gas.listExerciseHistory({ exercise_name: exerciseName, limit: 8 });
-    if (navToken && !isCurrentNav(navToken, 'progress')) return;
+    if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     renderExerciseHistory(history);
   } catch (err) {
-    if (navToken && !isCurrentNav(navToken, 'progress')) return;
+    if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     content.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
   }
 }
 
-async function loadMuscleGroupHistory(muscleGroup, navToken) {
+async function loadMuscleGroupHistory(muscleGroup, navToken, loadToken) {
   const content = $('#progress-content');
   if (!muscleGroup) return;
+  loadToken = loadToken || nextLoadToken('progress');
   state.progressMuscle = muscleGroup;
   content.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
   try {
     const history = await gas.listMuscleGroupHistory({ muscle_group: muscleGroup, limit: 8 });
-    if (navToken && !isCurrentNav(navToken, 'progress')) return;
+    if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     renderMuscleGroupHistory(history);
   } catch (err) {
-    if (navToken && !isCurrentNav(navToken, 'progress')) return;
+    if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     content.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
   }
 }
 
-async function loadMuscleVolume(navToken) {
+async function loadMuscleVolume(navToken, loadToken) {
+  loadToken = loadToken || nextLoadToken('progress');
   const content = $('#progress-content');
   content.innerHTML = `<div class="skeleton" style="height:160px;"></div>`;
   try {
     const data = await gas.getVolumeByMuscle({ weeks: 8 });
-    if (navToken && !isCurrentNav(navToken, 'progress')) return;
+    if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     renderMuscleVolume(data);
   } catch (err) {
-    if (navToken && !isCurrentNav(navToken, 'progress')) return;
+    if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     content.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
   }
 }
 
-async function loadMuscleHeatmap(navToken) {
+async function loadMuscleHeatmap(navToken, loadToken) {
+  loadToken = loadToken || nextLoadToken('progress');
   const content = $('#progress-content');
   content.innerHTML = `<div class="skeleton" style="height:220px;"></div>`;
   try {
     const data = await gas.getMuscleHeatmap({ days: 30 });
-    if (navToken && !isCurrentNav(navToken, 'progress')) return;
+    if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     renderMuscleHeatmap(data);
   } catch (err) {
-    if (navToken && !isCurrentNav(navToken, 'progress')) return;
+    if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     content.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
   }
 }
@@ -3108,18 +3159,22 @@ function renderMuscleVolumeChart(weeks, groups) {
 async function handleEditExerciseGoal(exerciseName) {
   exerciseName = (exerciseName || '').trim();
   if (!exerciseName) return;
+  const originNavSeq = state.navSeq;
+  const originProgressToken = state.loadTokens.progress;
   let goal = null;
   try {
     goal = await gas.getExerciseGoal({ exercise_name: exerciseName });
   } catch (err) {
     goal = null;
   }
+  if (state.navSeq !== originNavSeq || state.currentScreen !== 'progress' || state.loadTokens.progress !== originProgressToken) return;
   const data = await exerciseGoalModal({ exerciseName, goal });
   if (!data) return;
   try {
     await withLoader(gas.setExerciseGoal(data));
+    if (state.currentScreen !== 'progress') return;
     toast(data.target_weight || data.target_1rm ? 'Meta guardada' : 'Meta borrada', 'success');
-    await loadExerciseHistory(exerciseName);
+    await loadExerciseHistory(exerciseName, state.navSeq);
   } catch (err) {
     toast(err.message || 'No se pudo guardar la meta', 'error');
   }
@@ -3332,7 +3387,8 @@ function renderMuscleGroupHistory(history) {
   `;
 }
 
-async function loadHistory() {
+async function loadHistory(navToken) {
+  const loadToken = nextLoadToken('history');
   const el = $('#history-list');
   const activityEl = $('#history-activity');
   const filterEl = $('#history-filter');
@@ -3344,6 +3400,7 @@ async function loadHistory() {
       gas.listRecentSessions({ limit: 500, days: 91 }),
       gas.listSessionDates({ days: 91 }),
     ]);
+    if (!isCurrentLoad('history', loadToken, 'history', navToken)) return;
     state.historySessions = sessions;
     state.historyActivity = activity;
     state.historySelectedDate = null;
@@ -3360,6 +3417,7 @@ async function loadHistory() {
     }
     renderHistoryList(sessions);
   } catch (err) {
+    if (!isCurrentLoad('history', loadToken, 'history', navToken)) return;
     el.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
     activityEl.innerHTML = `<p class="muted">No se pudo cargar el calendario.</p>`;
     toast('No se pudo cargar el historial', 'error');
@@ -3621,14 +3679,17 @@ function buildEditPayload() {
   };
 }
 
-async function handleSaveSessionEdit() {
+async function handleSaveSessionEdit(button) {
+  const navToken = state.navSeq;
   try {
-    const result = await withLoader(gas.editSession(buildEditPayload()));
+    const result = await withButtonLoading(button, gas.editSession(buildEditPayload()), 'Guardando');
+    if (!isCurrentNav(navToken, 'session-edit')) return;
     state.currentSession = result.session;
     state.lastSummary = result.summary;
     toast('Sesión actualizada', 'success');
     goTo('session-detail');
   } catch (err) {
+    if (!isCurrentNav(navToken, 'session-edit')) return;
     toast(err.message || 'No se pudo guardar', 'error');
   }
 }
@@ -3796,7 +3857,7 @@ document.addEventListener('click', (e) => {
     case 'edit-exercise-goal':
       handleEditExerciseGoal(t.dataset.exerciseName);
       break;
-    case 'refresh-history': loadHistory(); break;
+    case 'refresh-history': loadHistory(state.currentScreen === 'history' ? state.navSeq : null); break;
     case 'select-history-date': handleSelectHistoryDate(t.dataset.date); break;
     case 'clear-history-date': clearHistoryDateFilter(); break;
     case 'save-backend-url': handleSaveBackendUrl(); break;
@@ -3837,7 +3898,7 @@ document.addEventListener('click', (e) => {
     }
     case 'change-train-day': goTo('train-pick'); break;
     case 'add-train-set': addTrainSet(t.dataset.rexId); break;
-    case 'save-session': handleSaveSession(); break;
+    case 'save-session': runLockedAction('save-session', () => handleSaveSession(t)); break;
     case 'summary-home': goTo('home'); break;
     case 'summary-train-again': goTo('train-pick'); break;
     case 'open-session': openSessionDetail(t.dataset.sessionId); break;
@@ -3845,7 +3906,7 @@ document.addEventListener('click', (e) => {
     case 'edit-session': goTo('session-edit'); break;
     case 'edit-session-cancel': goTo('session-detail'); break;
     case 'add-edit-set': addEditSet(t.dataset.rexId); break;
-    case 'save-session-edit': handleSaveSessionEdit(); break;
+    case 'save-session-edit': runLockedAction('save-session-edit', () => handleSaveSessionEdit(t)); break;
     case 'delete-session': handleDeleteSession(); break;
     case 'set-units': {
       if (state.currentScreen === 'train' && state.screenParams.day_id && state.screenParams.date) {
@@ -3878,16 +3939,19 @@ document.addEventListener('change', (e) => {
 (async function boot() {
   backend.ensureDefault();
   $('#home-date').textContent = formatDateLong(todayInputValue());
+  const bootNavSeq = state.navSeq;
   if (!backend.url) {
     goTo('setup');
     return;
   }
   try {
     await gas.ping();
-    goTo('home');
+    if (state.navSeq === bootNavSeq) goTo('home');
   } catch (err) {
-    goTo('setup');
-    toast('No conecta con el backend. Revisá la URL /exec.', 'error');
+    if (state.navSeq === bootNavSeq) {
+      goTo('setup');
+      toast('No conecta con el backend. Revisá la URL /exec.', 'error');
+    }
   }
 })();
 </script>
