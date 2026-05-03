@@ -548,7 +548,7 @@
   }
   .body-heatmap {
     width: 100%;
-    height: 380px;
+    height: 430px;
     display: block;
     margin-top: 14px;
     background: #0b0e11;
@@ -1139,6 +1139,8 @@ const state = {
   exerciseNameSuggestions: null,
   dayExerciseView: 'order',
   requestSeq: 0,
+  navSeq: 0,
+  lastTap: { key: '', at: 0 },
 };
 
 // ============================================================
@@ -1319,6 +1321,7 @@ const screens = {};
 function registerScreen(id, handlers) { screens[id] = handlers || {}; }
 
 function goTo(screenId, params) {
+  const navToken = ++state.navSeq;
   state.screenParams = params || {};
   state.currentScreen = screenId;
 
@@ -1349,7 +1352,28 @@ function goTo(screenId, params) {
   window.scrollTo({ top: 0, behavior: 'instant' });
 
   const handler = screens[screenId];
-  if (handler && handler.onEnter) handler.onEnter(state.screenParams);
+  if (handler && handler.onEnter) handler.onEnter(state.screenParams, navToken);
+}
+
+function isCurrentNav(navToken, screenId) {
+  return state.navSeq === navToken && (!screenId || state.currentScreen === screenId);
+}
+
+function shouldIgnoreRapidTap(target) {
+  const key = [
+    target.dataset.go || target.dataset.action || target.tagName,
+    target.dataset.sessionId || '',
+    target.dataset.dayId || '',
+    target.dataset.rexId || '',
+    target.dataset.view || '',
+    target.dataset.filter || '',
+    target.dataset.muscle || '',
+    target.dataset.unit || '',
+  ].join(':');
+  const now = Date.now();
+  if (state.lastTap.key === key && now - state.lastTap.at < 380) return true;
+  state.lastTap = { key, at: now };
+  return false;
 }
 
 // ============================================================
@@ -1362,18 +1386,20 @@ registerScreen('setup', {
 });
 
 registerScreen('home', {
-  onEnter() {
+  onEnter(params, navToken) {
     $('#home-date').textContent = formatDateLong(todayInputValue());
-    loadHomeStats();
+    loadHomeStats(navToken);
   }
 });
 
-async function loadHomeStats() {
+async function loadHomeStats(navToken) {
   if (!backend.url) return;
   try {
     const stats = await gas.getHomeStats();
+    if (navToken && !isCurrentNav(navToken, 'home')) return;
     renderHomeStats(stats);
   } catch (err) {
+    if (navToken && !isCurrentNav(navToken, 'home')) return;
     toast('No se pudo cargar el Home', 'error');
   }
 }
@@ -2263,22 +2289,22 @@ async function handleDeleteExercise(rex_id) {
 // TRAIN — Parte 4
 // ============================================================
 registerScreen('train-pick', {
-  async onEnter() {
-    await loadTrainPick();
+  async onEnter(params, navToken) {
+    await loadTrainPick(navToken);
   }
 });
 
 registerScreen('train', {
-  async onEnter(params) {
+  async onEnter(params, navToken) {
     const routine_id = params && params.routine_id;
     const day_id = params && params.day_id;
     const date = params && params.date;
     if (!routine_id || !day_id || !date) { goTo('train-pick'); return; }
-    await startTraining({ routine_id, day_id, date });
+    await startTraining({ routine_id, day_id, date, navToken });
   }
 });
 
-async function loadTrainPick() {
+async function loadTrainPick(navToken) {
   const dateEl = $('#tp-date');
   if (!dateEl.value) dateEl.value = todayInputValue();
   renderUnitToggle();
@@ -2286,6 +2312,7 @@ async function loadTrainPick() {
 
   try {
     const routines = await gas.listRoutines();
+    if (navToken && !isCurrentNav(navToken, 'train-pick')) return;
     state.routines = routines;
     if (!routines.length) {
       $('#tp-routine').innerHTML = '';
@@ -2304,23 +2331,26 @@ async function loadTrainPick() {
     $('#tp-routine').innerHTML = routines.map(r => `
       <option value="${escapeHtml(r.routine_id)}" ${r.routine_id === currentValue ? 'selected' : ''}>${escapeHtml(r.routine_name)}${r.is_active ? ' · activa' : ''}</option>
     `).join('');
-    await loadTrainRoutine($('#tp-routine').value || active.routine_id);
+    await loadTrainRoutine($('#tp-routine').value || active.routine_id, navToken);
   } catch (err) {
+    if (navToken && !isCurrentNav(navToken, 'train-pick')) return;
     $('#tp-days').innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
     toast('No se pudo preparar entrenamiento', 'error');
   }
 }
 
-async function loadTrainRoutine(routine_id) {
+async function loadTrainRoutine(routine_id, navToken) {
   if (!routine_id) return;
   const requestId = ++state.requestSeq;
   $('#tp-days').innerHTML = `<div class="skeleton" style="height: 120px;"></div>`;
   try {
     const routine = await gas.getRoutine(routine_id);
+    if (navToken && !isCurrentNav(navToken, 'train-pick')) return;
     if (requestId !== state.requestSeq || state.currentScreen !== 'train-pick' || $('#tp-routine').value !== routine_id) return;
     state.currentRoutine = routine;
     renderTrainDays(routine.days || []);
   } catch (err) {
+    if (navToken && !isCurrentNav(navToken, 'train-pick')) return;
     $('#tp-days').innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
   }
 }
@@ -2350,15 +2380,17 @@ function renderTrainDays(days) {
   `;
 }
 
-async function startTraining({ routine_id, day_id, date }) {
+async function startTraining({ routine_id, day_id, date, navToken }) {
   try {
     let routine = state.currentRoutine;
     if (!routine || routine.routine_id !== routine_id) routine = await gas.getRoutine(routine_id);
+    if (navToken && !isCurrentNav(navToken, 'train')) return;
     state.currentRoutine = routine;
     const day = routine.days.find(d => d.day_id === day_id);
     if (!day) throw new Error('Día no encontrado en esta rutina.');
     state.currentDay = day;
     state.lastSetsByExercise = await gas.getLastSessionForDay({ day_id, date });
+    if (navToken && !isCurrentNav(navToken, 'train')) return;
 
     $('#train-day-name').textContent = day.day_name;
     $('#train-meta').textContent = `${routine.routine_name} · ${formatDateLong(date)}`;
@@ -2372,6 +2404,7 @@ async function startTraining({ routine_id, day_id, date }) {
     }
     bindTrainAutosave(day_id, date);
   } catch (err) {
+    if (navToken && !isCurrentNav(navToken, 'train')) return;
     toast(err.message || 'No se pudo iniciar', 'error');
     goTo('train-pick');
   }
@@ -2640,8 +2673,8 @@ registerScreen('session-edit', {
 });
 
 registerScreen('progress', {
-  async onEnter() {
-    await loadProgress();
+  async onEnter(params, navToken) {
+    await loadProgress(navToken);
   }
 });
 
@@ -2651,24 +2684,24 @@ registerScreen('history', {
   }
 });
 
-async function loadProgress() {
+async function loadProgress(navToken) {
   renderProgressMode();
   if (state.progressView === 'bodyweight') {
-    await loadBodyweightHistory();
+    await loadBodyweightHistory(navToken);
     return;
   }
   if (state.progressView === 'heatmap') {
-    await loadMuscleHeatmap();
+    await loadMuscleHeatmap(navToken);
     return;
   }
   if (state.progressView === 'muscles') {
-    await loadMuscleVolume();
+    await loadMuscleVolume(navToken);
     return;
   }
 
   if (state.progressFilter === 'muscle') {
     setupProgressMuscleSelect();
-    await loadMuscleGroupHistory($('#progress-muscle').value || state.progressMuscle);
+    await loadMuscleGroupHistory($('#progress-muscle').value || state.progressMuscle, navToken);
     return;
   }
 
@@ -2677,6 +2710,7 @@ async function loadProgress() {
   const select = $('#progress-exercise');
   try {
     const names = await gas.listAllExerciseNames();
+    if (navToken && !isCurrentNav(navToken, 'progress')) return;
     state.progressExercises = names;
     if (!names.length) {
       select.innerHTML = '';
@@ -2691,8 +2725,9 @@ async function loadProgress() {
     }
     const current = select.value && names.indexOf(select.value) >= 0 ? select.value : names[0];
     select.innerHTML = names.map(name => `<option value="${escapeHtml(name)}" ${name === current ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('');
-    await loadExerciseHistory(current);
+    await loadExerciseHistory(current, navToken);
   } catch (err) {
+    if (navToken && !isCurrentNav(navToken, 'progress')) return;
     content.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
     toast('No se pudo cargar progreso', 'error');
   }
@@ -2720,13 +2755,15 @@ function setupProgressMuscleSelect() {
   state.progressMuscle = select.value || current;
 }
 
-async function loadBodyweightHistory() {
+async function loadBodyweightHistory(navToken) {
   const content = $('#progress-content');
   content.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
   try {
     const history = await gas.listBodyweightHistory({ limit: 40 });
+    if (navToken && !isCurrentNav(navToken, 'progress')) return;
     renderBodyweightHistory(history);
   } catch (err) {
+    if (navToken && !isCurrentNav(navToken, 'progress')) return;
     content.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
     toast('No se pudo cargar peso corporal', 'error');
   }
@@ -2803,49 +2840,57 @@ function renderBodyweightChart(points) {
   `;
 }
 
-async function loadExerciseHistory(exerciseName) {
+async function loadExerciseHistory(exerciseName, navToken) {
   const content = $('#progress-content');
   if (!exerciseName) return;
   content.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
   try {
     const history = await gas.listExerciseHistory({ exercise_name: exerciseName, limit: 8 });
+    if (navToken && !isCurrentNav(navToken, 'progress')) return;
     renderExerciseHistory(history);
   } catch (err) {
+    if (navToken && !isCurrentNav(navToken, 'progress')) return;
     content.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
   }
 }
 
-async function loadMuscleGroupHistory(muscleGroup) {
+async function loadMuscleGroupHistory(muscleGroup, navToken) {
   const content = $('#progress-content');
   if (!muscleGroup) return;
   state.progressMuscle = muscleGroup;
   content.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
   try {
     const history = await gas.listMuscleGroupHistory({ muscle_group: muscleGroup, limit: 8 });
+    if (navToken && !isCurrentNav(navToken, 'progress')) return;
     renderMuscleGroupHistory(history);
   } catch (err) {
+    if (navToken && !isCurrentNav(navToken, 'progress')) return;
     content.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
   }
 }
 
-async function loadMuscleVolume() {
+async function loadMuscleVolume(navToken) {
   const content = $('#progress-content');
   content.innerHTML = `<div class="skeleton" style="height:160px;"></div>`;
   try {
     const data = await gas.getVolumeByMuscle({ weeks: 8 });
+    if (navToken && !isCurrentNav(navToken, 'progress')) return;
     renderMuscleVolume(data);
   } catch (err) {
+    if (navToken && !isCurrentNav(navToken, 'progress')) return;
     content.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
   }
 }
 
-async function loadMuscleHeatmap() {
+async function loadMuscleHeatmap(navToken) {
   const content = $('#progress-content');
   content.innerHTML = `<div class="skeleton" style="height:220px;"></div>`;
   try {
     const data = await gas.getMuscleHeatmap({ days: 30 });
+    if (navToken && !isCurrentNav(navToken, 'progress')) return;
     renderMuscleHeatmap(data);
   } catch (err) {
+    if (navToken && !isCurrentNav(navToken, 'progress')) return;
     content.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
   }
 }
@@ -2911,37 +2956,52 @@ function renderBodyHeatmapSvg(groups) {
     return acc;
   }, {});
   return `
-    <svg class="body-heatmap" viewBox="0 0 360 360" role="img" aria-label="Heatmap corporal por volumen">
-      <text x="90" y="22" text-anchor="middle" fill="#8f9aa3" font-size="12">Frente</text>
-      <text x="270" y="22" text-anchor="middle" fill="#8f9aa3" font-size="12">Dorso</text>
+    <svg class="body-heatmap" viewBox="0 0 420 430" role="img" aria-label="Heatmap corporal por volumen">
+      <text x="105" y="24" text-anchor="middle" fill="#8f9aa3" font-size="12">Frente</text>
+      <text x="315" y="24" text-anchor="middle" fill="#8f9aa3" font-size="12">Dorso</text>
 
-      <circle cx="90" cy="50" r="17" fill="#171c21" stroke="#252c33" stroke-width="1.5"></circle>
-      ${renderHeatZone('path', 'd="M67 88 Q90 72 113 88 Q108 111 104 130 Q90 139 76 130 Q72 111 67 88 Z"', 'pecho', statsByGroup)}
-      ${renderHeatZone('path', 'd="M72 91 Q82 82 90 83 L90 132 Q80 133 75 126 Z"', 'pecho', statsByGroup)}
-      ${renderHeatZone('path', 'd="M90 83 Q99 82 108 91 L105 126 Q100 133 90 132 Z"', 'pecho', statsByGroup)}
-      ${renderHeatZone('path', 'd="M76 132 Q90 141 104 132 L101 184 Q90 193 79 184 Z"', 'core', statsByGroup)}
-      ${renderHeatZone('path', 'd="M61 90 Q68 81 79 82 L73 100 Q62 105 55 119 Q53 105 61 90 Z"', 'hombros', statsByGroup)}
-      ${renderHeatZone('path', 'd="M101 82 Q112 81 119 90 Q127 105 125 119 Q118 105 107 100 Z"', 'hombros', statsByGroup)}
-      ${renderHeatZone('path', 'd="M55 119 Q47 145 48 169 L61 171 Q63 142 73 100 Q62 105 55 119 Z"', 'bicep', statsByGroup)}
-      ${renderHeatZone('path', 'd="M125 119 Q133 145 132 169 L119 171 Q117 142 107 100 Q118 105 125 119 Z"', 'bicep', statsByGroup)}
-      ${renderHeatZone('path', 'd="M48 169 Q48 193 53 225 L66 222 Q63 192 61 171 Z"', 'bicep', statsByGroup)}
-      ${renderHeatZone('path', 'd="M132 169 Q132 193 127 225 L114 222 Q117 192 119 171 Z"', 'bicep', statsByGroup)}
-      ${renderHeatZone('path', 'd="M79 184 Q87 196 87 318 L69 318 Q61 238 70 184 Z"', 'piernas', statsByGroup)}
-      ${renderHeatZone('path', 'd="M101 184 Q93 196 93 318 L111 318 Q119 238 110 184 Z"', 'piernas', statsByGroup)}
+      <g fill="#14191e" stroke="#39424a" stroke-width="1.4" stroke-linejoin="round">
+        <path d="M84 33 Q105 20 126 33 L126 58 Q105 74 84 58 Z"></path>
+        <path d="M296 33 Q315 20 334 33 L334 62 Q315 77 296 62 Z"></path>
+        <path d="M77 75 Q105 58 133 75 L125 210 Q105 232 85 210 Z"></path>
+        <path d="M287 76 Q315 58 343 76 L336 211 Q315 232 294 211 Z"></path>
+        <path d="M51 315 Q67 333 69 393 Q59 399 45 395 Q46 357 51 315 Z"></path>
+        <path d="M159 315 Q143 333 141 393 Q151 399 165 395 Q164 357 159 315 Z"></path>
+        <path d="M261 315 Q277 333 279 393 Q269 399 255 395 Q256 357 261 315 Z"></path>
+        <path d="M369 315 Q353 333 351 393 Q361 399 375 395 Q374 357 369 315 Z"></path>
+      </g>
 
-      <circle cx="270" cy="50" r="17" fill="#171c21" stroke="#252c33" stroke-width="1.5"></circle>
-      ${renderHeatZone('path', 'd="M246 88 Q270 72 294 88 Q288 139 283 160 Q270 172 257 160 Q252 139 246 88 Z"', 'espalda', statsByGroup)}
-      ${renderHeatZone('path', 'd="M252 91 Q262 82 270 83 L270 166 Q259 163 255 156 Z"', 'espalda', statsByGroup)}
-      ${renderHeatZone('path', 'd="M270 83 Q279 82 288 91 L285 156 Q281 163 270 166 Z"', 'espalda', statsByGroup)}
-      ${renderHeatZone('path', 'd="M257 160 Q270 173 283 160 L280 184 Q270 193 260 184 Z"', 'core', statsByGroup)}
-      ${renderHeatZone('path', 'd="M240 90 Q248 81 259 82 L253 101 Q241 105 235 119 Q232 105 240 90 Z"', 'hombros', statsByGroup)}
-      ${renderHeatZone('path', 'd="M281 82 Q292 81 300 90 Q308 105 305 119 Q299 105 287 101 Z"', 'hombros', statsByGroup)}
-      ${renderHeatZone('path', 'd="M235 119 Q228 146 230 172 L243 171 Q244 143 253 101 Q241 105 235 119 Z"', 'tricep', statsByGroup)}
-      ${renderHeatZone('path', 'd="M305 119 Q312 146 310 172 L297 171 Q296 143 287 101 Q299 105 305 119 Z"', 'tricep', statsByGroup)}
-      ${renderHeatZone('path', 'd="M230 172 Q231 197 236 225 L249 222 Q245 192 243 171 Z"', 'tricep', statsByGroup)}
-      ${renderHeatZone('path', 'd="M310 172 Q309 197 304 225 L291 222 Q295 192 297 171 Z"', 'tricep', statsByGroup)}
-      ${renderHeatZone('path', 'd="M260 184 Q267 196 267 318 L249 318 Q241 238 251 184 Z"', 'piernas', statsByGroup)}
-      ${renderHeatZone('path', 'd="M280 184 Q273 196 273 318 L291 318 Q299 238 289 184 Z"', 'piernas', statsByGroup)}
+      ${renderHeatZone('path', 'd="M82 75 Q105 62 128 75 Q125 87 119 100 Q105 111 91 100 Q85 87 82 75 Z"', 'hombros', statsByGroup)}
+      ${renderHeatZone('path', 'd="M66 88 Q78 70 96 74 Q91 91 84 104 Q70 111 58 126 Q55 105 66 88 Z"', 'hombros', statsByGroup)}
+      ${renderHeatZone('path', 'd="M114 74 Q132 70 144 88 Q155 105 152 126 Q140 111 126 104 Q119 91 114 74 Z"', 'hombros', statsByGroup)}
+      ${renderHeatZone('path', 'd="M86 101 Q105 94 124 101 Q122 130 116 153 Q105 161 94 153 Q88 130 86 101 Z"', 'pecho', statsByGroup)}
+      ${renderHeatZone('path', 'd="M89 105 Q98 99 105 100 L105 158 Q96 157 92 150 Z"', 'pecho', statsByGroup)}
+      ${renderHeatZone('path', 'd="M105 100 Q114 99 121 105 L118 150 Q114 157 105 158 Z"', 'pecho', statsByGroup)}
+      ${renderHeatZone('path', 'd="M91 156 Q105 164 119 156 L123 216 Q105 232 87 216 Z"', 'core', statsByGroup)}
+      ${renderHeatZone('path', 'd="M58 126 Q49 161 51 206 L67 205 Q68 160 84 104 Q70 111 58 126 Z"', 'bicep', statsByGroup)}
+      ${renderHeatZone('path', 'd="M152 126 Q161 161 159 206 L143 205 Q142 160 126 104 Q140 111 152 126 Z"', 'bicep', statsByGroup)}
+      ${renderHeatZone('path', 'd="M51 206 Q52 246 59 287 L74 282 Q69 240 67 205 Z"', 'bicep', statsByGroup)}
+      ${renderHeatZone('path', 'd="M159 206 Q158 246 151 287 L136 282 Q141 240 143 205 Z"', 'bicep', statsByGroup)}
+      ${renderHeatZone('path', 'd="M86 216 Q99 232 100 317 L81 317 Q66 255 73 215 Z"', 'piernas', statsByGroup)}
+      ${renderHeatZone('path', 'd="M124 216 Q111 232 110 317 L129 317 Q144 255 137 215 Z"', 'piernas', statsByGroup)}
+      ${renderHeatZone('path', 'd="M81 317 Q99 332 101 392 L76 392 Q68 350 81 317 Z"', 'piernas', statsByGroup)}
+      ${renderHeatZone('path', 'd="M129 317 Q111 332 109 392 L134 392 Q142 350 129 317 Z"', 'piernas', statsByGroup)}
+
+      ${renderHeatZone('path', 'd="M292 78 Q315 61 338 78 Q335 94 328 108 Q315 119 302 108 Q295 94 292 78 Z"', 'hombros', statsByGroup)}
+      ${renderHeatZone('path', 'd="M276 89 Q288 70 306 75 Q301 92 294 106 Q281 112 268 128 Q264 106 276 89 Z"', 'hombros', statsByGroup)}
+      ${renderHeatZone('path', 'd="M324 75 Q342 70 354 89 Q366 106 362 128 Q349 112 336 106 Q329 92 324 75 Z"', 'hombros', statsByGroup)}
+      ${renderHeatZone('path', 'd="M294 104 Q315 88 336 104 Q333 161 327 205 Q315 222 303 205 Q297 161 294 104 Z"', 'espalda', statsByGroup)}
+      ${renderHeatZone('path', 'd="M299 107 Q308 94 315 96 L315 219 Q306 213 303 202 Z"', 'espalda', statsByGroup)}
+      ${renderHeatZone('path', 'd="M315 96 Q324 94 331 107 L327 202 Q324 213 315 219 Z"', 'espalda', statsByGroup)}
+      ${renderHeatZone('path', 'd="M303 205 Q315 222 327 205 L330 222 Q315 236 300 222 Z"', 'core', statsByGroup)}
+      ${renderHeatZone('path', 'd="M268 128 Q260 164 263 207 L279 205 Q279 161 294 106 Q281 112 268 128 Z"', 'tricep', statsByGroup)}
+      ${renderHeatZone('path', 'd="M362 128 Q370 164 367 207 L351 205 Q351 161 336 106 Q349 112 362 128 Z"', 'tricep', statsByGroup)}
+      ${renderHeatZone('path', 'd="M263 207 Q265 247 272 287 L287 282 Q281 240 279 205 Z"', 'tricep', statsByGroup)}
+      ${renderHeatZone('path', 'd="M367 207 Q365 247 358 287 L343 282 Q349 240 351 205 Z"', 'tricep', statsByGroup)}
+      ${renderHeatZone('path', 'd="M296 222 Q309 237 310 318 L291 318 Q277 257 284 222 Z"', 'piernas', statsByGroup)}
+      ${renderHeatZone('path', 'd="M334 222 Q321 237 320 318 L339 318 Q353 257 346 222 Z"', 'piernas', statsByGroup)}
+      ${renderHeatZone('path', 'd="M291 318 Q309 333 311 392 L286 392 Q278 350 291 318 Z"', 'piernas', statsByGroup)}
+      ${renderHeatZone('path', 'd="M339 318 Q321 333 319 392 L344 392 Q352 350 339 318 Z"', 'piernas', statsByGroup)}
     </svg>
   `;
 }
@@ -3672,6 +3732,9 @@ function statusDotClass(status) {
 document.addEventListener('click', (e) => {
   const t = e.target.closest('[data-action], [data-go]');
   if (!t) return;
+  if (t.disabled || t.getAttribute('aria-disabled') === 'true') return;
+  e.preventDefault();
+  if (shouldIgnoreRapidTap(t)) return;
 
   if (t.dataset.go) {
     goTo(t.dataset.go);
@@ -3692,11 +3755,11 @@ document.addEventListener('click', (e) => {
     }
     case 'set-progress-view':
       state.progressView = t.dataset.view || 'exercise';
-      loadProgress();
+      loadProgress(state.currentScreen === 'progress' ? state.navSeq : null);
       break;
     case 'set-progress-filter':
       state.progressFilter = t.dataset.filter || 'exercise';
-      loadProgress();
+      loadProgress(state.currentScreen === 'progress' ? state.navSeq : null);
       break;
     case 'set-day-exercise-view':
       state.dayExerciseView = t.dataset.view || 'order';
@@ -3708,7 +3771,7 @@ document.addEventListener('click', (e) => {
         state.progressView = 'exercise';
         state.progressFilter = 'muscle';
         state.progressMuscle = t.dataset.muscle;
-        loadProgress();
+        loadProgress(state.currentScreen === 'progress' ? state.navSeq : null);
       }
       break;
     case 'edit-exercise-goal':
@@ -3746,7 +3809,7 @@ document.addEventListener('click', (e) => {
     case 'delete-exercise': handleDeleteExercise(t.dataset.rexId); break;
     case 'reorder-day': handleReorderDay(t.dataset.dayId, t.dataset.direction); break;
     case 'reorder-exercise': handleReorderExercise(t.dataset.rexId, t.dataset.direction); break;
-    case 'refresh-train-pick': loadTrainPick(); break;
+    case 'refresh-train-pick': loadTrainPick(state.currentScreen === 'train-pick' ? state.navSeq : null); break;
     case 'start-train-day': {
       const r = state.currentRoutine;
       const date = $('#tp-date').value || todayInputValue();
@@ -3772,7 +3835,7 @@ document.addEventListener('click', (e) => {
       units.set(t.dataset.unit);
       renderUnitToggle();
       if (state.currentScreen === 'train') goTo('train', state.screenParams);
-      if (state.currentScreen === 'train-pick') loadTrainPick();
+      if (state.currentScreen === 'train-pick') loadTrainPick(state.navSeq);
       break;
     }
   }
@@ -3780,13 +3843,13 @@ document.addEventListener('click', (e) => {
 
 document.addEventListener('change', (e) => {
   if (e.target && e.target.id === 'tp-routine') {
-    loadTrainRoutine(e.target.value);
+    loadTrainRoutine(e.target.value, state.currentScreen === 'train-pick' ? state.navSeq : null);
   }
   if (e.target && e.target.id === 'progress-exercise') {
-    loadExerciseHistory(e.target.value);
+    loadExerciseHistory(e.target.value, state.currentScreen === 'progress' ? state.navSeq : null);
   }
   if (e.target && e.target.id === 'progress-muscle') {
-    loadMuscleGroupHistory(e.target.value);
+    loadMuscleGroupHistory(e.target.value, state.currentScreen === 'progress' ? state.navSeq : null);
   }
 });
 
