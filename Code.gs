@@ -17,6 +17,7 @@ const SHEETS = {
   EXERCISES: 'Day_Exercises',
   SESSIONS: 'Sessions',
   SETS: 'Session_Sets',
+  GOALS: 'Exercise_Goals',
 };
 
 const HEADERS = {
@@ -24,7 +25,7 @@ const HEADERS = {
     'routine_id', 'routine_name', 'created_at', 'is_active'
   ],
   [SHEETS.DAYS]: [
-    'day_id', 'routine_id', 'day_name', 'day_order'
+    'day_id', 'routine_id', 'day_name', 'day_order', 'week_days'
   ],
   [SHEETS.EXERCISES]: [
     'routine_exercise_id', 'day_id', 'exercise_order', 'exercise_name',
@@ -33,13 +34,18 @@ const HEADERS = {
   ],
   [SHEETS.SESSIONS]: [
     'session_id', 'date', 'routine_id', 'day_id',
-    'bodyweight', 'notes', 'created_at'
+    'bodyweight', 'notes', 'created_at', 'routine_name', 'day_name'
   ],
   [SHEETS.SETS]: [
     'set_id', 'session_id', 'routine_exercise_id', 'exercise_name',
-    'set_number', 'weight', 'reps', 'rir', 'note'
+    'set_number', 'weight', 'reps', 'rir', 'note', 'muscle_group'
+  ],
+  [SHEETS.GOALS]: [
+    'goal_id', 'exercise_name', 'target_weight', 'target_1rm', 'created_at', 'updated_at'
   ],
 };
+
+let READ_CACHE_ = {};
 
 // ============================================================
 // WEB/API ENTRY
@@ -90,6 +96,7 @@ function getApi_() {
     getRoutine,
     addDay,
     renameDay,
+    updateDayWeekDays,
     deleteDay,
     reorderDay,
     addExercise,
@@ -108,6 +115,12 @@ function getApi_() {
     listBodyweightHistory,
     listAllExerciseNames,
     listExerciseHistory,
+    listMuscleGroupHistory,
+    getVolumeByMuscle,
+    getMuscleHeatmap,
+    getExerciseGoal,
+    setExerciseGoal,
+    migrateHistoricalSnapshots,
   };
 }
 
@@ -119,18 +132,7 @@ function setup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) throw new Error('Bind este script a un Google Sheets primero.');
 
-  Object.keys(HEADERS).forEach(name => {
-    let sh = ss.getSheetByName(name);
-    if (!sh) sh = ss.insertSheet(name);
-    const headers = HEADERS[name];
-    sh.getRange(1, 1, 1, headers.length)
-      .setValues([headers])
-      .setFontWeight('bold')
-      .setBackground('#111519')
-      .setFontColor('#ffffff');
-    sh.setFrozenRows(1);
-    sh.autoResizeColumns(1, headers.length);
-  });
+  Object.keys(HEADERS).forEach(name => ensureSheet_(name));
 
   // Borra la sheet por defecto si esta vacia y existe
   const defaultSheet = ss.getSheetByName('Sheet1') || ss.getSheetByName('Hoja 1') || ss.getSheetByName('Hoja1');
@@ -138,7 +140,81 @@ function setup() {
     ss.deleteSheet(defaultSheet);
   }
 
-  return 'Sheets listas: ' + Object.values(SHEETS).join(', ');
+  const migration = migrateHistoricalSnapshots_();
+  return 'Sheets listas: ' + Object.values(SHEETS).join(', ') + '. Migracion: ' + JSON.stringify(migration);
+}
+
+function migrateHistoricalSnapshots() {
+  Object.keys(HEADERS).forEach(name => ensureSheet_(name));
+  return migrateHistoricalSnapshots_();
+}
+
+function migrateHistoricalSnapshots_() {
+  const routines = readAll_(SHEETS.ROUTINES);
+  const days = readAll_(SHEETS.DAYS);
+  const exercises = readAll_(SHEETS.EXERCISES);
+  const sessions = readAll_(SHEETS.SESSIONS);
+  const sets = readAll_(SHEETS.SETS);
+  const exerciseMeta = buildExerciseMuscleMeta_(exercises);
+  const routinesById = {};
+  const daysById = {};
+
+  routines.forEach(routine => {
+    routinesById[routine.routine_id] = routine;
+  });
+  days.forEach(day => {
+    daysById[day.day_id] = day;
+  });
+
+  const result = {
+    sessions_checked: sessions.length,
+    sessions_updated: 0,
+    sessions_unresolved: 0,
+    sets_checked: sets.length,
+    sets_updated: 0,
+    sets_unresolved: 0,
+  };
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    sessions.forEach(session => {
+      if (!session.session_id) return;
+      const routine = routinesById[session.routine_id] || {};
+      const day = daysById[session.day_id] || {};
+      const routineName = (session.routine_name || routine.routine_name || '').toString().trim();
+      const dayName = (session.day_name || day.day_name || '').toString().trim();
+      const partial = {};
+
+      if (!session.routine_name && routineName) partial.routine_name = routineName;
+      if (!session.day_name && dayName) partial.day_name = dayName;
+      if (Object.keys(partial).length) {
+        updateRowById_(SHEETS.SESSIONS, 'session_id', session.session_id, partial);
+        result.sessions_updated++;
+      }
+      if ((!session.routine_name && !routineName) || (!session.day_name && !dayName)) {
+        result.sessions_unresolved++;
+      }
+    });
+
+    sets.forEach(set => {
+      if (!set.set_id) {
+        result.sets_unresolved++;
+        return;
+      }
+      const existingGroup = safeNormalizeMuscleGroup_(set.muscle_group);
+      const muscleGroup = resolveSetMuscleGroup_(set, exerciseMeta);
+      if (!existingGroup && muscleGroup) {
+        updateRowById_(SHEETS.SETS, 'set_id', set.set_id, { muscle_group: muscleGroup });
+        result.sets_updated++;
+      }
+      if (!muscleGroup) result.sets_unresolved++;
+    });
+  } finally {
+    lock.releaseLock();
+  }
+
+  return result;
 }
 
 // ============================================================
@@ -151,19 +227,51 @@ function getSheet_(name) {
   return sh;
 }
 
+function ensureSheet_(name) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) throw new Error('Bind este script a un Google Sheets primero.');
+  let sh = ss.getSheetByName(name);
+  if (!sh) sh = ss.insertSheet(name);
+  const headers = HEADERS[name];
+  if (!headers) throw new Error('Headers no definidos para ' + name);
+  sh.getRange(1, 1, 1, headers.length)
+    .setValues([headers])
+    .setFontWeight('bold')
+    .setBackground('#111519')
+    .setFontColor('#ffffff');
+  sh.setFrozenRows(1);
+  sh.autoResizeColumns(1, headers.length);
+  return sh;
+}
+
+function sheetExists_(name) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  return !!(ss && ss.getSheetByName(name));
+}
+
 function readAll_(name) {
+  if (READ_CACHE_[name]) {
+    return READ_CACHE_[name].map(row => Object.assign({}, row));
+  }
   const sh = getSheet_(name);
   const lastRow = sh.getLastRow();
   if (lastRow < 2) return [];
   const headers = HEADERS[name];
   const values = sh.getRange(2, 1, lastRow - 1, headers.length).getValues();
-  return values
+  const rows = values
     .filter(row => row.some(c => c !== '' && c !== null))
     .map(row => {
       const obj = {};
       headers.forEach((h, i) => { obj[h] = row[i]; });
       return obj;
     });
+  READ_CACHE_[name] = rows;
+  return rows.map(row => Object.assign({}, row));
+}
+
+function invalidateReadCache_(name) {
+  if (name) delete READ_CACHE_[name];
+  else READ_CACHE_ = {};
 }
 
 function appendRow_(name, obj) {
@@ -171,6 +279,7 @@ function appendRow_(name, obj) {
   const headers = HEADERS[name];
   const row = headers.map(h => (obj[h] !== undefined && obj[h] !== null) ? obj[h] : '');
   sh.appendRow(row);
+  invalidateReadCache_(name);
   return obj;
 }
 
@@ -195,6 +304,7 @@ function updateRowById_(name, idCol, idValue, partial) {
   const current = sh.getRange(rowIdx, 1, 1, headers.length).getValues()[0];
   const updated = headers.map((h, i) => partial[h] !== undefined ? partial[h] : current[i]);
   sh.getRange(rowIdx, 1, 1, headers.length).setValues([updated]);
+  invalidateReadCache_(name);
   const obj = {};
   headers.forEach((h, i) => { obj[h] = updated[i]; });
   return obj;
@@ -205,6 +315,7 @@ function deleteRowById_(name, idCol, idValue) {
   const rowIdx = findRowIndex_(sh, name, idCol, idValue);
   if (rowIdx < 0) return false;
   sh.deleteRow(rowIdx);
+  invalidateReadCache_(name);
   return true;
 }
 
@@ -223,6 +334,7 @@ function deleteRowsWhere_(name, predicate) {
       removed++;
     }
   }
+  if (removed) invalidateReadCache_(name);
   return removed;
 }
 
@@ -243,14 +355,69 @@ function isTrue_(v) {
   return v === true || v === 'TRUE' || v === 'true' || v === 1;
 }
 
+const MUSCLE_GROUPS_ = ['pecho', 'espalda', 'hombros', 'bicep', 'tricep', 'core', 'piernas'];
+
 function normalizeMuscleGroup_(value) {
   const v = (value || '').toString().trim().toLowerCase();
-  const allowed = ['pecho', 'espalda', 'hombros', 'bicep', 'tricep', 'core', 'piernas'];
   if (!v) return '';
   if (v === 'bícep' || v === 'biceps' || v === 'bíceps') return 'bicep';
   if (v === 'trícep' || v === 'triceps' || v === 'tríceps') return 'tricep';
-  if (allowed.indexOf(v) < 0) throw new Error('Grupo muscular invalido.');
+  if (MUSCLE_GROUPS_.indexOf(v) < 0) throw new Error('Grupo muscular invalido.');
   return v;
+}
+
+function safeNormalizeMuscleGroup_(value) {
+  try {
+    return normalizeMuscleGroup_(value);
+  } catch (err) {
+    return '';
+  }
+}
+
+function normalizeExerciseNameKey_(value) {
+  return (value || '').toString().trim().toLowerCase();
+}
+
+function resolveExerciseMuscleGroup_(exercise, exerciseMeta) {
+  const direct = safeNormalizeMuscleGroup_(exercise && exercise.muscle_group);
+  if (direct) return direct;
+  const byId = exerciseMeta && exercise && exercise.routine_exercise_id
+    ? exerciseMeta.byId[exercise.routine_exercise_id]
+    : '';
+  if (byId) return byId;
+  const nameKey = normalizeExerciseNameKey_(exercise && exercise.exercise_name);
+  return (exerciseMeta && nameKey && exerciseMeta.byName[nameKey]) || '';
+}
+
+function normalizeWeekDays_(value) {
+  let raw = value;
+  if (Array.isArray(raw)) {
+    raw = raw.join(',');
+  }
+  const seen = {};
+  return (raw || '').toString().split(',')
+    .map(v => parseInt(v, 10))
+    .filter(n => !isNaN(n) && n >= 1 && n <= 7)
+    .filter(n => {
+      if (seen[n]) return false;
+      seen[n] = true;
+      return true;
+    })
+    .sort((a, b) => a - b)
+    .join(',');
+}
+
+function parseWeekDays_(value) {
+  return normalizeWeekDays_(value)
+    .split(',')
+    .filter(Boolean)
+    .map(Number);
+}
+
+function getIsoWeekday_(isoDate) {
+  const date = parseIsoDateLocal_(isoDate);
+  const day = date.getDay();
+  return day === 0 ? 7 : day;
 }
 
 // ============================================================
@@ -331,6 +498,18 @@ function duplicateRoutine(params) {
     .filter(d => d.routine_id === routine_id)
     .sort((a, b) => Number(a.day_order || 0) - Number(b.day_order || 0));
   const allExercises = readAll_(SHEETS.EXERCISES);
+  const exerciseMeta = buildExerciseMuscleMeta_(allExercises);
+  const sourceDayIds = sourceDays.map(day => day.day_id);
+  const sourceExercises = allExercises.filter(ex => sourceDayIds.indexOf(ex.day_id) >= 0);
+  const missingMuscles = sourceExercises
+    .filter(ex => !resolveExerciseMuscleGroup_(ex, exerciseMeta))
+    .map(ex => (ex.exercise_name || '').toString().trim())
+    .filter(Boolean)
+    .filter((name, index, arr) => arr.indexOf(name) === index)
+    .slice(0, 5);
+  if (missingMuscles.length) {
+    throw new Error('Completá el grupo muscular de ' + missingMuscles.join(', ') + ' antes de duplicar la rutina.');
+  }
 
   const lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -352,6 +531,7 @@ function duplicateRoutine(params) {
         routine_id: newRoutineId,
         day_name: day.day_name,
         day_order: Number(day.day_order || 0),
+        week_days: normalizeWeekDays_(day.week_days),
       });
     });
 
@@ -360,6 +540,7 @@ function duplicateRoutine(params) {
         .filter(ex => ex.day_id === day.day_id)
         .sort((a, b) => Number(a.exercise_order || 0) - Number(b.exercise_order || 0))
         .forEach(ex => {
+          const muscleGroup = resolveExerciseMuscleGroup_(ex, exerciseMeta);
           appendRow_(SHEETS.EXERCISES, {
             routine_exercise_id: genId_('rex'),
             day_id: dayIdMap[day.day_id],
@@ -370,7 +551,7 @@ function duplicateRoutine(params) {
             target_reps_max: Number(ex.target_reps_max || 0),
             suggested_weight: ex.suggested_weight,
             technique_note: ex.technique_note || '',
-            muscle_group: normalizeMuscleGroup_(ex.muscle_group),
+            muscle_group: muscleGroup,
           });
         });
     });
@@ -397,6 +578,7 @@ function setActiveRoutine(routine_id) {
   });
   if (!found) throw new Error('Rutina no encontrada: ' + routine_id);
   sh.getRange(2, activeCol, lastRow - 1, 1).setValues(updates);
+  invalidateReadCache_(SHEETS.ROUTINES);
   return { ok: true, routine_id: routine_id };
 }
 
@@ -433,6 +615,7 @@ function getRoutine(routine_id) {
     day_id: d.day_id,
     day_name: d.day_name,
     day_order: Number(d.day_order || 0),
+    week_days: parseWeekDays_(d.week_days),
     exercises: exercises
       .filter(e => e.day_id === d.day_id)
       .sort((a, b) => Number(a.exercise_order || 0) - Number(b.exercise_order || 0))
@@ -482,6 +665,7 @@ function addDay(params) {
     routine_id,
     day_name,
     day_order:  nextOrder,
+    week_days:  normalizeWeekDays_(params.week_days),
   });
   return getRoutine(routine_id);
 }
@@ -496,6 +680,20 @@ function renameDay(params) {
   const day = readAll_(SHEETS.DAYS).find(d => d.day_id === day_id);
   if (!day) throw new Error('Día no encontrado.');
   updateRowById_(SHEETS.DAYS, 'day_id', day_id, { day_name: new_name });
+  return getRoutine(day.routine_id);
+}
+
+function updateDayWeekDays(params) {
+  params = params || {};
+  const day_id = (params.day_id || '').toString().trim();
+  if (!day_id) throw new Error('day_id requerido.');
+
+  const day = readAll_(SHEETS.DAYS).find(d => d.day_id === day_id);
+  if (!day) throw new Error('Día no encontrado.');
+
+  updateRowById_(SHEETS.DAYS, 'day_id', day_id, {
+    week_days: normalizeWeekDays_(params.week_days),
+  });
   return getRoutine(day.routine_id);
 }
 
@@ -557,6 +755,7 @@ function addExercise(params) {
   if (isNaN(rmin) || rmin < 1 || rmin > 100) throw new Error('target_reps_min debe ser 1-100.');
   if (isNaN(rmax) || rmax < 1 || rmax > 100) throw new Error('target_reps_max debe ser 1-100.');
   if (rmin > rmax) throw new Error('target_reps_min no puede ser mayor que target_reps_max.');
+  if (!muscle_group) throw new Error('Elegí el grupo muscular principal.');
 
   let suggested_weight = '';
   if (swRaw !== undefined && swRaw !== null && swRaw !== '') {
@@ -630,7 +829,9 @@ function updateExercise(params) {
     partial.technique_note = params.technique_note.toString().trim();
   }
   if (params.muscle_group !== undefined) {
-    partial.muscle_group = normalizeMuscleGroup_(params.muscle_group);
+    const muscleGroup = normalizeMuscleGroup_(params.muscle_group);
+    if (!muscleGroup) throw new Error('Elegí el grupo muscular principal.');
+    partial.muscle_group = muscleGroup;
   }
 
   updateRowById_(SHEETS.EXERCISES, 'routine_exercise_id', rex_id, partial);
@@ -778,6 +979,7 @@ function saveSession(params) {
   if (!day) throw new Error('Día no encontrado en esta rutina.');
 
   const bodyweight = normalizeOptionalNumber_(params.bodyweight, 'bodyweight');
+  validateBodyweight_(bodyweight);
   const notes = (params.notes || '').toString().trim();
   const prepared = prepareSessionExercises_(params.exercises || []);
   if (prepared.setCount === 0) throw new Error('Cargá al menos una serie con peso o reps.');
@@ -793,6 +995,8 @@ function saveSession(params) {
       bodyweight: bodyweight === null ? '' : bodyweight,
       notes,
       created_at: nowIso_(),
+      routine_name: routine.routine_name || '',
+      day_name: day.day_name || '',
     });
 
     prepared.exercises.forEach(ex => {
@@ -802,6 +1006,7 @@ function saveSession(params) {
           session_id: session.session_id,
           routine_exercise_id: ex.routine_exercise_id,
           exercise_name: ex.exercise_name,
+          muscle_group: ex.muscle_group || '',
           set_number: set.set_number,
           weight: set.weight === null ? '' : set.weight,
           reps: set.reps === null ? '' : set.reps,
@@ -828,6 +1033,7 @@ function getSession(params) {
 
   const routines = readAll_(SHEETS.ROUTINES);
   const days = readAll_(SHEETS.DAYS);
+  const exerciseMeta = buildExerciseMuscleMeta_(readAll_(SHEETS.EXERCISES));
   const routine = routines.find(r => r.routine_id === session.routine_id) || {};
   const day = days.find(d => d.day_id === session.day_id) || {};
   const sets = readAll_(SHEETS.SETS)
@@ -841,12 +1047,17 @@ function getSession(params) {
   const grouped = {};
   sets.forEach(set => {
     const rexId = set.routine_exercise_id || set.exercise_name;
+    const muscleGroup = resolveSetMuscleGroup_(set, exerciseMeta);
     if (!grouped[rexId]) {
       grouped[rexId] = {
         routine_exercise_id: set.routine_exercise_id,
         exercise_name: set.exercise_name,
+        muscle_group: muscleGroup,
         sets: [],
       };
+    }
+    if (!grouped[rexId].muscle_group) {
+      grouped[rexId].muscle_group = muscleGroup;
     }
     grouped[rexId].sets.push({
       set_number: Number(set.set_number || 0),
@@ -861,9 +1072,9 @@ function getSession(params) {
     session_id: session.session_id,
     date: normalizeDate_(session.date),
     routine_id: session.routine_id,
-    routine_name: routine.routine_name || '',
+    routine_name: session.routine_name || routine.routine_name || '',
     day_id: session.day_id,
-    day_name: day.day_name || '',
+    day_name: session.day_name || day.day_name || '',
     bodyweight: session.bodyweight === '' ? null : Number(session.bodyweight),
     notes: session.notes || '',
     created_at: session.created_at,
@@ -902,6 +1113,7 @@ function editSession(params) {
   const routine_id = (params.routine_id || existing.routine_id || '').toString().trim();
   const day_id = (params.day_id || existing.day_id || '').toString().trim();
   const bodyweight = normalizeOptionalNumber_(params.bodyweight, 'bodyweight');
+  validateBodyweight_(bodyweight);
   const notes = (params.notes || '').toString().trim();
   const prepared = prepareSessionExercises_(params.exercises || []);
   if (prepared.setCount === 0) throw new Error('Cargá al menos una serie con peso o reps.');
@@ -918,6 +1130,8 @@ function editSession(params) {
       day_id,
       bodyweight: bodyweight === null ? '' : bodyweight,
       notes,
+      routine_name: (routine && routine.routine_name) || existing.routine_name || '',
+      day_name: (day && day.day_name) || existing.day_name || '',
     });
 
     deleteRowsWhere_(SHEETS.SETS, set => set.session_id === session_id);
@@ -928,6 +1142,7 @@ function editSession(params) {
           session_id,
           routine_exercise_id: ex.routine_exercise_id,
           exercise_name: ex.exercise_name,
+          muscle_group: ex.muscle_group || '',
           set_number: set.set_number,
           weight: set.weight === null ? '' : set.weight,
           reps: set.reps === null ? '' : set.reps,
@@ -947,6 +1162,7 @@ function editSession(params) {
 function prepareSessionExercises_(items) {
   if (!Array.isArray(items)) throw new Error('exercises debe ser un array.');
   const routineExercises = readAll_(SHEETS.EXERCISES);
+  const exerciseMeta = buildExerciseMuscleMeta_(routineExercises);
   const prepared = [];
   let setCount = 0;
 
@@ -982,6 +1198,11 @@ function prepareSessionExercises_(items) {
       prepared.push({
         routine_exercise_id: rexId,
         exercise_name: exerciseName,
+        muscle_group: resolveExerciseMuscleGroup_({
+          routine_exercise_id: rexId,
+          exercise_name: exerciseName,
+          muscle_group: item.muscle_group || (template && template.muscle_group),
+        }, exerciseMeta),
         template,
         sets,
       });
@@ -996,6 +1217,12 @@ function normalizeOptionalNumber_(value, field) {
   const n = Number(value);
   if (isNaN(n)) throw new Error(field + ' inválido.');
   return Math.round(n * 100) / 100;
+}
+
+function validateBodyweight_(bodyweight) {
+  if (bodyweight !== null && bodyweight <= 0) {
+    throw new Error('El peso corporal debe ser mayor a 0.');
+  }
 }
 
 function normalizeOptionalInteger_(value, field) {
@@ -1019,6 +1246,7 @@ function buildSessionSummary_(session, exercises, routine, day) {
     return {
       routine_exercise_id: ex.routine_exercise_id,
       exercise_name: ex.exercise_name,
+      muscle_group: ex.muscle_group || '',
       sets: ex.sets,
       previous_sets: previousSets,
       metrics: currentMetrics,
@@ -1042,9 +1270,9 @@ function buildSessionSummary_(session, exercises, routine, day) {
     session_id: session.session_id,
     date: normalizeDate_(session.date),
     routine_id: session.routine_id,
-    routine_name: routine.routine_name,
+    routine_name: session.routine_name || routine.routine_name || '',
     day_id: session.day_id,
-    day_name: day.day_name,
+    day_name: session.day_name || day.day_name || '',
     total_volume: Math.round(totalVolume * 100) / 100,
     previous_volume: previousVolume > 0 ? Math.round(previousVolume * 100) / 100 : null,
     delta_percent: delta,
@@ -1183,22 +1411,147 @@ function getHomeStats() {
   const improved = countImprovedLatest_(sessions, sets);
   const lastSession = getLastSessionSummary_(sessions, sets, routines, days);
   const recentSessions = buildRecentSessionSummaries_(sessions, sets, routines, days, 5);
+  const streakStats = getStreakStatsFromSessions_(sessions, today, 3);
+  const weeklySummary = getPreviousWeekSummary_(sessions, sets, today);
+  const activeRoutine = routines.find(r => isTrue_(r.is_active));
+  const todayWeekday = getIsoWeekday_(today);
+  const todayDays = activeRoutine
+    ? days
+        .filter(d => d.routine_id === activeRoutine.routine_id)
+        .filter(d => parseWeekDays_(d.week_days).indexOf(todayWeekday) >= 0)
+        .sort((a, b) => Number(a.day_order || 0) - Number(b.day_order || 0))
+    : [];
 
   return {
     sesiones_semana: weekSessions.length,
     volumen_semana: Math.round(weekVolume * 100) / 100,
     ejercicios_en_progreso: Object.keys(exerciseNames).length,
     marcas_mejoradas: improved,
+    streak: streakStats,
+    weekly_summary: weeklySummary,
+    today_plan: activeRoutine ? {
+      routine_id: activeRoutine.routine_id,
+      routine_name: activeRoutine.routine_name,
+      weekday: todayWeekday,
+      days: todayDays.map(d => ({
+        day_id: d.day_id,
+        day_name: d.day_name,
+      })),
+    } : null,
     last_session: lastSession,
     recent_sessions: recentSessions,
   };
 }
 
+function getPreviousWeekSummary_(sessions, sets, todayIso) {
+  const currentWeek = getWeekRange_(todayIso);
+  const previousWeekStart = addDaysIso_(currentWeek.start, -7);
+  const previousWeek = getWeekRange_(previousWeekStart);
+  const weekSessions = (sessions || []).filter(session => {
+    const date = normalizeDate_(session.date);
+    return date >= previousWeek.start && date <= previousWeek.end;
+  });
+  const weekIds = weekSessions.map(session => session.session_id);
+  const weekSets = (sets || []).filter(set => weekIds.indexOf(set.session_id) >= 0);
+
+  return {
+    start: previousWeek.start,
+    end: previousWeek.end,
+    session_count: weekSessions.length,
+    total_volume: Math.round(calcRawVolume_(weekSets) * 100) / 100,
+    pr_count: countPrsInSessions_(weekSessions, sessions || [], sets || []),
+  };
+}
+
+function countPrsInSessions_(targetSessions, allSessions, allSets) {
+  return (targetSessions || []).reduce((count, session) => {
+    const sessionSets = (allSets || []).filter(set => set.session_id === session.session_id);
+    const byExercise = {};
+    sessionSets.forEach(set => {
+      const name = (set.exercise_name || '').toString().trim();
+      if (!name) return;
+      if (!byExercise[name]) byExercise[name] = [];
+      byExercise[name].push({
+        weight: set.weight === '' ? null : Number(set.weight),
+        reps: set.reps === '' ? null : Number(set.reps),
+      });
+    });
+
+    Object.keys(byExercise).forEach(exerciseName => {
+      const currentMetrics = calcSetMetrics_(byExercise[exerciseName]);
+      const previousPrs = getHistoricalPrsForExercise_(exerciseName, session, allSessions, allSets);
+      if (
+        (previousPrs.weight_max > 0 && currentMetrics.weight_max > previousPrs.weight_max) ||
+        (previousPrs.e1rm_max > 0 && currentMetrics.e1rm_max > previousPrs.e1rm_max)
+      ) {
+        count++;
+      }
+    });
+    return count;
+  }, 0);
+}
+
+function getStreakStatsFromSessions_(sessions, todayIso, targetDays) {
+  const target = Math.max(1, Number(targetDays || 3));
+  const today = normalizeDate_(todayIso);
+  const currentWeek = getWeekRange_(today);
+  const weekDaysByStart = {};
+
+  (sessions || []).forEach(session => {
+    const date = normalizeDate_(session.date);
+    if (date > today) return;
+    const week = getWeekRange_(date);
+    if (!weekDaysByStart[week.start]) weekDaysByStart[week.start] = {};
+    weekDaysByStart[week.start][date] = true;
+  });
+
+  const countDays = weekStart => weekDaysByStart[weekStart]
+    ? Object.keys(weekDaysByStart[weekStart]).length
+    : 0;
+
+  const currentWeekDays = countDays(currentWeek.start);
+  let streak = 0;
+  let cursor = currentWeek.start;
+
+  if (currentWeekDays >= target) {
+    streak = 1;
+    cursor = addDaysIso_(cursor, -7);
+  } else {
+    cursor = addDaysIso_(cursor, -7);
+  }
+
+  while (countDays(cursor) >= target) {
+    streak++;
+    cursor = addDaysIso_(cursor, -7);
+  }
+
+  const sessionsNeeded = Math.max(0, target - currentWeekDays);
+  return {
+    target_days: target,
+    current_week_days: currentWeekDays,
+    sessions_needed: sessionsNeeded,
+    streak_weeks: streak,
+    current_week_met: currentWeekDays >= target,
+  };
+}
+
 function listRecentSessions(params) {
   params = params || {};
-  const limit = Math.max(1, Math.min(Number(params.limit || 20), 60));
+  const requestedLimit = Number(params.limit || 20);
+  const limit = isNaN(requestedLimit) ? 20 : Math.max(1, Math.min(Math.round(requestedLimit), 500));
+  let sessions = readAll_(SHEETS.SESSIONS);
+  if (params.days !== undefined && params.days !== null && params.days !== '') {
+    const requestedDays = Number(params.days || 91);
+    const daysBack = isNaN(requestedDays) ? 91 : Math.max(1, Math.min(Math.round(requestedDays), 366));
+    const today = todayIso_();
+    const start = addDaysIso_(today, -(daysBack - 1));
+    sessions = sessions.filter(session => {
+      const date = normalizeDate_(session.date);
+      return date >= start && date <= today;
+    });
+  }
   return buildRecentSessionSummaries_(
-    readAll_(SHEETS.SESSIONS),
+    sessions,
     readAll_(SHEETS.SETS),
     readAll_(SHEETS.ROUTINES),
     readAll_(SHEETS.DAYS),
@@ -1367,9 +1720,9 @@ function buildSessionListItem_(session, sets, routines, days) {
     session_id: session.session_id,
     date: normalizeDate_(session.date),
     routine_id: session.routine_id,
-    routine_name: routine.routine_name || '',
+    routine_name: session.routine_name || routine.routine_name || '',
     day_id: session.day_id,
-    day_name: day.day_name || '',
+    day_name: session.day_name || day.day_name || '',
     volume: Math.round(calcRawVolume_(sessionSets) * 100) / 100,
     set_count: sessionSets.length,
     exercise_count: Object.keys(sessionSets.reduce((acc, set) => {
@@ -1473,7 +1826,339 @@ function listExerciseHistory(params) {
 
   return {
     exercise_name: exerciseName,
+    goal: getExerciseGoal({ exercise_name: exerciseName }),
     trend,
     sessions: chronological.reverse().slice(0, limit),
   };
+}
+
+function getExerciseGoal(params) {
+  params = params || {};
+  const exerciseName = (params.exercise_name || '').toString().trim();
+  if (!exerciseName) throw new Error('exercise_name requerido.');
+  if (!sheetExists_(SHEETS.GOALS)) return null;
+  const goal = readAll_(SHEETS.GOALS)
+    .filter(g => (g.exercise_name || '').toString().trim() === exerciseName)
+    .sort((a, b) => (b.updated_at || b.created_at || '').toString().localeCompare((a.updated_at || a.created_at || '').toString()))[0];
+  if (!goal) return null;
+  return {
+    goal_id: goal.goal_id,
+    exercise_name: goal.exercise_name,
+    target_weight: goal.target_weight === '' ? null : Number(goal.target_weight),
+    target_1rm: goal.target_1rm === '' ? null : Number(goal.target_1rm),
+    created_at: goal.created_at || '',
+    updated_at: goal.updated_at || '',
+  };
+}
+
+function setExerciseGoal(params) {
+  params = params || {};
+  ensureSheet_(SHEETS.GOALS);
+  const exerciseName = (params.exercise_name || '').toString().trim();
+  if (!exerciseName) throw new Error('exercise_name requerido.');
+  if (exerciseName.length > 100) throw new Error('Nombre demasiado largo (max 100 caracteres).');
+
+  const targetWeight = normalizeGoalTarget_(params.target_weight);
+  const target1rm = normalizeGoalTarget_(params.target_1rm);
+  const existing = readAll_(SHEETS.GOALS)
+    .find(g => (g.exercise_name || '').toString().trim() === exerciseName);
+
+  if (targetWeight === '' && target1rm === '') {
+    if (existing) deleteRowById_(SHEETS.GOALS, 'goal_id', existing.goal_id);
+    return null;
+  }
+
+  if (existing) {
+    updateRowById_(SHEETS.GOALS, 'goal_id', existing.goal_id, {
+      exercise_name: exerciseName,
+      target_weight: targetWeight,
+      target_1rm: target1rm,
+      updated_at: nowIso_(),
+    });
+    return getExerciseGoal({ exercise_name: exerciseName });
+  }
+
+  appendRow_(SHEETS.GOALS, {
+    goal_id: genId_('goal'),
+    exercise_name: exerciseName,
+    target_weight: targetWeight,
+    target_1rm: target1rm,
+    created_at: nowIso_(),
+    updated_at: nowIso_(),
+  });
+  return getExerciseGoal({ exercise_name: exerciseName });
+}
+
+function normalizeGoalTarget_(value) {
+  if (value === undefined || value === null || value === '') return '';
+  const n = Number(value);
+  if (isNaN(n) || n <= 0) throw new Error('La meta debe ser mayor a 0.');
+  return Math.round(n * 100) / 100;
+}
+
+function getVolumeByMuscle(params) {
+  params = params || {};
+  const weeks = Math.max(4, Math.min(Number(params.weeks || 8), 16));
+  const today = todayIso_();
+  const currentWeek = getWeekRange_(today);
+  const start = addDaysIso_(currentWeek.start, -7 * (weeks - 1));
+  const sessions = readAll_(SHEETS.SESSIONS);
+  const sets = readAll_(SHEETS.SETS);
+  const exercises = readAll_(SHEETS.EXERCISES);
+  const exerciseMeta = buildExerciseMuscleMeta_(exercises);
+  const sessionsById = {};
+  sessions.forEach(session => {
+    sessionsById[session.session_id] = session;
+  });
+
+  const groups = MUSCLE_GROUPS_.filter(Boolean);
+  const byWeek = {};
+  for (let i = 0; i < weeks; i++) {
+    const weekStart = addDaysIso_(start, i * 7);
+    byWeek[weekStart] = {
+      week_start: weekStart,
+      week_end: addDaysIso_(weekStart, 6),
+      total_volume: 0,
+      groups: groups.reduce((acc, group) => {
+        acc[group] = 0;
+        return acc;
+      }, {}),
+    };
+  }
+
+  sets.forEach(set => {
+    const session = sessionsById[set.session_id];
+    if (!session) return;
+    const date = normalizeDate_(session.date);
+    if (date < start || date > today) return;
+    const group = resolveSetMuscleGroup_(set, exerciseMeta);
+    if (!group) return;
+    const weekStart = getWeekRange_(date).start;
+    if (!byWeek[weekStart]) return;
+    const volume = calcRawVolume_([set]);
+    byWeek[weekStart].groups[group] += volume;
+    byWeek[weekStart].total_volume += volume;
+  });
+
+  const weekItems = Object.keys(byWeek).sort().map(weekStart => {
+    const item = byWeek[weekStart];
+    groups.forEach(group => {
+      item.groups[group] = Math.round(item.groups[group] * 100) / 100;
+    });
+    item.total_volume = Math.round(item.total_volume * 100) / 100;
+    return item;
+  });
+  const totals = groups.reduce((acc, group) => {
+    acc[group] = Math.round(weekItems.reduce((sum, week) => sum + Number(week.groups[group] || 0), 0) * 100) / 100;
+    return acc;
+  }, {});
+
+  return {
+    start,
+    end: today,
+    groups,
+    totals,
+    weeks: weekItems,
+  };
+}
+
+function getMuscleHeatmap(params) {
+  params = params || {};
+  const daysBack = Math.max(7, Math.min(Number(params.days || 30), 90));
+  const today = todayIso_();
+  const start = addDaysIso_(today, -(daysBack - 1));
+  const sessions = readAll_(SHEETS.SESSIONS);
+  const sets = readAll_(SHEETS.SETS);
+  const exercises = readAll_(SHEETS.EXERCISES);
+  const exerciseMeta = buildExerciseMuscleMeta_(exercises);
+  const sessionsById = {};
+  sessions.forEach(session => {
+    sessionsById[session.session_id] = session;
+  });
+
+  const groups = MUSCLE_GROUPS_.filter(Boolean);
+  const stats = groups.reduce((acc, group) => {
+    acc[group] = {
+      muscle_group: group,
+      volume: 0,
+      set_count: 0,
+      session_count: 0,
+      exercise_count: 0,
+    };
+    return acc;
+  }, {});
+  const sessionSeen = {};
+  const exerciseSeen = {};
+
+  sets.forEach(set => {
+    const session = sessionsById[set.session_id];
+    if (!session) return;
+    const date = normalizeDate_(session.date);
+    if (date < start || date > today) return;
+    const group = resolveSetMuscleGroup_(set, exerciseMeta);
+    if (!group || !stats[group]) return;
+
+    stats[group].volume += calcRawVolume_([set]);
+    stats[group].set_count++;
+
+    const sessionKey = group + '|' + set.session_id;
+    if (!sessionSeen[sessionKey]) {
+      sessionSeen[sessionKey] = true;
+      stats[group].session_count++;
+    }
+
+    const exerciseKey = group + '|' + (set.routine_exercise_id || set.exercise_name || '');
+    if (!exerciseSeen[exerciseKey]) {
+      exerciseSeen[exerciseKey] = true;
+      stats[group].exercise_count++;
+    }
+  });
+
+  const maxVolume = Math.max.apply(null, groups.map(group => stats[group].volume));
+  groups.forEach(group => {
+    stats[group].volume = Math.round(stats[group].volume * 100) / 100;
+    stats[group].intensity = maxVolume > 0 ? Math.round((stats[group].volume / maxVolume) * 100) / 100 : 0;
+  });
+
+  return {
+    start,
+    end: today,
+    days: daysBack,
+    max_volume: Math.round(maxVolume * 100) / 100,
+    groups: groups.map(group => stats[group]),
+  };
+}
+
+function listMuscleGroupHistory(params) {
+  params = params || {};
+  const muscleGroup = normalizeMuscleGroup_(params.muscle_group);
+  const limit = Math.max(1, Math.min(Number(params.limit || 8), 30));
+  if (!muscleGroup) throw new Error('muscle_group requerido.');
+
+  const sessions = readAll_(SHEETS.SESSIONS);
+  const sets = readAll_(SHEETS.SETS);
+  const routines = readAll_(SHEETS.ROUTINES);
+  const days = readAll_(SHEETS.DAYS);
+  const exercises = readAll_(SHEETS.EXERCISES);
+  const exerciseMeta = buildExerciseMuscleMeta_(exercises);
+
+  const bySession = {};
+  sets.forEach(set => {
+    const group = resolveSetMuscleGroup_(set, exerciseMeta);
+    if (group !== muscleGroup) return;
+
+    const session = sessions.find(s => s.session_id === set.session_id);
+    if (!session) return;
+    if (!bySession[session.session_id]) {
+      const routine = routines.find(r => r.routine_id === session.routine_id) || {};
+      const day = days.find(d => d.day_id === session.day_id) || {};
+      bySession[session.session_id] = {
+        session_id: session.session_id,
+        date: normalizeDate_(session.date),
+        created_at: session.created_at || '',
+        routine_name: session.routine_name || routine.routine_name || '',
+        day_name: session.day_name || day.day_name || '',
+        exercises: {},
+      };
+    }
+
+    const exerciseName = (set.exercise_name || 'Ejercicio').toString().trim();
+    if (!bySession[session.session_id].exercises[exerciseName]) {
+      bySession[session.session_id].exercises[exerciseName] = [];
+    }
+    bySession[session.session_id].exercises[exerciseName].push({
+      set_number: Number(set.set_number || 0),
+      weight: set.weight === '' ? null : Number(set.weight),
+      reps: set.reps === '' ? null : Number(set.reps),
+      rir: set.rir === '' ? null : Number(set.rir),
+      note: set.note || '',
+    });
+  });
+
+  const chronological = Object.keys(bySession).map(k => bySession[k])
+    .sort((a, b) => {
+      const dateCmp = a.date.localeCompare(b.date);
+      if (dateCmp !== 0) return dateCmp;
+      return a.created_at.localeCompare(b.created_at);
+    })
+    .map(item => {
+      const exerciseNames = Object.keys(item.exercises).sort((a, b) => a.localeCompare(b));
+      const exerciseSummaries = exerciseNames.map(name => {
+        const exerciseSets = item.exercises[name]
+          .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0));
+        const metrics = calcSetMetrics_(exerciseSets);
+        return {
+          exercise_name: name,
+          sets: exerciseSets,
+          volume: Math.round(metrics.volume * 100) / 100,
+          weight_max: metrics.weight_max,
+          e1rm_max: metrics.e1rm_max,
+        };
+      });
+      const allSets = exerciseSummaries.reduce((acc, ex) => acc.concat(ex.sets), []);
+      const metrics = calcSetMetrics_(allSets);
+      item.exercises = exerciseSummaries;
+      item.volume = Math.round(metrics.volume * 100) / 100;
+      item.set_count = allSets.length;
+      item.exercise_count = exerciseSummaries.length;
+      return item;
+    });
+
+  chronological.forEach((item, idx) => {
+    if (idx === 0) {
+      item.delta_volume = null;
+      item.trend = 'neutral';
+      return;
+    }
+    const prev = chronological[idx - 1];
+    item.delta_volume = Math.round((item.volume - prev.volume) * 100) / 100;
+    item.trend = item.volume > prev.volume ? 'up' : (item.volume < prev.volume ? 'down' : 'flat');
+  });
+
+  const recentAsc = chronological.slice(-4);
+  let trend = 'Sin datos suficientes';
+  if (recentAsc.length >= 2) {
+    const first = recentAsc[0].volume;
+    const last = recentAsc[recentAsc.length - 1].volume;
+    if (last > first) trend = 'Tendencia positiva';
+    else if (last < first) trend = 'Tendencia negativa';
+    else trend = 'Tendencia estable';
+  }
+
+  return {
+    muscle_group: muscleGroup,
+    trend,
+    sessions: chronological.reverse().slice(0, limit),
+  };
+}
+
+function buildExerciseMuscleMeta_(exercises) {
+  const result = { byId: {}, byName: {} };
+  const nameCounts = {};
+  (exercises || []).forEach(ex => {
+    const group = safeNormalizeMuscleGroup_(ex.muscle_group);
+    if (!group) return;
+    if (ex.routine_exercise_id) result.byId[ex.routine_exercise_id] = group;
+    const nameKey = normalizeExerciseNameKey_(ex.exercise_name);
+    if (!nameKey) return;
+    if (!nameCounts[nameKey]) nameCounts[nameKey] = {};
+    nameCounts[nameKey][group] = (nameCounts[nameKey][group] || 0) + 1;
+  });
+
+  Object.keys(nameCounts).forEach(nameKey => {
+    result.byName[nameKey] = Object.keys(nameCounts[nameKey])
+      .sort((a, b) => nameCounts[nameKey][b] - nameCounts[nameKey][a] || a.localeCompare(b))[0];
+  });
+  return result;
+}
+
+function resolveSetMuscleGroup_(set, exerciseMeta) {
+  const direct = safeNormalizeMuscleGroup_(set && set.muscle_group);
+  if (direct) return direct;
+  const byId = exerciseMeta && set && set.routine_exercise_id
+    ? exerciseMeta.byId[set.routine_exercise_id]
+    : '';
+  if (byId) return byId;
+  const nameKey = normalizeExerciseNameKey_(set && set.exercise_name);
+  return (exerciseMeta && nameKey && exerciseMeta.byName[nameKey]) || '';
 }
