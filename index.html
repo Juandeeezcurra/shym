@@ -1849,10 +1849,14 @@ registerScreen('routines', {
 async function loadRoutines(navToken) {
   const loadToken = nextLoadToken('routines');
   const listEl = $('#routines-list');
-  listEl.innerHTML = `
-    <div class="skeleton" style="height: 120px;"></div>
-    <div class="skeleton" style="height: 120px;"></div>
-  `;
+  if (state.routines && state.routines.length) {
+    renderRoutines(state.routines);
+  } else {
+    listEl.innerHTML = `
+      <div class="skeleton" style="height: 120px;"></div>
+      <div class="skeleton" style="height: 120px;"></div>
+    `;
+  }
   try {
     const routines = await gas.listRoutines();
     if (!isCurrentLoad('routines', loadToken, 'routines', navToken)) return;
@@ -1958,22 +1962,30 @@ registerScreen('routine-detail', {
 
 async function loadRoutineDetail(routine_id, navToken) {
   const loadToken = nextLoadToken('routine-detail');
-  $('#rd-name').textContent = '—';
-  $('#rd-active-pill').style.display = 'none';
-  $('#rd-days').innerHTML = `<div class="skeleton" style="height: 120px;"></div>`;
+  if (state.currentRoutine && state.currentRoutine.routine_id === routine_id) {
+    renderRoutineDetail(state.currentRoutine);
+  } else {
+    $('#rd-name').textContent = '—';
+    $('#rd-active-pill').style.display = 'none';
+    $('#rd-days').innerHTML = `<div class="skeleton" style="height: 120px;"></div>`;
+  }
   try {
     const r = await gas.getRoutine(routine_id);
     if (!isCurrentLoad('routine-detail', loadToken, 'routine-detail', navToken) || state.screenParams.routine_id !== routine_id) return;
     state.currentRoutine = r;
-    $('#rd-name').textContent = r.routine_name;
-    $('#rd-active-pill').style.display = r.is_active ? 'inline-flex' : 'none';
-    $('#rd-activate-btn').style.display = r.is_active ? 'none' : 'block';
-    renderDays(r.days);
+    renderRoutineDetail(r);
   } catch (err) {
     if (!isCurrentLoad('routine-detail', loadToken, 'routine-detail', navToken) || state.screenParams.routine_id !== routine_id) return;
     toast(err.message || 'Error al cargar rutina', 'error');
     goTo('routines');
   }
+}
+
+function renderRoutineDetail(r) {
+  $('#rd-name').textContent = r.routine_name;
+  $('#rd-active-pill').style.display = r.is_active ? 'inline-flex' : 'none';
+  $('#rd-activate-btn').style.display = r.is_active ? 'none' : 'block';
+  renderDays(r.days);
 }
 
 async function handleRenameRoutine() {
@@ -2567,8 +2579,9 @@ async function loadTrainPick(navToken) {
   $('#tp-days').innerHTML = `<div class="skeleton" style="height: 120px;"></div>`;
 
   try {
-    const routines = await gas.listRoutines();
+    const data = await gas.getTrainPickData({ routine_id: $('#tp-routine').value || '' });
     if (!isCurrentLoad('train-pick', loadToken, 'train-pick', navToken)) return;
+    const routines = data.routines || [];
     state.routines = routines;
     if (!routines.length) {
       $('#tp-routine').innerHTML = '';
@@ -2583,11 +2596,17 @@ async function loadTrainPick(navToken) {
     }
 
     const active = routines.find(r => r.is_active) || routines[0];
-    const currentValue = $('#tp-routine').value || active.routine_id;
+    const routine = data.routine || null;
+    const currentValue = (routine && routine.routine_id) || $('#tp-routine').value || active.routine_id;
     $('#tp-routine').innerHTML = routines.map(r => `
       <option value="${escapeHtml(r.routine_id)}" ${r.routine_id === currentValue ? 'selected' : ''}>${escapeHtml(r.routine_name)}${r.is_active ? ' · activa' : ''}</option>
     `).join('');
-    await loadTrainRoutine($('#tp-routine').value || active.routine_id, navToken);
+    if (routine) {
+      state.currentRoutine = routine;
+      renderTrainDays(routine.days || []);
+    } else {
+      await loadTrainRoutine($('#tp-routine').value || active.routine_id, navToken);
+    }
   } catch (err) {
     if (!isCurrentLoad('train-pick', loadToken, 'train-pick', navToken)) return;
     $('#tp-days').innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
@@ -2598,7 +2617,11 @@ async function loadTrainPick(navToken) {
 async function loadTrainRoutine(routine_id, navToken) {
   if (!routine_id) return;
   const loadToken = nextLoadToken('train-routine');
-  $('#tp-days').innerHTML = `<div class="skeleton" style="height: 120px;"></div>`;
+  if (state.currentRoutine && state.currentRoutine.routine_id === routine_id) {
+    renderTrainDays(state.currentRoutine.days || []);
+  } else {
+    $('#tp-days').innerHTML = `<div class="skeleton" style="height: 120px;"></div>`;
+  }
   try {
     const routine = await gas.getRoutine(routine_id);
     if (!isCurrentLoad('train-routine', loadToken, 'train-pick', navToken) || $('#tp-routine').value !== routine_id) return;
@@ -2644,8 +2667,7 @@ async function startTraining({ routine_id, day_id, date, navToken }) {
     const day = routine.days.find(d => d.day_id === day_id);
     if (!day) throw new Error('Día no encontrado en esta rutina.');
     state.currentDay = day;
-    state.lastSetsByExercise = await gas.getLastSessionForDay({ day_id, date });
-    if (navToken && !isCurrentNav(navToken, 'train')) return;
+    state.lastSetsByExercise = {};
 
     $('#train-day-name').textContent = day.day_name;
     $('#train-meta').textContent = `${routine.routine_name} · ${formatDateLong(date)}`;
@@ -2658,10 +2680,25 @@ async function startTraining({ routine_id, day_id, date, navToken }) {
       toast('Continuando sesión', 'success');
     }
     bindTrainAutosave(day_id, date);
+    loadLastSetsForTraining(day_id, date, navToken);
   } catch (err) {
     if (navToken && !isCurrentNav(navToken, 'train')) return;
     toast(err.message || 'No se pudo iniciar', 'error');
     goTo('train-pick');
+  }
+}
+
+async function loadLastSetsForTraining(day_id, date, navToken) {
+  try {
+    const lastSets = await gas.getLastSessionForDay({ day_id, date });
+    if (navToken && !isCurrentNav(navToken, 'train')) return;
+    if (state.screenParams.day_id !== day_id || state.screenParams.date !== date) return;
+    const draft = collectTrainDraft();
+    state.lastSetsByExercise = lastSets || {};
+    renderTrainExercises((state.currentDay && state.currentDay.exercises) || []);
+    restoreTrainDraft(draft);
+  } catch (err) {
+    if (navToken && !isCurrentNav(navToken, 'train')) return;
   }
 }
 
@@ -2968,8 +3005,9 @@ async function loadProgress(navToken) {
   content.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
   const select = $('#progress-exercise');
   try {
-    const names = await gas.listAllExerciseNames();
+    const data = await gas.getProgressExerciseData({ exercise_name: select.value || '', limit: 8 });
     if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
+    const names = data.names || [];
     state.progressExercises = names;
     if (!names.length) {
       select.innerHTML = '';
@@ -2982,9 +3020,12 @@ async function loadProgress(navToken) {
       `;
       return;
     }
-    const current = select.value && names.indexOf(select.value) >= 0 ? select.value : names[0];
+    const current = data.history && data.history.exercise_name
+      ? data.history.exercise_name
+      : (select.value && names.indexOf(select.value) >= 0 ? select.value : names[0]);
     select.innerHTML = names.map(name => `<option value="${escapeHtml(name)}" ${name === current ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('');
-    await loadExerciseHistory(current, navToken, loadToken);
+    if (data.history) renderExerciseHistory(data.history);
+    else await loadExerciseHistory(current, navToken, loadToken);
   } catch (err) {
     if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     content.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
@@ -3609,11 +3650,10 @@ async function loadHistory(navToken) {
   activityEl.innerHTML = `<div class="skeleton" style="height:110px;"></div>`;
   filterEl.style.display = 'none';
   try {
-    const [sessions, activity] = await Promise.all([
-      gas.listRecentSessions({ limit: 500, days: 91 }),
-      gas.listSessionDates({ days: 91 }),
-    ]);
+    const data = await gas.getHistoryData({ limit: 500, days: 91 });
     if (!isCurrentLoad('history', loadToken, 'history', navToken)) return;
+    const sessions = data.sessions || [];
+    const activity = data.activity || { days: [] };
     state.historySessions = sessions;
     state.historyActivity = activity;
     state.historySelectedDate = null;

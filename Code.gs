@@ -104,16 +104,19 @@ function getApi_() {
     deleteExercise,
     reorderExercise,
     getActiveRoutine,
+    getTrainPickData,
     getLastSessionForDay,
     saveSession,
     getSession,
     editSession,
     deleteSession,
     getHomeStats,
+    getHistoryData,
     listRecentSessions,
     listSessionDates,
     listBodyweightHistory,
     listAllExerciseNames,
+    getProgressExerciseData,
     listExerciseHistory,
     listMuscleGroupHistory,
     getVolumeByMuscle,
@@ -281,6 +284,17 @@ function appendRow_(name, obj) {
   sh.appendRow(row);
   invalidateReadCache_(name);
   return obj;
+}
+
+function appendRows_(name, objects) {
+  const items = objects || [];
+  if (!items.length) return [];
+  const sh = getSheet_(name);
+  const headers = HEADERS[name];
+  const rows = items.map(obj => headers.map(h => (obj[h] !== undefined && obj[h] !== null) ? obj[h] : ''));
+  sh.getRange(sh.getLastRow() + 1, 1, rows.length, headers.length).setValues(rows);
+  invalidateReadCache_(name);
+  return items;
 }
 
 function findRowIndex_(sh, name, idCol, idValue) {
@@ -909,6 +923,22 @@ function getActiveRoutine() {
   return getRoutine(active.routine_id);
 }
 
+function getTrainPickData(params) {
+  params = params || {};
+  const routines = listRoutines();
+  if (!routines.length) {
+    return { routines: [], routine: null };
+  }
+  const requestedId = (params.routine_id || '').toString().trim();
+  const selected = routines.find(r => r.routine_id === requestedId)
+    || routines.find(r => r.is_active)
+    || routines[0];
+  return {
+    routines,
+    routine: getRoutine(selected.routine_id),
+  };
+}
+
 function getLastSessionForDay(params) {
   params = params || {};
   const day_id = (params.day_id || '').toString().trim();
@@ -931,14 +961,19 @@ function getLastSessionForDay(params) {
       return (b.created_at || '').toString().localeCompare((a.created_at || '').toString());
     });
 
-  const sets = readAll_(SHEETS.SETS);
+  const setsBySessionAndExercise = {};
+  readAll_(SHEETS.SETS).forEach(set => {
+    if (rexIds.indexOf(set.routine_exercise_id) < 0) return;
+    const key = set.session_id + '|' + set.routine_exercise_id;
+    if (!setsBySessionAndExercise[key]) setsBySessionAndExercise[key] = [];
+    setsBySessionAndExercise[key].push(set);
+  });
   const result = {};
 
   rexIds.forEach(rexId => {
     for (let i = 0; i < sessions.length; i++) {
       const session = sessions[i];
-      const sessionSets = sets
-        .filter(set => set.session_id === session.session_id && set.routine_exercise_id === rexId)
+      const sessionSets = (setsBySessionAndExercise[session.session_id + '|' + rexId] || [])
         .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0))
         .map(set => ({
           set_number: Number(set.set_number || 0),
@@ -999,9 +1034,10 @@ function saveSession(params) {
       day_name: day.day_name || '',
     });
 
+    const setRows = [];
     prepared.exercises.forEach(ex => {
       ex.sets.forEach(set => {
-        appendRow_(SHEETS.SETS, {
+        setRows.push({
           set_id: genId_('set'),
           session_id: session.session_id,
           routine_exercise_id: ex.routine_exercise_id,
@@ -1015,6 +1051,7 @@ function saveSession(params) {
         });
       });
     });
+    appendRows_(SHEETS.SETS, setRows);
 
     const summary = buildSessionSummary_(session, prepared.exercises, routine, day);
     return { session, summary };
@@ -1135,9 +1172,10 @@ function editSession(params) {
     });
 
     deleteRowsWhere_(SHEETS.SETS, set => set.session_id === session_id);
+    const setRows = [];
     prepared.exercises.forEach(ex => {
       ex.sets.forEach(set => {
-        appendRow_(SHEETS.SETS, {
+        setRows.push({
           set_id: genId_('set'),
           session_id,
           routine_exercise_id: ex.routine_exercise_id,
@@ -1151,6 +1189,7 @@ function editSession(params) {
         });
       });
     });
+    appendRows_(SHEETS.SETS, setRows);
 
     const summary = buildSessionSummary_(session, prepared.exercises, routine || {}, day || {});
     return { session: getSession({ session_id }), summary };
@@ -1390,27 +1429,27 @@ function getHomeStats() {
     const d = normalizeDate_(s.date);
     return d >= week.start && d <= week.end;
   });
-  const weekIds = weekSessions.map(s => s.session_id);
-  const weekSets = sets.filter(set => weekIds.indexOf(set.session_id) >= 0);
-  const weekVolume = calcRawVolume_(weekSets);
+  const weekIds = indexValues_(weekSessions, 'session_id');
 
   const fourteenAgo = addDaysIso_(today, -13);
-  const recentSessionIds = sessions
-    .filter(s => {
+  const recentSessions = sessions.filter(s => {
       const d = normalizeDate_(s.date);
       return d >= fourteenAgo && d <= today;
-    })
-    .map(s => s.session_id);
+    });
+  const recentSessionIds = indexValues_(recentSessions, 'session_id');
   const exerciseNames = {};
+  let weekVolume = 0;
   sets.forEach(set => {
-    if (recentSessionIds.indexOf(set.session_id) >= 0 && set.exercise_name) {
+    if (weekIds[set.session_id]) {
+      weekVolume += calcRawVolume_([set]);
+    }
+    if (recentSessionIds[set.session_id] && set.exercise_name) {
       exerciseNames[set.exercise_name] = true;
     }
   });
 
   const improved = countImprovedLatest_(sessions, sets);
   const lastSession = getLastSessionSummary_(sessions, sets, routines, days);
-  const recentSessions = buildRecentSessionSummaries_(sessions, sets, routines, days, 5);
   const streakStats = getStreakStatsFromSessions_(sessions, today, 3);
   const weeklySummary = getPreviousWeekSummary_(sessions, sets, today);
   const activeRoutine = routines.find(r => isTrue_(r.is_active));
@@ -1439,7 +1478,7 @@ function getHomeStats() {
       })),
     } : null,
     last_session: lastSession,
-    recent_sessions: recentSessions,
+    recent_sessions: [],
   };
 }
 
@@ -1464,10 +1503,19 @@ function getPreviousWeekSummary_(sessions, sets, todayIso) {
 }
 
 function countPrsInSessions_(targetSessions, allSessions, allSets) {
-  return (targetSessions || []).reduce((count, session) => {
-    const sessionSets = (allSets || []).filter(set => set.session_id === session.session_id);
+  const targetIds = {};
+  (targetSessions || []).forEach(session => {
+    if (session && session.session_id) targetIds[session.session_id] = true;
+  });
+  if (!Object.keys(targetIds).length) return 0;
+
+  const setsBySession = groupBy_(allSets || [], 'session_id');
+  const historicalPrsByExercise = {};
+  let count = 0;
+
+  sortSessionsAsc_(allSessions || []).forEach(session => {
     const byExercise = {};
-    sessionSets.forEach(set => {
+    (setsBySession[session.session_id] || []).forEach(set => {
       const name = (set.exercise_name || '').toString().trim();
       if (!name) return;
       if (!byExercise[name]) byExercise[name] = [];
@@ -1479,16 +1527,22 @@ function countPrsInSessions_(targetSessions, allSessions, allSets) {
 
     Object.keys(byExercise).forEach(exerciseName => {
       const currentMetrics = calcSetMetrics_(byExercise[exerciseName]);
-      const previousPrs = getHistoricalPrsForExercise_(exerciseName, session, allSessions, allSets);
-      if (
+      const previousPrs = historicalPrsByExercise[exerciseName] || { weight_max: 0, e1rm_max: 0 };
+      if (targetIds[session.session_id] && (
         (previousPrs.weight_max > 0 && currentMetrics.weight_max > previousPrs.weight_max) ||
         (previousPrs.e1rm_max > 0 && currentMetrics.e1rm_max > previousPrs.e1rm_max)
-      ) {
+      )) {
         count++;
       }
+
+      historicalPrsByExercise[exerciseName] = {
+        weight_max: Math.max(previousPrs.weight_max || 0, currentMetrics.weight_max || 0),
+        e1rm_max: Math.max(previousPrs.e1rm_max || 0, currentMetrics.e1rm_max || 0),
+      };
     });
-    return count;
-  }, 0);
+  });
+
+  return count;
 }
 
 function getStreakStatsFromSessions_(sessions, todayIso, targetDays) {
@@ -1557,6 +1611,58 @@ function listRecentSessions(params) {
     readAll_(SHEETS.DAYS),
     limit
   );
+}
+
+function getHistoryData(params) {
+  params = params || {};
+  const requestedLimit = Number(params.limit || 500);
+  const limit = isNaN(requestedLimit) ? 500 : Math.max(1, Math.min(Math.round(requestedLimit), 500));
+  const requestedDays = Number(params.days || 91);
+  const daysBack = isNaN(requestedDays) ? 91 : Math.max(1, Math.min(Math.round(requestedDays), 366));
+  const today = todayIso_();
+  const start = addDaysIso_(today, -(daysBack - 1));
+  const sessions = readAll_(SHEETS.SESSIONS)
+    .filter(session => {
+      const date = normalizeDate_(session.date);
+      return date >= start && date <= today;
+    });
+  const sets = readAll_(SHEETS.SETS);
+  const routines = readAll_(SHEETS.ROUTINES);
+  const days = readAll_(SHEETS.DAYS);
+  const setsBySession = groupBy_(sets, 'session_id');
+  const byDate = {};
+
+  sessions.forEach(session => {
+    const date = normalizeDate_(session.date);
+    if (!byDate[date]) {
+      byDate[date] = {
+        date,
+        session_count: 0,
+        total_volume: 0,
+        session_ids: [],
+      };
+    }
+    const sessionSets = setsBySession[session.session_id] || [];
+    byDate[date].session_count++;
+    byDate[date].total_volume += calcRawVolume_(sessionSets);
+    byDate[date].session_ids.push(session.session_id);
+  });
+
+  return {
+    sessions: buildRecentSessionSummaries_(sessions, sets, routines, days, limit),
+    activity: {
+      start,
+      end: today,
+      days: Object.keys(byDate)
+        .sort()
+        .map(date => ({
+          date,
+          session_count: byDate[date].session_count,
+          total_volume: Math.round(byDate[date].total_volume * 100) / 100,
+          session_ids: byDate[date].session_ids,
+        })),
+    },
+  };
 }
 
 function listSessionDates(params) {
@@ -1694,8 +1800,17 @@ function countImprovedLatest_(sessions, sets) {
 
 function getLastSessionSummary_(sessions, sets, routines, days) {
   if (!sessions.length) return null;
-  const summaries = buildRecentSessionSummaries_(sessions, sets, routines, days, 1);
-  return summaries[0] || null;
+  const last = sortSessionsDesc_(sessions)[0];
+  if (!last) return null;
+  const routinesById = indexBy_(routines, 'routine_id');
+  const daysById = indexBy_(days, 'day_id');
+  const sessionSets = (sets || []).filter(set => set.session_id === last.session_id);
+  return buildSessionListItem_(
+    last,
+    sessionSets,
+    routinesById[last.routine_id] || {},
+    daysById[last.day_id] || {}
+  );
 }
 
 function buildRecentSessionSummaries_(sessions, sets, routines, days, limit) {
@@ -1720,10 +1835,26 @@ function sortSessionsDesc_(sessions) {
   });
 }
 
+function sortSessionsAsc_(sessions) {
+  return sessions.slice().sort((a, b) => {
+    const dateCmp = normalizeDate_(a.date).localeCompare(normalizeDate_(b.date));
+    if (dateCmp !== 0) return dateCmp;
+    return (a.created_at || '').toString().localeCompare((b.created_at || '').toString());
+  });
+}
+
 function indexBy_(items, field) {
   return (items || []).reduce((acc, item) => {
     const key = item && item[field];
     if (key !== undefined && key !== null && key !== '') acc[key] = item;
+    return acc;
+  }, {});
+}
+
+function indexValues_(items, field) {
+  return (items || []).reduce((acc, item) => {
+    const key = item && item[field];
+    if (key !== undefined && key !== null && key !== '') acc[key] = true;
     return acc;
   }, {});
 }
@@ -1770,6 +1901,20 @@ function listAllExerciseNames() {
   return Object.keys(names)
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b));
+}
+
+function getProgressExerciseData(params) {
+  params = params || {};
+  const names = listAllExerciseNames();
+  const requested = (params.exercise_name || '').toString().trim();
+  const exerciseName = names.indexOf(requested) >= 0 ? requested : (names[0] || '');
+  return {
+    names,
+    history: exerciseName ? listExerciseHistory({
+      exercise_name: exerciseName,
+      limit: params.limit || 8,
+    }) : null,
+  };
 }
 
 function listExerciseHistory(params) {
