@@ -132,8 +132,15 @@
     display: flex;
     justify-content: space-between;
     gap: 16px;
-    align-items: flex-end;
+    align-items: center;
     margin-top: 18px;
+  }
+  .hero-row > div {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .hero-row .primary-btn {
+    flex: 0 0 auto;
   }
   .metric-large { font-size: 40px; line-height: 1; letter-spacing: -0.06em; font-weight: 800; }
   .metric-label { color: var(--muted); font-size: 13px; margin-top: 6px; }
@@ -1627,6 +1634,9 @@ registerScreen('home', {
 
 async function loadHomeStats(navToken) {
   if (!backend.url) return;
+  $('#home-week-sessions').textContent = '—';
+  $('#home-progress-count').textContent = '—';
+  $('#home-improved').textContent = '—';
   try {
     const stats = await gas.getHomeStats();
     if (navToken && !isCurrentNav(navToken, 'home')) return;
@@ -4142,20 +4152,11 @@ document.addEventListener('change', (e) => {
 (async function boot() {
   backend.ensureDefault();
   $('#home-date').textContent = formatDateLong(todayInputValue());
-  const bootNavSeq = state.navSeq;
   if (!backend.url) {
     goTo('setup');
     return;
   }
-  try {
-    await gas.ping();
-    if (state.navSeq === bootNavSeq) goTo('home');
-  } catch (err) {
-    if (state.navSeq === bootNavSeq) {
-      goTo('setup');
-      toast('No conecta con el backend. Revisá la URL /exec.', 'error');
-    }
-  }
+  goTo('home');
 })();
 </script>
 </body>
