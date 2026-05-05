@@ -794,24 +794,10 @@
       margin-bottom: 0;
     }
 
-    #home-today-plan {
-      grid-column: 1;
-    }
-
-    #screen-home > .grid-2 {
-      grid-column: 2;
-      grid-row: 2 / span 2;
-      grid-template-columns: 1fr;
-      gap: 12px;
-    }
-
-    #home-streak {
-      grid-column: 2;
-    }
-
-    #home-weekly-summary,
     #screen-home > .section {
-      grid-column: 1 / -1;
+      grid-column: 2;
+      grid-row: 2;
+      margin-top: 0;
     }
 
     .routine-grid {
@@ -929,40 +915,26 @@
     </div>
 
     <div class="hero">
-      <div class="eyebrow">Esta semana</div>
-      <div class="hero-row">
+      <div class="eyebrow">Entrenamiento</div>
+      <div style="display:grid;gap:14px;">
         <div>
-          <div class="metric-large" id="home-week-sessions">0</div>
-          <div class="metric-label">sesiones completadas</div>
+          <h2 style="margin-bottom:6px;">Inicio rápido</h2>
+          <p class="muted" id="home-active-routine">Listo para entrenar</p>
         </div>
-        <button class="primary-btn" data-action="go-train">Empezar</button>
+        <button class="primary-btn" data-action="go-train" style="justify-self:start;">Empezar entrenamiento</button>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="ghost-btn" data-go="routines">Rutinas</button>
+          <button class="ghost-btn" data-go="history">Historial</button>
+        </div>
       </div>
     </div>
-
-    <div id="home-today-plan"></div>
-
-    <div class="grid-2">
-      <div class="mini-card">
-        <div class="mini-value" id="home-progress-count">—</div>
-        <div class="mini-label">ejercicios activos en 14 días</div>
-      </div>
-      <div class="mini-card">
-        <div class="mini-value" id="home-improved">—</div>
-        <div class="mini-label">ejercicios con más volumen</div>
-      </div>
-    </div>
-
-    <div id="home-streak"></div>
-
-    <div id="home-weekly-summary"></div>
 
     <div class="section">
       <h2>Última sesión</h2>
       <div id="home-last-session">
         <div class="empty-state">
-          <div class="emoji">📈</div>
-          <h3>Aún no hay sesiones</h3>
-          <p class="muted">Cuando guardes tu primera sesión, va a aparecer acá.</p>
+          <h3>Sin datos cargados</h3>
+          <p class="muted">Aparece después de guardar una sesión.</p>
         </div>
       </div>
     </div>
@@ -1714,10 +1686,6 @@ async function loadHomeStats(navToken) {
   const cached = getApiCache('getHomeStats', [], API_CACHE_TTL.getHomeStats);
   if (cached) {
     renderHomeStats(cached);
-  } else {
-    $('#home-week-sessions').textContent = '—';
-    $('#home-progress-count').textContent = '—';
-    $('#home-improved').textContent = '—';
   }
   try {
     const stats = await cachedGas('getHomeStats', [], { force: !cached });
@@ -1725,26 +1693,22 @@ async function loadHomeStats(navToken) {
     renderHomeStats(stats);
   } catch (err) {
     if (navToken && !isCurrentNav(navToken, 'home')) return;
-    toast('No se pudo cargar el Home', 'error');
   }
 }
 
 function renderHomeStats(stats) {
-  $('#home-week-sessions').textContent = stats.sesiones_semana || 0;
-  $('#home-progress-count').textContent = stats.ejercicios_en_progreso || 0;
-  $('#home-improved').textContent = stats.marcas_mejoradas || 0;
-  renderHomeTodayPlan(stats.today_plan);
-  renderHomeStreak(stats.streak);
-  renderHomeWeeklySummary(stats.weekly_summary);
+  const activeRoutine = stats.active_routine || null;
+  $('#home-active-routine').textContent = activeRoutine
+    ? `Rutina activa: ${activeRoutine.routine_name}`
+    : 'Sin rutina activa';
 
   const el = $('#home-last-session');
   const last = stats.last_session;
   if (!last) {
     el.innerHTML = `
       <div class="empty-state">
-        <div class="emoji">📈</div>
         <h3>Aún no hay sesiones</h3>
-        <p class="muted">Cuando guardes tu primera sesión, va a aparecer acá.</p>
+        <p class="muted">Cuando guardes una sesión, queda a mano acá.</p>
       </div>
     `;
     return;
@@ -1757,113 +1721,7 @@ function renderHomeStats(stats) {
           <h3>${escapeHtml(last.day_name || 'Sesión')}</h3>
           <p class="muted">${escapeHtml(last.routine_name || '')} · ${formatDateLong(last.date)}</p>
         </div>
-      </div>
-      <div class="summary-status">
-        <span class="dot"></span>
-        <p class="muted">${last.exercise_count} ejercicio${last.exercise_count === 1 ? '' : 's'} · ${last.set_count} serie${last.set_count === 1 ? '' : 's'} guardada${last.set_count === 1 ? '' : 's'}.</p>
-      </div>
-    </div>
-  `;
-}
-
-function renderHomeStreak(streak) {
-  const el = $('#home-streak');
-  if (!streak) {
-    el.innerHTML = '';
-    return;
-  }
-
-  const weeks = Number(streak.streak_weeks || 0);
-  const target = Number(streak.target_days || 3);
-  const current = Number(streak.current_week_days || 0);
-  const needed = Number(streak.sessions_needed || 0);
-  const met = !!streak.current_week_met;
-  const label = weeks === 1 ? 'semana seguida' : 'semanas seguidas';
-  const detail = met
-    ? `Meta semanal completa: ${current}/${target} días.`
-    : `Faltan ${needed} día${needed === 1 ? '' : 's'} para mantener la racha (${current}/${target}).`;
-
-  el.innerHTML = `
-    <div class="card" style="margin-top:12px;">
-      <div class="card-row">
-        <div>
-          <div class="eyebrow">Racha semanal</div>
-          <h3>${weeks} ${label}</h3>
-          <p class="muted">${escapeHtml(detail)}</p>
-        </div>
-        <span class="pill ${met ? 'good' : 'warn'}">${current}/${target}</span>
-      </div>
-    </div>
-  `;
-}
-
-function renderHomeWeeklySummary(summary) {
-  const el = $('#home-weekly-summary');
-  if (!summary) {
-    el.innerHTML = '';
-    return;
-  }
-
-  const sessions = Number(summary.session_count || 0);
-  const prs = Number(summary.pr_count || 0);
-  const volume = Number(summary.total_volume || 0);
-  const sessionLabel = sessions === 1 ? 'sesión' : 'sesiones';
-  const prLabel = prs === 1 ? 'PR' : 'PRs';
-
-  el.innerHTML = `
-    <div class="card" style="margin-top:12px;">
-      <div class="card-row" style="align-items:flex-start;">
-        <div style="flex:1;min-width:0;">
-          <div class="eyebrow">Semana pasada</div>
-          <h3>${sessions} ${sessionLabel}</h3>
-          <p class="muted">${formatDateShort(summary.start)} - ${formatDateShort(summary.end)}</p>
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
-          <span class="pill ${prs ? 'good' : ''}">${prs} ${prLabel}</span>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderHomeTodayPlan(plan) {
-  const el = $('#home-today-plan');
-  if (!plan) {
-    el.innerHTML = '';
-    return;
-  }
-
-  const days = plan.days || [];
-  if (!days.length) {
-    el.innerHTML = `
-      <div class="card">
-        <div class="card-row">
-          <div>
-            <h3>Hoy sin día asignado</h3>
-            <p class="muted">${escapeHtml(plan.routine_name || 'Rutina activa')}</p>
-          </div>
-          <span class="pill">Libre</span>
-        </div>
-      </div>
-    `;
-    return;
-  }
-
-  el.innerHTML = `
-    <div class="card">
-      <div class="card-row" style="align-items:flex-start;">
-        <div style="flex:1;min-width:0;">
-          <div class="eyebrow">Hoy te toca</div>
-          <h3>${escapeHtml(days.map(d => d.day_name).join(' · '))}</h3>
-          <p class="muted">${escapeHtml(plan.routine_name || 'Rutina activa')}</p>
-        </div>
-        <button
-          class="primary-btn"
-          data-action="${days.length === 1 ? 'start-home-today' : 'go-train'}"
-          data-routine-id="${escapeHtml(plan.routine_id || '')}"
-          data-day-id="${escapeHtml(days[0] && days[0].day_id ? days[0].day_id : '')}">
-          Empezar
-        </button>
+        <span class="pill accent">Abrir</span>
       </div>
     </div>
   `;
@@ -4283,15 +4141,6 @@ document.addEventListener('click', (e) => {
   const action = t.dataset.action;
   switch (action) {
     case 'go-train': goTo('train-pick'); break;
-    case 'start-home-today': {
-      const date = todayInputValue();
-      if (t.dataset.routineId && t.dataset.dayId) {
-        goTo('train', { routine_id: t.dataset.routineId, day_id: t.dataset.dayId, date });
-      } else {
-        goTo('train-pick');
-      }
-      break;
-    }
     case 'set-progress-view':
       state.progressView = t.dataset.view || 'exercise';
       loadProgress(state.currentScreen === 'progress' ? state.navSeq : null);

@@ -1498,67 +1498,24 @@ function buildSuggestion_(sets, template) {
 // ============================================================
 
 function getHomeStats() {
-  const today = todayIso_();
-  const week = getWeekRange_(today);
   const sessions = readAll_(SHEETS.SESSIONS);
-  const sets = readAll_(SHEETS.SETS);
   const routines = readAll_(SHEETS.ROUTINES);
-  const days = readAll_(SHEETS.DAYS);
-
-  const weekSessions = sessions.filter(s => {
-    const d = normalizeDate_(s.date);
-    return d >= week.start && d <= week.end;
-  });
-  const weekIds = indexValues_(weekSessions, 'session_id');
-
-  const fourteenAgo = addDaysIso_(today, -13);
-  const recentSessions = sessions.filter(s => {
-      const d = normalizeDate_(s.date);
-      return d >= fourteenAgo && d <= today;
-    });
-  const recentSessionIds = indexValues_(recentSessions, 'session_id');
-  const exerciseNames = {};
-  let weekVolume = 0;
-  sets.forEach(set => {
-    if (weekIds[set.session_id]) {
-      weekVolume += calcRawVolume_([set]);
-    }
-    if (recentSessionIds[set.session_id] && set.exercise_name) {
-      exerciseNames[set.exercise_name] = true;
-    }
-  });
-
-  const improved = countImprovedLatest_(sessions, sets);
-  const lastSession = getLastSessionSummary_(sessions, sets, routines, days);
-  const streakStats = getStreakStatsFromSessions_(sessions, today, 3);
-  const weeklySummary = getPreviousWeekSummary_(sessions, sets, today);
   const activeRoutine = routines.find(r => isTrue_(r.is_active));
-  const todayWeekday = getIsoWeekday_(today);
-  const todayDays = activeRoutine
-    ? days
-        .filter(d => d.routine_id === activeRoutine.routine_id)
-        .filter(d => parseWeekDays_(d.week_days).indexOf(todayWeekday) >= 0)
-        .sort((a, b) => Number(a.day_order || 0) - Number(b.day_order || 0))
-    : [];
+  const lastSession = sortSessionsDesc_(sessions)[0] || null;
 
   return {
-    sesiones_semana: weekSessions.length,
-    volumen_semana: Math.round(weekVolume * 100) / 100,
-    ejercicios_en_progreso: Object.keys(exerciseNames).length,
-    marcas_mejoradas: improved,
-    streak: streakStats,
-    weekly_summary: weeklySummary,
-    today_plan: activeRoutine ? {
+    active_routine: activeRoutine ? {
       routine_id: activeRoutine.routine_id,
       routine_name: activeRoutine.routine_name,
-      weekday: todayWeekday,
-      days: todayDays.map(d => ({
-        day_id: d.day_id,
-        day_name: d.day_name,
-      })),
     } : null,
-    last_session: lastSession,
-    recent_sessions: [],
+    last_session: lastSession ? {
+      session_id: lastSession.session_id,
+      date: normalizeDate_(lastSession.date),
+      routine_id: lastSession.routine_id,
+      routine_name: lastSession.routine_name || '',
+      day_id: lastSession.day_id,
+      day_name: lastSession.day_name || '',
+    } : null,
   };
 }
 

@@ -97,10 +97,9 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
 - Peso corporal completo: `listBodyweightHistory({ limit })` usa `Sessions.bodyweight`, y `screen-progress` tiene vista segmentada Ejercicio/Peso corporal con grafico SVG y registros clickeables.
 - Duplicar rutina completo: `duplicateRoutine({ routine_id, new_name })` clona rutina, dias y ejercicios con IDs nuevos; no copia sesiones.
 - Muscle group base completo: `Day_Exercises.muscle_group` con opciones `pecho`, `espalda`, `hombros`, `bicep`, `tricep`, `core`, `piernas`. El modal de ejercicio guarda el grupo y las cards muestran chip. Requiere correr `setup()` tras actualizar Apps Script para agregar la columna.
-- Home actual completo: muestra sesiones de la semana, "Hoy te toca" segun `week_days`, 2 tarjetas de stats (`ejercicios activos en 14 dias` y `ejercicios con mas volumen`), racha semanal y resumen de semana pasada.
+- Home actual simplificado: funciona como lanzador rapido con CTA de entrenamiento, accesos a Rutinas/Historial, rutina activa y ultima sesion. No mostrar conteos semanales, dias asignados, rachas, volumen ni PRs en Home porque vuelve lenta e innecesariamente cargada la entrada.
 - Calendario semanal completo: cada dia de rutina puede tener `week_days` ISO (`1,3` = lunes y miercoles). Home, detalle de rutina, detalle de dia y seleccion de entrenamiento muestran chips.
-- Streak semanal completo: `getStreakStatsFromSessions_(sessions, today, targetDays)` cuenta semanas consecutivas con al menos 3 dias unicos entrenados por semana.
-- Resumen semanal completo: `getPreviousWeekSummary_(sessions, sets, today)` calcula sesiones, volumen y PRs de la semana anterior.
+- Streak semanal y resumen semanal quedan como helpers historicos, pero no deben cargarse en Home salvo pedido explicito del usuario.
 - Progreso por musculo completo:
   - `listMuscleGroupHistory({ muscle_group, limit })` muestra historial agregado por grupo muscular.
   - `getVolumeByMuscle({ weeks })` alimenta vista **Musculos** con barras apiladas por semana.
