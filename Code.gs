@@ -528,23 +528,14 @@ function ping() {
 
 function listRoutines() {
   const routines = readAll_(SHEETS.ROUTINES);
-  const days = readAll_(SHEETS.DAYS);
-  const exercises = readAll_(SHEETS.EXERCISES);
 
   return routines
-    .map(r => {
-      const rDays = days.filter(d => d.routine_id === r.routine_id);
-      const dayIds = rDays.map(d => d.day_id);
-      const exCount = exercises.filter(e => dayIds.indexOf(e.day_id) >= 0).length;
-      return {
-        routine_id: r.routine_id,
-        routine_name: r.routine_name,
-        created_at: r.created_at,
-        is_active: isTrue_(r.is_active),
-        day_count: rDays.length,
-        exercise_count: exCount,
-      };
-    })
+    .map(r => ({
+      routine_id: r.routine_id,
+      routine_name: r.routine_name,
+      created_at: r.created_at,
+      is_active: isTrue_(r.is_active),
+    }))
     .sort((a, b) => {
       if (a.is_active !== b.is_active) return a.is_active ? -1 : 1;
       return (b.created_at || '').toString().localeCompare((a.created_at || '').toString());
@@ -1015,7 +1006,8 @@ function getTrainPickData(params) {
     || routines[0];
   return {
     routines,
-    routine: getRoutine(selected.routine_id),
+    selected_routine_id: selected.routine_id,
+    routine: null,
   };
 }
 
@@ -1932,9 +1924,6 @@ function listAllExerciseNames() {
   readAll_(SHEETS.EXERCISES).forEach(ex => {
     if (ex.exercise_name) names[ex.exercise_name.toString().trim()] = true;
   });
-  readAll_(SHEETS.SETS).forEach(set => {
-    if (set.exercise_name) names[set.exercise_name.toString().trim()] = true;
-  });
   return Object.keys(names)
     .filter(Boolean)
     .sort((a, b) => a.localeCompare(b));
@@ -1947,10 +1936,8 @@ function getProgressExerciseData(params) {
   const exerciseName = names.indexOf(requested) >= 0 ? requested : (names[0] || '');
   return {
     names,
-    history: exerciseName ? listExerciseHistory({
-      exercise_name: exerciseName,
-      limit: params.limit || 8,
-    }) : null,
+    selected: exerciseName,
+    history: null,
   };
 }
 

@@ -98,6 +98,8 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
 - Duplicar rutina completo: `duplicateRoutine({ routine_id, new_name })` clona rutina, dias y ejercicios con IDs nuevos; no copia sesiones.
 - Muscle group base completo: `Day_Exercises.muscle_group` con opciones `pecho`, `espalda`, `hombros`, `bicep`, `tricep`, `core`, `piernas`. El modal de ejercicio guarda el grupo y las cards muestran chip. Requiere correr `setup()` tras actualizar Apps Script para agregar la columna.
 - Home actual simplificado: funciona como lanzador rapido con CTA de entrenamiento, accesos a Rutinas/Historial, rutina activa y ultima sesion. No mostrar conteos semanales, dias asignados, rachas, volumen ni PRs en Home porque vuelve lenta e innecesariamente cargada la entrada.
+- Rutinas/Entrenar/Progreso deben abrir livianos: la lista de rutinas no cuenta dias/ejercicios; Entrenar carga primero rutinas y despues la rutina seleccionada; Progreso carga primero nombres y el historial pesado solo al pedirlo o si esta cacheado.
+- El frontend persiste cache de lecturas en `localStorage` (`gymtracker:api-cache:v2`) para que recargas y navegacion entre tabs no dependan siempre de Apps Script.
 - Calendario semanal completo: cada dia de rutina puede tener `week_days` ISO (`1,3` = lunes y miercoles). Home, detalle de rutina, detalle de dia y seleccion de entrenamiento muestran chips.
 - Streak semanal y resumen semanal quedan como helpers historicos, pero no deben cargarse en Home salvo pedido explicito del usuario.
 - Progreso por musculo completo:

@@ -1344,6 +1344,7 @@ const API_CACHE_TTL = {
   getMuscleHeatmap: 60000,
   getExerciseGoal: 60000,
 };
+const API_CACHE_STORAGE_KEY = 'gymtracker:api-cache:v2';
 
 function apiCacheKey(fnName, args) {
   return `${fnName}:${JSON.stringify(args || [])}`;
@@ -1359,7 +1360,28 @@ function getApiCache(fnName, args, maxAgeMs) {
 
 function setApiCache(fnName, args, value) {
   state.apiCache[apiCacheKey(fnName, args)] = { value, at: Date.now() };
+  persistApiCacheSoon();
   return value;
+}
+
+function loadStoredApiCache() {
+  try {
+    const raw = localStorage.getItem(API_CACHE_STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.items) state.apiCache = parsed.items;
+  } catch (_) {
+    state.apiCache = {};
+  }
+}
+
+function persistApiCacheSoon() {
+  clearTimeout(persistApiCacheSoon._t);
+  persistApiCacheSoon._t = setTimeout(() => {
+    try {
+      localStorage.setItem(API_CACHE_STORAGE_KEY, JSON.stringify({ items: state.apiCache }));
+    } catch (_) {}
+  }, 80);
 }
 
 async function cachedGas(fnName, args, options) {
@@ -1375,11 +1397,14 @@ async function cachedGas(fnName, args, options) {
 
 function invalidateApiCache(prefixes) {
   const list = Array.isArray(prefixes) ? prefixes : [prefixes];
+  let changed = false;
   Object.keys(state.apiCache).forEach(key => {
     if (list.some(prefix => prefix === '*' || key.indexOf(prefix + ':') === 0)) {
       delete state.apiCache[key];
+      changed = true;
     }
   });
+  if (changed) persistApiCacheSoon();
 }
 
 function invalidateRoutineCaches() {
@@ -1841,7 +1866,7 @@ function renderRoutines(routines) {
       <div class="card-row">
         <div>
           <h3>${escapeHtml(r.routine_name)}</h3>
-          <p class="muted">${r.day_count} día${r.day_count === 1 ? '' : 's'} · ${r.exercise_count} ejercicio${r.exercise_count === 1 ? '' : 's'}</p>
+          <p class="muted">${r.is_active ? 'Rutina activa' : 'Tocá para editar'}</p>
         </div>
         ${r.is_active ? '<span class="pill accent">Activa</span>' : ''}
       </div>
@@ -2603,7 +2628,7 @@ function renderTrainPickData(data, navToken) {
 
   const active = routines.find(r => r.is_active) || routines[0];
   const routine = data.routine || null;
-  const currentValue = (routine && routine.routine_id) || $('#tp-routine').value || active.routine_id;
+  const currentValue = (routine && routine.routine_id) || data.selected_routine_id || $('#tp-routine').value || active.routine_id;
   $('#tp-routine').innerHTML = routines.map(r => `
     <option value="${escapeHtml(r.routine_id)}" ${r.routine_id === currentValue ? 'selected' : ''}>${escapeHtml(r.routine_name)}${r.is_active ? ' · activa' : ''}</option>
   `).join('');
@@ -3045,12 +3070,29 @@ async function renderProgressExerciseData(data, select, content, navToken, loadT
     `;
     return;
   }
-  const current = data.history && data.history.exercise_name
-    ? data.history.exercise_name
-    : (select.value && names.indexOf(select.value) >= 0 ? select.value : names[0]);
+  const current = data.selected || (select.value && names.indexOf(select.value) >= 0 ? select.value : names[0]);
   select.innerHTML = names.map(name => `<option value="${escapeHtml(name)}" ${name === current ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('');
-  if (data.history) renderExerciseHistory(data.history);
-  else await loadExerciseHistory(current, navToken, loadToken);
+  if (data.history) {
+    renderExerciseHistory(data.history);
+    return;
+  }
+  const historyArgs = [{ exercise_name: current, limit: 8 }];
+  const cachedHistory = getApiCache('listExerciseHistory', historyArgs, API_CACHE_TTL.listExerciseHistory);
+  if (cachedHistory) {
+    renderExerciseHistory(cachedHistory);
+    return;
+  }
+  content.innerHTML = `
+    <div class="card">
+      <div class="card-row">
+        <div style="flex:1;min-width:0;">
+          <h3>${escapeHtml(current)}</h3>
+          <p class="muted">Historial listo para cargar.</p>
+        </div>
+        <button class="ghost-btn" data-action="load-selected-progress">Cargar</button>
+      </div>
+    </div>
+  `;
 }
 
 function renderProgressMode() {
@@ -4165,6 +4207,11 @@ document.addEventListener('click', (e) => {
     case 'edit-exercise-goal':
       handleEditExerciseGoal(t.dataset.exerciseName);
       break;
+    case 'load-selected-progress': {
+      const select = $('#progress-exercise');
+      if (select && select.value) loadExerciseHistory(select.value, state.currentScreen === 'progress' ? state.navSeq : null);
+      break;
+    }
     case 'refresh-history':
       invalidateApiCache('getHistoryData');
       loadHistory(state.currentScreen === 'history' ? state.navSeq : null);
@@ -4252,6 +4299,7 @@ document.addEventListener('change', (e) => {
 // ============================================================
 (async function boot() {
   backend.ensureDefault();
+  loadStoredApiCache();
   $('#home-date').textContent = formatDateLong(todayInputValue());
   if (!backend.url) {
     goTo('setup');
