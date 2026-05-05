@@ -47,6 +47,50 @@ const HEADERS = {
 
 let READ_CACHE_ = {};
 
+const READ_API_CACHE_SECONDS_ = {
+  ping: 20,
+  listRoutines: 120,
+  getRoutine: 300,
+  getActiveRoutine: 120,
+  getTrainPickData: 120,
+  getLastSessionForDay: 120,
+  getSession: 120,
+  getHomeStats: 60,
+  getHistoryData: 60,
+  listRecentSessions: 60,
+  listSessionDates: 60,
+  listBodyweightHistory: 60,
+  listAllExerciseNames: 300,
+  getProgressExerciseData: 60,
+  listExerciseHistory: 60,
+  listMuscleGroupHistory: 60,
+  getVolumeByMuscle: 60,
+  getMuscleHeatmap: 60,
+  getExerciseGoal: 60,
+};
+
+const WRITE_API_ = {
+  createRoutine: true,
+  renameRoutine: true,
+  duplicateRoutine: true,
+  setActiveRoutine: true,
+  deleteRoutine: true,
+  addDay: true,
+  renameDay: true,
+  updateDayWeekDays: true,
+  deleteDay: true,
+  reorderDay: true,
+  addExercise: true,
+  updateExercise: true,
+  deleteExercise: true,
+  reorderExercise: true,
+  saveSession: true,
+  editSession: true,
+  deleteSession: true,
+  setExerciseGoal: true,
+  migrateHistoricalSnapshots: true,
+};
+
 // ============================================================
 // WEB/API ENTRY
 // ============================================================
@@ -69,12 +113,48 @@ function doPost(e) {
     const args = Array.isArray(body.args) ? body.args : [];
     const api = getApi_();
     if (!api[fn]) throw new Error('Funcion API no permitida: ' + fn);
-    return json_({ ok: true, result: api[fn].apply(null, args) });
+    if (READ_API_CACHE_SECONDS_[fn]) {
+      const cacheKey = apiCacheKey_(fn, args);
+      const cached = CacheService.getScriptCache().get(cacheKey);
+      if (cached) return json_({ ok: true, result: JSON.parse(cached), cached: true });
+      const result = api[fn].apply(null, args);
+      putApiCache_(cacheKey, result, READ_API_CACHE_SECONDS_[fn]);
+      return json_({ ok: true, result });
+    }
+    const result = api[fn].apply(null, args);
+    if (WRITE_API_[fn]) bumpApiCacheVersion_();
+    return json_({ ok: true, result });
   } catch (err) {
     return json_({
       ok: false,
       error: err && err.message ? err.message : String(err),
     });
+  }
+}
+
+function apiCacheKey_(fn, args) {
+  const version = PropertiesService.getScriptProperties().getProperty('api_cache_version') || '1';
+  const raw = version + '|' + fn + '|' + JSON.stringify(args || []);
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, raw);
+  return 'api:' + Utilities.base64EncodeWebSafe(digest).slice(0, 42);
+}
+
+function putApiCache_(key, result, seconds) {
+  try {
+    const payload = JSON.stringify(result);
+    if (payload.length < 90000) {
+      CacheService.getScriptCache().put(key, payload, seconds);
+    }
+  } catch (err) {
+    // CacheService es oportunista: si falla, la API sigue funcionando sin cache.
+  }
+}
+
+function bumpApiCacheVersion_() {
+  try {
+    PropertiesService.getScriptProperties().setProperty('api_cache_version', nowIso_() + ':' + Utilities.getUuid());
+  } catch (err) {
+    // No bloquea escrituras si PropertiesService no esta disponible temporalmente.
   }
 }
 

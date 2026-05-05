@@ -121,6 +121,7 @@ No implementar features grandes de schema sin avisar que requieren actualizar `C
 
 ## Reglas de Implementacion
 
+- Siempre pushear los cambios al terminar una tarea de codigo/docs. No esperar confirmacion extra del usuario para hacer push.
 - Mantener estilo mobile-first dark premium.
 - No usar tablas visibles.
 - Mutaciones de rutina/dia/ejercicio deben devolver la rutina completa cuando eso evita un roundtrip.

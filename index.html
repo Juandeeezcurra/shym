@@ -1348,11 +1348,88 @@ const state = {
   progressMuscle: 'pecho',
   exerciseNameSuggestions: null,
   dayExerciseView: 'order',
+  apiCache: {},
   navSeq: 0,
   loadTokens: {},
   actionLocks: {},
   lastTap: { key: '', at: 0 },
 };
+
+const API_CACHE_TTL = {
+  getHomeStats: 60000,
+  listRoutines: 120000,
+  getRoutine: 300000,
+  getTrainPickData: 120000,
+  getLastSessionForDay: 120000,
+  getSession: 120000,
+  getHistoryData: 60000,
+  listBodyweightHistory: 60000,
+  listAllExerciseNames: 300000,
+  getProgressExerciseData: 60000,
+  listExerciseHistory: 60000,
+  listMuscleGroupHistory: 60000,
+  getVolumeByMuscle: 60000,
+  getMuscleHeatmap: 60000,
+  getExerciseGoal: 60000,
+};
+
+function apiCacheKey(fnName, args) {
+  return `${fnName}:${JSON.stringify(args || [])}`;
+}
+
+function getApiCache(fnName, args, maxAgeMs) {
+  const entry = state.apiCache[apiCacheKey(fnName, args)];
+  if (!entry) return null;
+  const ttl = maxAgeMs == null ? API_CACHE_TTL[fnName] : maxAgeMs;
+  if (ttl != null && Date.now() - entry.at > ttl) return null;
+  return entry.value;
+}
+
+function setApiCache(fnName, args, value) {
+  state.apiCache[apiCacheKey(fnName, args)] = { value, at: Date.now() };
+  return value;
+}
+
+async function cachedGas(fnName, args, options) {
+  args = args || [];
+  const force = options && options.force;
+  const ttl = options && options.ttl;
+  if (!force) {
+    const cached = getApiCache(fnName, args, ttl);
+    if (cached !== null) return cached;
+  }
+  return setApiCache(fnName, args, await gas[fnName](...args));
+}
+
+function invalidateApiCache(prefixes) {
+  const list = Array.isArray(prefixes) ? prefixes : [prefixes];
+  Object.keys(state.apiCache).forEach(key => {
+    if (list.some(prefix => prefix === '*' || key.indexOf(prefix + ':') === 0)) {
+      delete state.apiCache[key];
+    }
+  });
+}
+
+function invalidateRoutineCaches() {
+  invalidateApiCache(['listRoutines', 'getRoutine', 'getTrainPickData', 'getHomeStats', 'listAllExerciseNames']);
+  state.routines = [];
+}
+
+function invalidateSessionCaches() {
+  invalidateApiCache([
+    'getHomeStats',
+    'getLastSessionForDay',
+    'getSession',
+    'getHistoryData',
+    'listBodyweightHistory',
+    'getProgressExerciseData',
+    'listExerciseHistory',
+    'listMuscleGroupHistory',
+    'getVolumeByMuscle',
+    'getMuscleHeatmap',
+    'listAllExerciseNames',
+  ]);
+}
 
 // ============================================================
 // UI HELPERS
@@ -1634,11 +1711,16 @@ registerScreen('home', {
 
 async function loadHomeStats(navToken) {
   if (!backend.url) return;
-  $('#home-week-sessions').textContent = '—';
-  $('#home-progress-count').textContent = '—';
-  $('#home-improved').textContent = '—';
+  const cached = getApiCache('getHomeStats', [], API_CACHE_TTL.getHomeStats);
+  if (cached) {
+    renderHomeStats(cached);
+  } else {
+    $('#home-week-sessions').textContent = '—';
+    $('#home-progress-count').textContent = '—';
+    $('#home-improved').textContent = '—';
+  }
   try {
-    const stats = await gas.getHomeStats();
+    const stats = await cachedGas('getHomeStats', [], { force: !cached });
     if (navToken && !isCurrentNav(navToken, 'home')) return;
     renderHomeStats(stats);
   } catch (err) {
@@ -1809,8 +1891,17 @@ async function openSessionDetail(session_id) {
   const loadToken = nextLoadToken('session-open');
   const originScreen = state.currentScreen;
   const originNavSeq = state.navSeq;
+  const cached = getApiCache('getSession', [{ session_id }], API_CACHE_TTL.getSession);
+  if (cached) {
+    state.currentSession = cached;
+    state.sessionReturnScreen = state.currentScreen === 'history'
+      ? 'history'
+      : (state.currentScreen === 'progress' ? 'progress' : 'home');
+    goTo('session-detail');
+    return;
+  }
   try {
-    const session = await withLoader(gas.getSession({ session_id }));
+    const session = await withLoader(cachedGas('getSession', [{ session_id }]));
     if (!isCurrentLoad('session-open', loadToken) || state.navSeq !== originNavSeq || state.currentScreen !== originScreen) return;
     state.currentSession = session;
     state.sessionReturnScreen = state.currentScreen === 'history'
@@ -1849,6 +1940,12 @@ registerScreen('routines', {
 async function loadRoutines(navToken) {
   const loadToken = nextLoadToken('routines');
   const listEl = $('#routines-list');
+  const cached = getApiCache('listRoutines', [], API_CACHE_TTL.listRoutines);
+  if (cached) {
+    state.routines = cached;
+    renderRoutines(cached);
+    return;
+  }
   if (state.routines && state.routines.length) {
     renderRoutines(state.routines);
   } else {
@@ -1858,7 +1955,7 @@ async function loadRoutines(navToken) {
     `;
   }
   try {
-    const routines = await gas.listRoutines();
+    const routines = await cachedGas('listRoutines', []);
     if (!isCurrentLoad('routines', loadToken, 'routines', navToken)) return;
     state.routines = routines;
     renderRoutines(routines);
@@ -1942,6 +2039,7 @@ async function handleNewRoutine() {
   if (!name) return;
   try {
     await withLoader(gas.createRoutine(name));
+    invalidateRoutineCaches();
     toast('Rutina creada', 'success');
     await loadRoutines();
   } catch (err) {
@@ -1962,6 +2060,13 @@ registerScreen('routine-detail', {
 
 async function loadRoutineDetail(routine_id, navToken) {
   const loadToken = nextLoadToken('routine-detail');
+  const cacheArgs = [routine_id];
+  const cached = getApiCache('getRoutine', cacheArgs, API_CACHE_TTL.getRoutine);
+  if (cached) {
+    state.currentRoutine = cached;
+    renderRoutineDetail(cached);
+    return;
+  }
   if (state.currentRoutine && state.currentRoutine.routine_id === routine_id) {
     renderRoutineDetail(state.currentRoutine);
   } else {
@@ -1970,7 +2075,7 @@ async function loadRoutineDetail(routine_id, navToken) {
     $('#rd-days').innerHTML = `<div class="skeleton" style="height: 120px;"></div>`;
   }
   try {
-    const r = await gas.getRoutine(routine_id);
+    const r = await cachedGas('getRoutine', cacheArgs);
     if (!isCurrentLoad('routine-detail', loadToken, 'routine-detail', navToken) || state.screenParams.routine_id !== routine_id) return;
     state.currentRoutine = r;
     renderRoutineDetail(r);
@@ -2000,6 +2105,7 @@ async function handleRenameRoutine() {
   if (!newName || newName === r.routine_name) return;
   try {
     await withLoader(gas.renameRoutine(r.routine_id, newName));
+    invalidateRoutineCaches();
     toast('Renombrada', 'success');
     await loadRoutineDetail(r.routine_id);
   } catch (err) {
@@ -2012,6 +2118,7 @@ async function handleActivateRoutine() {
   if (!r) return;
   try {
     await withLoader(gas.setActiveRoutine(r.routine_id));
+    invalidateRoutineCaches();
     toast('Rutina activada', 'success');
     await loadRoutineDetail(r.routine_id);
   } catch (err) {
@@ -2031,7 +2138,9 @@ async function handleDuplicateRoutine() {
   if (!name) return;
   try {
     const duplicated = await withLoader(gas.duplicateRoutine({ routine_id: r.routine_id, new_name: name }));
+    invalidateRoutineCaches();
     state.currentRoutine = duplicated;
+    setApiCache('getRoutine', [duplicated.routine_id], duplicated);
     toast('Rutina duplicada', 'success');
     goTo('routine-detail', { routine_id: duplicated.routine_id });
   } catch (err) {
@@ -2051,6 +2160,8 @@ async function handleDeleteRoutine() {
   if (!ok) return;
   try {
     await withLoader(gas.deleteRoutine(r.routine_id));
+    invalidateRoutineCaches();
+    invalidateSessionCaches();
     toast('Rutina borrada', 'success');
     state.currentRoutine = null;
     goTo('routines');
@@ -2247,7 +2358,9 @@ async function handleAddDay() {
   if (!name) return;
   try {
     const updated = await withLoader(gas.addDay({ routine_id: r.routine_id, day_name: name }));
+    invalidateRoutineCaches();
     state.currentRoutine = updated;
+    setApiCache('getRoutine', [updated.routine_id], updated);
     renderDays(updated.days);
     toast('Día agregado', 'success');
   } catch (err) {
@@ -2267,7 +2380,9 @@ async function handleRenameDay() {
   if (!newName || newName === day.day_name) return;
   try {
     const updated = await withLoader(gas.renameDay({ day_id: day.day_id, new_name: newName }));
+    invalidateRoutineCaches();
     state.currentRoutine = updated;
+    setApiCache('getRoutine', [updated.routine_id], updated);
     const updatedDay = updated.days.find(d => d.day_id === day.day_id);
     if (updatedDay) { state.currentDay = updatedDay; $('#dd-day-name').textContent = updatedDay.day_name; }
     toast('Día renombrado', 'success');
@@ -2284,7 +2399,9 @@ async function handleEditDayWeekDays() {
   if (!selected) return;
   try {
     const updated = await withLoader(gas.updateDayWeekDays({ day_id: day.day_id, week_days: selected }));
+    invalidateRoutineCaches();
     state.currentRoutine = updated;
+    setApiCache('getRoutine', [updated.routine_id], updated);
     const updatedDay = updated.days.find(d => d.day_id === day.day_id);
     if (updatedDay) {
       state.currentDay = updatedDay;
@@ -2342,7 +2459,10 @@ async function handleDeleteDay() {
   if (!ok) return;
   try {
     const updated = await withLoader(gas.deleteDay({ day_id: day.day_id }));
+    invalidateRoutineCaches();
+    invalidateSessionCaches();
     state.currentRoutine = updated;
+    setApiCache('getRoutine', [updated.routine_id], updated);
     state.currentDay = null;
     toast('Día borrado', 'success');
     goTo('routine-detail', { routine_id: r.routine_id });
@@ -2356,7 +2476,9 @@ async function handleReorderDay(day_id, direction) {
   if (!r) return;
   try {
     const updated = await withLoader(gas.reorderDay({ day_id, direction }));
+    invalidateRoutineCaches();
     state.currentRoutine = updated;
+    setApiCache('getRoutine', [updated.routine_id], updated);
     renderDays(updated.days);
   } catch (err) {
     toast(err.message || 'Error al reordenar', 'error');
@@ -2368,7 +2490,9 @@ async function handleReorderExercise(routine_exercise_id, direction) {
   if (!day) return;
   try {
     const updated = await withLoader(gas.reorderExercise({ routine_exercise_id, direction }));
+    invalidateRoutineCaches();
     state.currentRoutine = updated;
+    setApiCache('getRoutine', [updated.routine_id], updated);
     const updatedDay = updated.days.find(d => d.day_id === day.day_id);
     if (updatedDay) { state.currentDay = updatedDay; renderExercises(updatedDay.exercises); }
   } catch (err) {
@@ -2379,7 +2503,7 @@ async function handleReorderExercise(routine_exercise_id, direction) {
 async function loadExerciseNameSuggestions() {
   if (state.exerciseNameSuggestions) return state.exerciseNameSuggestions;
   try {
-    state.exerciseNameSuggestions = await gas.listAllExerciseNames();
+    state.exerciseNameSuggestions = await cachedGas('listAllExerciseNames', []);
   } catch (err) {
     state.exerciseNameSuggestions = [];
   }
@@ -2500,7 +2624,10 @@ async function handleAddExercise(button) {
   if (!data) return;
   try {
     const updated = await withButtonLoading(button, gas.addExercise(Object.assign({ day_id: day.day_id }, data)), 'Agregando');
+    invalidateRoutineCaches();
+    invalidateSessionCaches();
     state.currentRoutine = updated;
+    setApiCache('getRoutine', [updated.routine_id], updated);
     const updatedDay = updated.days.find(d => d.day_id === day.day_id);
     if (updatedDay) { state.currentDay = updatedDay; renderExercises(updatedDay.exercises); }
     state.exerciseNameSuggestions = null;
@@ -2519,7 +2646,10 @@ async function handleEditExercise(rex_id, button) {
   if (!data) return;
   try {
     const updated = await withButtonLoading(button, gas.updateExercise(Object.assign({ routine_exercise_id: rex_id }, data)), 'Guardando');
+    invalidateRoutineCaches();
+    invalidateSessionCaches();
     state.currentRoutine = updated;
+    setApiCache('getRoutine', [updated.routine_id], updated);
     const updatedDay = updated.days.find(d => d.day_id === day.day_id);
     if (updatedDay) { state.currentDay = updatedDay; renderExercises(updatedDay.exercises); }
     state.exerciseNameSuggestions = null;
@@ -2543,7 +2673,10 @@ async function handleDeleteExercise(rex_id) {
   if (!ok) return;
   try {
     const updated = await withLoader(gas.deleteExercise({ routine_exercise_id: rex_id }));
+    invalidateRoutineCaches();
+    invalidateSessionCaches();
     state.currentRoutine = updated;
+    setApiCache('getRoutine', [updated.routine_id], updated);
     const updatedDay = updated.days.find(d => d.day_id === day.day_id);
     if (updatedDay) { state.currentDay = updatedDay; renderExercises(updatedDay.exercises); }
     toast('Ejercicio borrado', 'success');
@@ -2576,37 +2709,18 @@ async function loadTrainPick(navToken) {
   const dateEl = $('#tp-date');
   if (!dateEl.value) dateEl.value = todayInputValue();
   renderUnitToggle();
+  const args = [{ routine_id: $('#tp-routine').value || '' }];
+  const cached = getApiCache('getTrainPickData', args, API_CACHE_TTL.getTrainPickData);
+  if (cached) {
+    renderTrainPickData(cached, navToken);
+    return;
+  }
   $('#tp-days').innerHTML = `<div class="skeleton" style="height: 120px;"></div>`;
 
   try {
-    const data = await gas.getTrainPickData({ routine_id: $('#tp-routine').value || '' });
+    const data = await cachedGas('getTrainPickData', args);
     if (!isCurrentLoad('train-pick', loadToken, 'train-pick', navToken)) return;
-    const routines = data.routines || [];
-    state.routines = routines;
-    if (!routines.length) {
-      $('#tp-routine').innerHTML = '';
-      $('#tp-days').innerHTML = `
-        <div class="empty-state">
-          <div class="emoji">🏋️</div>
-          <h3>Primero creá una rutina</h3>
-          <p class="muted">Armá tus días y ejercicios desde Rutinas para poder entrenar.</p>
-        </div>
-      `;
-      return;
-    }
-
-    const active = routines.find(r => r.is_active) || routines[0];
-    const routine = data.routine || null;
-    const currentValue = (routine && routine.routine_id) || $('#tp-routine').value || active.routine_id;
-    $('#tp-routine').innerHTML = routines.map(r => `
-      <option value="${escapeHtml(r.routine_id)}" ${r.routine_id === currentValue ? 'selected' : ''}>${escapeHtml(r.routine_name)}${r.is_active ? ' · activa' : ''}</option>
-    `).join('');
-    if (routine) {
-      state.currentRoutine = routine;
-      renderTrainDays(routine.days || []);
-    } else {
-      await loadTrainRoutine($('#tp-routine').value || active.routine_id, navToken);
-    }
+    renderTrainPickData(data, navToken);
   } catch (err) {
     if (!isCurrentLoad('train-pick', loadToken, 'train-pick', navToken)) return;
     $('#tp-days').innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
@@ -2614,16 +2728,53 @@ async function loadTrainPick(navToken) {
   }
 }
 
+function renderTrainPickData(data, navToken) {
+  const routines = data.routines || [];
+  state.routines = routines;
+  if (!routines.length) {
+    $('#tp-routine').innerHTML = '';
+    $('#tp-days').innerHTML = `
+      <div class="empty-state">
+        <div class="emoji">🏋️</div>
+        <h3>Primero creá una rutina</h3>
+        <p class="muted">Armá tus días y ejercicios desde Rutinas para poder entrenar.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const active = routines.find(r => r.is_active) || routines[0];
+  const routine = data.routine || null;
+  const currentValue = (routine && routine.routine_id) || $('#tp-routine').value || active.routine_id;
+  $('#tp-routine').innerHTML = routines.map(r => `
+    <option value="${escapeHtml(r.routine_id)}" ${r.routine_id === currentValue ? 'selected' : ''}>${escapeHtml(r.routine_name)}${r.is_active ? ' · activa' : ''}</option>
+  `).join('');
+  if (routine) {
+    state.currentRoutine = routine;
+    setApiCache('getRoutine', [routine.routine_id], routine);
+    renderTrainDays(routine.days || []);
+  } else {
+    loadTrainRoutine($('#tp-routine').value || active.routine_id, navToken);
+  }
+}
+
 async function loadTrainRoutine(routine_id, navToken) {
   if (!routine_id) return;
   const loadToken = nextLoadToken('train-routine');
+  const cacheArgs = [routine_id];
+  const cached = getApiCache('getRoutine', cacheArgs, API_CACHE_TTL.getRoutine);
+  if (cached) {
+    state.currentRoutine = cached;
+    renderTrainDays(cached.days || []);
+    return;
+  }
   if (state.currentRoutine && state.currentRoutine.routine_id === routine_id) {
     renderTrainDays(state.currentRoutine.days || []);
   } else {
     $('#tp-days').innerHTML = `<div class="skeleton" style="height: 120px;"></div>`;
   }
   try {
-    const routine = await gas.getRoutine(routine_id);
+    const routine = await cachedGas('getRoutine', cacheArgs);
     if (!isCurrentLoad('train-routine', loadToken, 'train-pick', navToken) || $('#tp-routine').value !== routine_id) return;
     state.currentRoutine = routine;
     renderTrainDays(routine.days || []);
@@ -2661,7 +2812,7 @@ function renderTrainDays(days) {
 async function startTraining({ routine_id, day_id, date, navToken }) {
   try {
     let routine = state.currentRoutine;
-    if (!routine || routine.routine_id !== routine_id) routine = await gas.getRoutine(routine_id);
+    if (!routine || routine.routine_id !== routine_id) routine = await cachedGas('getRoutine', [routine_id]);
     if (navToken && !isCurrentNav(navToken, 'train')) return;
     state.currentRoutine = routine;
     const day = routine.days.find(d => d.day_id === day_id);
@@ -2690,7 +2841,7 @@ async function startTraining({ routine_id, day_id, date, navToken }) {
 
 async function loadLastSetsForTraining(day_id, date, navToken) {
   try {
-    const lastSets = await gas.getLastSessionForDay({ day_id, date });
+    const lastSets = await cachedGas('getLastSessionForDay', [{ day_id, date }]);
     if (navToken && !isCurrentNav(navToken, 'train')) return;
     if (state.screenParams.day_id !== day_id || state.screenParams.date !== date) return;
     const draft = collectTrainDraft();
@@ -2917,6 +3068,7 @@ async function handleSaveSession(button) {
   try {
     const payload = buildSavePayload();
     const result = await withButtonLoading(button, gas.saveSession(payload), 'Guardando');
+    invalidateSessionCaches();
     clearSessionDraft(payload.day_id, payload.date);
     if (!isCurrentNav(navToken, 'train')) return;
     state.lastSummary = result.summary;
@@ -3004,33 +3156,43 @@ async function loadProgress(navToken) {
   const content = $('#progress-content');
   content.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
   const select = $('#progress-exercise');
+  const args = [{ exercise_name: select.value || '', limit: 8 }];
+  const cached = getApiCache('getProgressExerciseData', args, API_CACHE_TTL.getProgressExerciseData);
+  if (cached) {
+    renderProgressExerciseData(cached, select, content, navToken, loadToken);
+    return;
+  }
   try {
-    const data = await gas.getProgressExerciseData({ exercise_name: select.value || '', limit: 8 });
+    const data = await cachedGas('getProgressExerciseData', args);
     if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
-    const names = data.names || [];
-    state.progressExercises = names;
-    if (!names.length) {
-      select.innerHTML = '';
-      content.innerHTML = `
-        <div class="empty-state">
-          <div class="emoji">📊</div>
-          <h3>Sin ejercicios</h3>
-          <p class="muted">Agregá ejercicios o guardá sesiones para ver progreso.</p>
-        </div>
-      `;
-      return;
-    }
-    const current = data.history && data.history.exercise_name
-      ? data.history.exercise_name
-      : (select.value && names.indexOf(select.value) >= 0 ? select.value : names[0]);
-    select.innerHTML = names.map(name => `<option value="${escapeHtml(name)}" ${name === current ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('');
-    if (data.history) renderExerciseHistory(data.history);
-    else await loadExerciseHistory(current, navToken, loadToken);
+    renderProgressExerciseData(data, select, content, navToken, loadToken);
   } catch (err) {
     if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     content.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
     toast('No se pudo cargar progreso', 'error');
   }
+}
+
+async function renderProgressExerciseData(data, select, content, navToken, loadToken) {
+  const names = data.names || [];
+  state.progressExercises = names;
+  if (!names.length) {
+    select.innerHTML = '';
+    content.innerHTML = `
+      <div class="empty-state">
+        <div class="emoji">📊</div>
+        <h3>Sin ejercicios</h3>
+        <p class="muted">Agregá ejercicios o guardá sesiones para ver progreso.</p>
+      </div>
+    `;
+    return;
+  }
+  const current = data.history && data.history.exercise_name
+    ? data.history.exercise_name
+    : (select.value && names.indexOf(select.value) >= 0 ? select.value : names[0]);
+  select.innerHTML = names.map(name => `<option value="${escapeHtml(name)}" ${name === current ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('');
+  if (data.history) renderExerciseHistory(data.history);
+  else await loadExerciseHistory(current, navToken, loadToken);
 }
 
 function renderProgressMode() {
@@ -3059,8 +3221,14 @@ async function loadBodyweightHistory(navToken, loadToken) {
   loadToken = loadToken || nextLoadToken('progress');
   const content = $('#progress-content');
   content.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
+  const args = [{ limit: 40 }];
+  const cached = getApiCache('listBodyweightHistory', args, API_CACHE_TTL.listBodyweightHistory);
+  if (cached) {
+    renderBodyweightHistory(cached);
+    return;
+  }
   try {
-    const history = await gas.listBodyweightHistory({ limit: 40 });
+    const history = await cachedGas('listBodyweightHistory', args);
     if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     renderBodyweightHistory(history);
   } catch (err) {
@@ -3146,8 +3314,14 @@ async function loadExerciseHistory(exerciseName, navToken, loadToken) {
   if (!exerciseName) return;
   loadToken = loadToken || nextLoadToken('progress');
   content.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
+  const args = [{ exercise_name: exerciseName, limit: 8 }];
+  const cached = getApiCache('listExerciseHistory', args, API_CACHE_TTL.listExerciseHistory);
+  if (cached) {
+    renderExerciseHistory(cached);
+    return;
+  }
   try {
-    const history = await gas.listExerciseHistory({ exercise_name: exerciseName, limit: 8 });
+    const history = await cachedGas('listExerciseHistory', args);
     if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     renderExerciseHistory(history);
   } catch (err) {
@@ -3162,8 +3336,14 @@ async function loadMuscleGroupHistory(muscleGroup, navToken, loadToken) {
   loadToken = loadToken || nextLoadToken('progress');
   state.progressMuscle = muscleGroup;
   content.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
+  const args = [{ muscle_group: muscleGroup, limit: 8 }];
+  const cached = getApiCache('listMuscleGroupHistory', args, API_CACHE_TTL.listMuscleGroupHistory);
+  if (cached) {
+    renderMuscleGroupHistory(cached);
+    return;
+  }
   try {
-    const history = await gas.listMuscleGroupHistory({ muscle_group: muscleGroup, limit: 8 });
+    const history = await cachedGas('listMuscleGroupHistory', args);
     if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     renderMuscleGroupHistory(history);
   } catch (err) {
@@ -3176,8 +3356,14 @@ async function loadMuscleVolume(navToken, loadToken) {
   loadToken = loadToken || nextLoadToken('progress');
   const content = $('#progress-content');
   content.innerHTML = `<div class="skeleton" style="height:160px;"></div>`;
+  const args = [{ weeks: 8 }];
+  const cached = getApiCache('getVolumeByMuscle', args, API_CACHE_TTL.getVolumeByMuscle);
+  if (cached) {
+    renderMuscleVolume(cached);
+    return;
+  }
   try {
-    const data = await gas.getVolumeByMuscle({ weeks: 8 });
+    const data = await cachedGas('getVolumeByMuscle', args);
     if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     renderMuscleVolume(data);
   } catch (err) {
@@ -3190,8 +3376,14 @@ async function loadMuscleHeatmap(navToken, loadToken) {
   loadToken = loadToken || nextLoadToken('progress');
   const content = $('#progress-content');
   content.innerHTML = `<div class="skeleton" style="height:220px;"></div>`;
+  const args = [{ days: 30 }];
+  const cached = getApiCache('getMuscleHeatmap', args, API_CACHE_TTL.getMuscleHeatmap);
+  if (cached) {
+    renderMuscleHeatmap(cached);
+    return;
+  }
   try {
-    const data = await gas.getMuscleHeatmap({ days: 30 });
+    const data = await cachedGas('getMuscleHeatmap', args);
     if (!isCurrentLoad('progress', loadToken, 'progress', navToken)) return;
     renderMuscleHeatmap(data);
   } catch (err) {
@@ -3417,7 +3609,7 @@ async function handleEditExerciseGoal(exerciseName) {
   const originProgressToken = state.loadTokens.progress;
   let goal = null;
   try {
-    goal = await gas.getExerciseGoal({ exercise_name: exerciseName });
+    goal = await cachedGas('getExerciseGoal', [{ exercise_name: exerciseName }]);
   } catch (err) {
     goal = null;
   }
@@ -3426,6 +3618,7 @@ async function handleEditExerciseGoal(exerciseName) {
   if (!data) return;
   try {
     await withLoader(gas.setExerciseGoal(data));
+    invalidateApiCache(['getExerciseGoal', 'getProgressExerciseData', 'listExerciseHistory']);
     if (state.currentScreen !== 'progress') return;
     toast(data.target_weight || data.target_1rm ? 'Meta guardada' : 'Meta borrada', 'success');
     await loadExerciseHistory(exerciseName, state.navSeq);
@@ -3646,35 +3839,46 @@ async function loadHistory(navToken) {
   const el = $('#history-list');
   const activityEl = $('#history-activity');
   const filterEl = $('#history-filter');
+  const args = [{ limit: 500, days: 91 }];
+  const cached = getApiCache('getHistoryData', args, API_CACHE_TTL.getHistoryData);
+  if (cached) {
+    renderHistoryData(cached, el, filterEl);
+    return;
+  }
   el.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
   activityEl.innerHTML = `<div class="skeleton" style="height:110px;"></div>`;
   filterEl.style.display = 'none';
   try {
-    const data = await gas.getHistoryData({ limit: 500, days: 91 });
+    const data = await cachedGas('getHistoryData', args);
     if (!isCurrentLoad('history', loadToken, 'history', navToken)) return;
-    const sessions = data.sessions || [];
-    const activity = data.activity || { days: [] };
-    state.historySessions = sessions;
-    state.historyActivity = activity;
-    state.historySelectedDate = null;
-    renderActivityCalendar(activity);
-    if (!sessions.length) {
-      el.innerHTML = `
-        <div class="empty-state">
-          <div class="emoji">📓</div>
-          <h3>Sin sesiones guardadas</h3>
-          <p class="muted">Cuando entrenes, tu historial va a aparecer acá.</p>
-        </div>
-      `;
-      return;
-    }
-    renderHistoryList(sessions);
+    renderHistoryData(data, el, filterEl);
   } catch (err) {
     if (!isCurrentLoad('history', loadToken, 'history', navToken)) return;
     el.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
     activityEl.innerHTML = `<p class="muted">No se pudo cargar el calendario.</p>`;
     toast('No se pudo cargar el historial', 'error');
   }
+}
+
+function renderHistoryData(data, el, filterEl) {
+  const sessions = data.sessions || [];
+  const activity = data.activity || { days: [] };
+  state.historySessions = sessions;
+  state.historyActivity = activity;
+  state.historySelectedDate = null;
+  filterEl.style.display = 'none';
+  renderActivityCalendar(activity);
+  if (!sessions.length) {
+    el.innerHTML = `
+      <div class="empty-state">
+        <div class="emoji">📓</div>
+        <h3>Sin sesiones guardadas</h3>
+        <p class="muted">Cuando entrenes, tu historial va a aparecer acá.</p>
+      </div>
+    `;
+    return;
+  }
+  renderHistoryList(sessions);
 }
 
 function renderHistoryList(sessions) {
@@ -3936,6 +4140,7 @@ async function handleSaveSessionEdit(button) {
   const navToken = state.navSeq;
   try {
     const result = await withButtonLoading(button, gas.editSession(buildEditPayload()), 'Guardando');
+    invalidateSessionCaches();
     if (!isCurrentNav(navToken, 'session-edit')) return;
     state.currentSession = result.session;
     state.lastSummary = result.summary;
@@ -3960,6 +4165,7 @@ async function handleDeleteSession() {
 
   try {
     await withLoader(gas.deleteSession({ session_id: session.session_id }));
+    invalidateSessionCaches();
     const returnScreen = state.sessionReturnScreen || 'home';
     state.currentSession = null;
     toast('Sesión borrada', 'success');
@@ -4110,7 +4316,10 @@ document.addEventListener('click', (e) => {
     case 'edit-exercise-goal':
       handleEditExerciseGoal(t.dataset.exerciseName);
       break;
-    case 'refresh-history': loadHistory(state.currentScreen === 'history' ? state.navSeq : null); break;
+    case 'refresh-history':
+      invalidateApiCache('getHistoryData');
+      loadHistory(state.currentScreen === 'history' ? state.navSeq : null);
+      break;
     case 'select-history-date': handleSelectHistoryDate(t.dataset.date); break;
     case 'clear-history-date': clearHistoryDateFilter(); break;
     case 'save-backend-url': handleSaveBackendUrl(); break;
@@ -4142,7 +4351,10 @@ document.addEventListener('click', (e) => {
     case 'delete-exercise': handleDeleteExercise(t.dataset.rexId); break;
     case 'reorder-day': handleReorderDay(t.dataset.dayId, t.dataset.direction); break;
     case 'reorder-exercise': handleReorderExercise(t.dataset.rexId, t.dataset.direction); break;
-    case 'refresh-train-pick': loadTrainPick(state.currentScreen === 'train-pick' ? state.navSeq : null); break;
+    case 'refresh-train-pick':
+      invalidateApiCache(['getTrainPickData', 'getRoutine']);
+      loadTrainPick(state.currentScreen === 'train-pick' ? state.navSeq : null);
+      break;
     case 'start-train-day': {
       const r = state.currentRoutine;
       const date = $('#tp-date').value || todayInputValue();
