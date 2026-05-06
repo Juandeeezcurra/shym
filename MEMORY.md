@@ -106,6 +106,7 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
   - `listMuscleGroupHistory({ muscle_group, limit })` muestra historial agregado por grupo muscular.
   - `getVolumeByMuscle({ weeks })` alimenta vista **Musculos** con barras apiladas por semana.
   - `getMuscleHeatmap({ days })` alimenta vista **Cuerpo** con SVG frontal+dorsal e intensidad por volumen relativo de los ultimos 30 dias.
+  - El SVG del heatmap debe ser anatomico y legible: diferenciar deltoides, pectorales, abdomen, biceps/triceps, dorsales, core posterior y piernas. No volver a figuras geometricas genericas.
   - El grupo muscular principal es obligatorio al crear/editar ejercicios, porque alimenta heatmap y graficos.
 - Goals por ejercicio existen en codigo: `Exercise_Goals`, `getExerciseGoal`, `setExerciseGoal`, card de Meta en historial de ejercicio. Mantener salvo que el usuario pida explicitamente sacarlo.
 - Auditoria tecnica guardada en `docs/tech-audit.md`. Arreglos aplicados: boot del Home, fecha local, goals tolerantes a hoja faltante, drafts canonicos en kg, validacion de bodyweight, notas preservadas, retorno desde Progreso, snapshots historicos, duplicacion con musculo obligatorio/inferido e historial de 91 dias.

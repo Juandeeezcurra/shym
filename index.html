@@ -555,7 +555,7 @@
   }
   .body-heatmap {
     width: 100%;
-    height: 470px;
+    height: 520px;
     display: block;
     margin-top: 14px;
     background: #0b0e11;
@@ -564,13 +564,21 @@
   }
   .heat-zone {
     cursor: pointer;
-    stroke: rgba(244,247,245,0.28);
-    stroke-width: 1.5;
+    stroke: rgba(244,247,245,0.38);
+    stroke-width: 1.25;
     transition: opacity 0.15s ease, stroke 0.15s ease;
   }
   .heat-zone:active {
     opacity: 0.78;
     stroke: var(--text);
+  }
+  .muscle-line {
+    fill: none;
+    stroke: rgba(244,247,245,0.26);
+    stroke-width: 1.05;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
   }
   .bodyweight-chart {
     width: 100%;
@@ -3353,70 +3361,55 @@ function renderBodyHeatmapSvg(groups) {
     return acc;
   }, {});
   return `
-    <svg class="body-heatmap" viewBox="0 0 420 470" role="img" aria-label="Heatmap corporal por volumen">
-      <text x="105" y="28" text-anchor="middle" fill="#8f9aa3" font-size="12">Frente</text>
-      <text x="315" y="28" text-anchor="middle" fill="#8f9aa3" font-size="12">Dorso</text>
+    <svg class="body-heatmap" viewBox="0 0 460 520" role="img" aria-label="Heatmap corporal por volumen">
+      <text x="115" y="28" text-anchor="middle" fill="#8f9aa3" font-size="12">Frente</text>
+      <text x="345" y="28" text-anchor="middle" fill="#8f9aa3" font-size="12">Dorso</text>
 
-      <g fill="#12171c" stroke="#4a535c" stroke-width="1.35" stroke-linejoin="round" stroke-linecap="round">
-        <path d="M85 58 Q86 34 105 34 Q124 34 125 58 Q125 76 105 84 Q85 76 85 58 Z"></path>
-        <path d="M90 82 Q96 94 105 94 Q114 94 120 82"></path>
-        <path d="M84 104 Q105 91 126 104 Q142 111 151 131 Q155 160 149 210 Q139 232 128 249 L118 304 L92 304 L82 249 Q71 232 61 210 Q55 160 59 131 Q68 111 84 104 Z"></path>
-        <path d="M59 132 Q42 157 40 214 Q42 258 50 310 Q57 318 68 311 Q67 253 65 213 Q68 169 79 139 Z"></path>
-        <path d="M151 132 Q168 157 170 214 Q168 258 160 310 Q153 318 142 311 Q143 253 145 213 Q142 169 131 139 Z"></path>
-        <path d="M82 249 Q68 294 73 382 Q78 397 91 396 Q102 334 101 304 Z"></path>
-        <path d="M128 249 Q142 294 137 382 Q132 397 119 396 Q108 334 109 304 Z"></path>
-        <path d="M73 382 Q67 410 62 431 Q75 438 93 430 Q93 412 91 396 Z"></path>
-        <path d="M137 382 Q143 410 148 431 Q135 438 117 430 Q117 412 119 396 Z"></path>
-
-        <path d="M295 58 Q296 34 315 34 Q334 34 335 58 Q335 76 315 84 Q295 76 295 58 Z"></path>
-        <path d="M300 82 Q306 94 315 94 Q324 94 330 82"></path>
-        <path d="M294 104 Q315 91 336 104 Q352 111 361 131 Q365 160 359 210 Q349 232 338 249 L328 304 L302 304 L292 249 Q281 232 271 210 Q265 160 269 131 Q278 111 294 104 Z"></path>
-        <path d="M269 132 Q252 157 250 214 Q252 258 260 310 Q267 318 278 311 Q277 253 275 213 Q278 169 289 139 Z"></path>
-        <path d="M361 132 Q378 157 380 214 Q378 258 370 310 Q363 318 352 311 Q353 253 355 213 Q352 169 341 139 Z"></path>
-        <path d="M292 249 Q278 294 283 382 Q288 397 301 396 Q312 334 311 304 Z"></path>
-        <path d="M338 249 Q352 294 347 382 Q342 397 329 396 Q318 334 319 304 Z"></path>
-        <path d="M283 382 Q277 410 272 431 Q285 438 303 430 Q303 412 301 396 Z"></path>
-        <path d="M347 382 Q353 410 358 431 Q345 438 327 430 Q327 412 329 396 Z"></path>
+      <g fill="#11171d" stroke="#4a535c" stroke-width="1.35" stroke-linejoin="round" stroke-linecap="round">
+        <path d="M115 40 C96 40 86 55 88 73 C90 88 99 99 107 103 L107 113 C92 116 77 121 63 133 C50 146 44 170 40 203 C36 235 34 278 38 309 C40 323 51 328 60 318 C63 282 67 239 73 207 C76 189 80 170 86 154 C83 188 84 221 88 253 C80 289 76 333 78 392 C80 427 86 459 92 486 C104 491 114 489 121 480 C120 436 122 390 124 348 C126 314 129 285 133 259 C137 285 140 314 142 348 C144 390 146 436 145 480 C152 489 162 491 174 486 C180 459 186 427 188 392 C190 333 186 289 178 253 C182 221 183 188 180 154 C186 170 190 189 193 207 C199 239 203 282 206 318 C215 328 226 323 228 309 C232 278 230 235 226 203 C222 170 216 146 203 133 C189 121 174 116 159 113 L159 103 C167 99 176 88 178 73 C180 55 170 40 151 40 C141 36 125 36 115 40 Z"></path>
+        <path d="M345 40 C326 40 316 55 318 73 C320 88 329 99 337 103 L337 113 C322 116 307 121 293 133 C280 146 274 170 270 203 C266 235 264 278 268 309 C270 323 281 328 290 318 C293 282 297 239 303 207 C306 189 310 170 316 154 C313 188 314 221 318 253 C310 289 306 333 308 392 C310 427 316 459 322 486 C334 491 344 489 351 480 C350 436 352 390 354 348 C356 314 359 285 363 259 C367 285 370 314 372 348 C374 390 376 436 375 480 C382 489 392 491 404 486 C410 459 416 427 418 392 C420 333 416 289 408 253 C412 221 413 188 410 154 C416 170 420 189 423 207 C429 239 433 282 436 318 C445 328 456 323 458 309 C462 278 460 235 456 203 C452 170 446 146 433 133 C419 121 404 116 389 113 L389 103 C397 99 406 88 408 73 C410 55 400 40 381 40 C371 36 355 36 345 40 Z"></path>
       </g>
 
-      <g stroke="#0b0e11" stroke-width="2" stroke-linejoin="round" stroke-linecap="round">
-        ${renderHeatZone('path', 'd="M79 105 Q91 94 105 95 Q97 109 89 126 Q74 129 61 143 Q62 119 79 105 Z"', 'hombros', statsByGroup)}
-        ${renderHeatZone('path', 'd="M105 95 Q119 94 131 105 Q148 119 149 143 Q136 129 121 126 Q113 109 105 95 Z"', 'hombros', statsByGroup)}
-        ${renderHeatZone('path', 'd="M87 124 Q99 116 105 119 L105 164 Q95 165 86 158 Q79 143 87 124 Z"', 'pecho', statsByGroup)}
-        ${renderHeatZone('path', 'd="M105 119 Q111 116 123 124 Q131 143 124 158 Q115 165 105 164 Z"', 'pecho', statsByGroup)}
-        ${renderHeatZone('path', 'd="M93 167 L105 168 L105 240 Q93 235 87 221 Q88 193 93 167 Z"', 'core', statsByGroup)}
-        ${renderHeatZone('path', 'd="M105 168 L117 167 Q122 193 123 221 Q117 235 105 240 Z"', 'core', statsByGroup)}
-        ${renderHeatZone('path', 'd="M64 142 Q77 130 89 126 Q81 157 76 199 Q63 196 57 184 Q56 158 64 142 Z"', 'bicep', statsByGroup)}
-        ${renderHeatZone('path', 'd="M146 142 Q133 130 121 126 Q129 157 134 199 Q147 196 153 184 Q154 158 146 142 Z"', 'bicep', statsByGroup)}
-        ${renderHeatZone('path', 'd="M58 193 Q72 200 76 218 Q73 254 67 303 Q55 310 50 301 Q43 240 48 211 Q51 200 58 193 Z"', 'bicep', statsByGroup)}
-        ${renderHeatZone('path', 'd="M152 193 Q138 200 134 218 Q137 254 143 303 Q155 310 160 301 Q167 240 162 211 Q159 200 152 193 Z"', 'bicep', statsByGroup)}
-        ${renderHeatZone('path', 'd="M83 247 Q99 257 101 305 Q100 346 91 388 Q79 390 74 379 Q69 303 83 247 Z"', 'piernas', statsByGroup)}
-        ${renderHeatZone('path', 'd="M127 247 Q111 257 109 305 Q110 346 119 388 Q131 390 136 379 Q141 303 127 247 Z"', 'piernas', statsByGroup)}
-        ${renderHeatZone('path', 'd="M74 380 Q84 388 91 388 Q94 407 91 425 Q77 431 64 425 Q69 403 74 380 Z"', 'piernas', statsByGroup)}
-        ${renderHeatZone('path', 'd="M136 380 Q126 388 119 388 Q116 407 119 425 Q133 431 146 425 Q141 403 136 380 Z"', 'piernas', statsByGroup)}
+      <g stroke="#0b0e11" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round">
+        ${renderHeatZone('path', 'd="M85 118 C66 122 50 139 48 162 C62 161 78 152 88 138 C95 128 95 120 85 118 Z"', 'hombros', statsByGroup)}
+        ${renderHeatZone('path', 'd="M181 118 C200 122 216 139 218 162 C204 161 188 152 178 138 C171 128 171 120 181 118 Z"', 'hombros', statsByGroup)}
+        ${renderHeatZone('path', 'd="M96 121 C108 113 124 114 132 126 C129 143 124 156 114 161 C102 163 91 157 83 148 C83 137 88 126 96 121 Z"', 'pecho', statsByGroup)}
+        ${renderHeatZone('path', 'd="M170 121 C158 113 142 114 134 126 C137 143 142 156 152 161 C164 163 175 157 183 148 C183 137 178 126 170 121 Z"', 'pecho', statsByGroup)}
+        ${renderHeatZone('path', 'd="M113 166 L132 164 L132 207 L110 207 C106 190 107 175 113 166 Z"', 'core', statsByGroup)}
+        ${renderHeatZone('path', 'd="M134 164 L153 166 C159 175 160 190 156 207 L134 207 Z"', 'core', statsByGroup)}
+        ${renderHeatZone('path', 'd="M108 210 L132 210 L130 249 C122 254 113 250 106 238 C104 227 105 218 108 210 Z"', 'core', statsByGroup)}
+        ${renderHeatZone('path', 'd="M134 210 L158 210 C161 218 162 227 160 238 C153 250 144 254 136 249 Z"', 'core', statsByGroup)}
+        ${renderHeatZone('path', 'd="M58 166 C70 158 82 158 86 169 C82 193 78 218 74 243 C62 243 53 235 51 221 C51 199 52 180 58 166 Z"', 'bicep', statsByGroup)}
+        ${renderHeatZone('path', 'd="M208 166 C196 158 184 158 180 169 C184 193 188 218 192 243 C204 243 213 235 215 221 C215 199 214 180 208 166 Z"', 'bicep', statsByGroup)}
+        ${renderHeatZone('path', 'd="M51 244 C62 247 71 255 73 271 C70 292 66 309 60 319 C50 319 43 312 42 299 C43 278 46 259 51 244 Z"', 'bicep', statsByGroup)}
+        ${renderHeatZone('path', 'd="M215 244 C204 247 195 255 193 271 C196 292 200 309 206 319 C216 319 223 312 224 299 C223 278 220 259 215 244 Z"', 'bicep', statsByGroup)}
+        ${renderHeatZone('path', 'd="M94 258 C109 265 119 287 120 326 C118 365 111 403 105 435 C93 438 82 430 80 414 C80 348 82 292 94 258 Z"', 'piernas', statsByGroup)}
+        ${renderHeatZone('path', 'd="M172 258 C157 265 147 287 146 326 C148 365 155 403 161 435 C173 438 184 430 186 414 C186 348 184 292 172 258 Z"', 'piernas', statsByGroup)}
+        ${renderHeatZone('path', 'd="M81 416 C91 427 101 432 106 435 C108 455 105 473 99 488 C86 491 77 484 75 474 C76 451 78 432 81 416 Z"', 'piernas', statsByGroup)}
+        ${renderHeatZone('path', 'd="M185 416 C175 427 165 432 160 435 C158 455 161 473 167 488 C180 491 189 484 191 474 C190 451 188 432 185 416 Z"', 'piernas', statsByGroup)}
 
-        ${renderHeatZone('path', 'd="M292 100 Q315 90 338 100 Q332 117 320 131 L315 159 L310 131 Q298 117 292 100 Z"', 'hombros', statsByGroup)}
-        ${renderHeatZone('path', 'd="M274 110 Q288 96 305 100 Q299 119 290 135 Q277 137 268 150 Q263 126 274 110 Z"', 'hombros', statsByGroup)}
-        ${renderHeatZone('path', 'd="M325 100 Q342 96 356 110 Q367 126 362 150 Q353 137 340 135 Q331 119 325 100 Z"', 'hombros', statsByGroup)}
-        ${renderHeatZone('path', 'd="M292 129 Q305 112 315 113 L315 241 Q301 229 294 204 Q287 161 292 129 Z"', 'espalda', statsByGroup)}
-        ${renderHeatZone('path', 'd="M315 113 Q325 112 338 129 Q343 161 336 204 Q329 229 315 241 Z"', 'espalda', statsByGroup)}
-        ${renderHeatZone('path', 'd="M299 105 Q307 96 315 95 Q323 96 331 105 Q325 117 315 122 Q305 117 299 105 Z"', 'espalda', statsByGroup)}
-        ${renderHeatZone('path', 'd="M300 235 Q315 246 330 235 L335 253 Q315 267 295 253 Z"', 'core', statsByGroup)}
-        ${renderHeatZone('path', 'd="M268 150 Q278 137 290 135 Q282 164 278 205 Q266 202 259 189 Q258 164 268 150 Z"', 'tricep', statsByGroup)}
-        ${renderHeatZone('path', 'd="M362 150 Q352 137 340 135 Q348 164 352 205 Q364 202 371 189 Q372 164 362 150 Z"', 'tricep', statsByGroup)}
-        ${renderHeatZone('path', 'd="M260 196 Q274 203 278 221 Q276 255 270 303 Q258 310 253 301 Q246 240 251 214 Q253 204 260 196 Z"', 'tricep', statsByGroup)}
-        ${renderHeatZone('path', 'd="M370 196 Q356 203 352 221 Q354 255 360 303 Q372 310 377 301 Q384 240 379 214 Q377 204 370 196 Z"', 'tricep', statsByGroup)}
-        ${renderHeatZone('path', 'd="M293 247 Q309 257 311 305 Q310 346 301 388 Q289 390 284 379 Q279 303 293 247 Z"', 'piernas', statsByGroup)}
-        ${renderHeatZone('path', 'd="M337 247 Q321 257 319 305 Q320 346 329 388 Q341 390 346 379 Q351 303 337 247 Z"', 'piernas', statsByGroup)}
-        ${renderHeatZone('path', 'd="M284 380 Q294 388 301 388 Q304 407 301 425 Q287 431 274 425 Q279 403 284 380 Z"', 'piernas', statsByGroup)}
-        ${renderHeatZone('path', 'd="M346 380 Q336 388 329 388 Q326 407 329 425 Q343 431 356 425 Q351 403 346 380 Z"', 'piernas', statsByGroup)}
+        ${renderHeatZone('path', 'd="M315 116 C296 119 281 137 279 160 C292 159 307 151 317 138 C326 126 325 118 315 116 Z"', 'hombros', statsByGroup)}
+        ${renderHeatZone('path', 'd="M375 116 C394 119 409 137 411 160 C398 159 383 151 373 138 C364 126 365 118 375 116 Z"', 'hombros', statsByGroup)}
+        ${renderHeatZone('path', 'd="M327 105 C337 98 353 98 363 105 L357 127 C351 134 339 134 333 127 Z"', 'espalda', statsByGroup)}
+        ${renderHeatZone('path', 'd="M316 127 C327 116 339 119 343 132 C341 159 335 190 324 229 C309 218 302 190 304 159 C307 145 311 134 316 127 Z"', 'espalda', statsByGroup)}
+        ${renderHeatZone('path', 'd="M374 127 C363 116 351 119 347 132 C349 159 355 190 366 229 C381 218 388 190 386 159 C383 145 379 134 374 127 Z"', 'espalda', statsByGroup)}
+        ${renderHeatZone('path', 'd="M327 231 C338 240 352 240 363 231 L369 251 C354 266 336 266 321 251 Z"', 'core', statsByGroup)}
+        ${renderHeatZone('path', 'd="M289 165 C302 158 314 159 318 170 C314 194 310 218 306 243 C294 243 284 235 282 221 C282 199 283 180 289 165 Z"', 'tricep', statsByGroup)}
+        ${renderHeatZone('path', 'd="M401 165 C388 158 376 159 372 170 C376 194 380 218 384 243 C396 243 406 235 408 221 C408 199 407 180 401 165 Z"', 'tricep', statsByGroup)}
+        ${renderHeatZone('path', 'd="M282 244 C293 247 303 255 305 271 C302 292 298 309 290 319 C281 319 273 312 272 299 C273 278 276 259 282 244 Z"', 'tricep', statsByGroup)}
+        ${renderHeatZone('path', 'd="M408 244 C397 247 387 255 385 271 C388 292 392 309 400 319 C409 319 417 312 418 299 C417 278 414 259 408 244 Z"', 'tricep', statsByGroup)}
+        ${renderHeatZone('path', 'd="M324 258 C339 266 350 288 351 326 C349 366 342 403 335 435 C323 438 312 430 310 414 C310 348 312 292 324 258 Z"', 'piernas', statsByGroup)}
+        ${renderHeatZone('path', 'd="M366 258 C351 266 340 288 339 326 C341 366 348 403 355 435 C367 438 378 430 380 414 C380 348 378 292 366 258 Z"', 'piernas', statsByGroup)}
+        ${renderHeatZone('path', 'd="M311 416 C321 427 331 432 336 435 C338 455 335 473 329 488 C316 491 307 484 305 474 C306 451 308 432 311 416 Z"', 'piernas', statsByGroup)}
+        ${renderHeatZone('path', 'd="M379 416 C369 427 359 432 354 435 C352 455 355 473 361 488 C374 491 383 484 385 474 C384 451 382 432 379 416 Z"', 'piernas', statsByGroup)}
       </g>
 
-      <g fill="none" stroke="#10161b" stroke-width="1.2" stroke-linecap="round" opacity="0.8" pointer-events="none">
-        <path d="M97 176 H113 M96 195 H114 M96 215 H114"></path>
-        <path d="M105 96 V242"></path>
-        <path d="M315 95 V247"></path>
-        <path d="M299 153 Q315 164 331 153 M297 181 Q315 195 333 181"></path>
+      <g class="muscle-line">
+        <path d="M133 121 V253 M91 146 C105 153 118 157 132 158 M174 146 C161 153 148 157 134 158"></path>
+        <path d="M111 183 H132 M108 204 H132 M107 225 H132 M134 183 H155 M134 204 H158 M134 225 H159"></path>
+        <path d="M94 271 C105 293 111 318 111 351 M171 271 C160 293 154 318 154 351 M93 350 C100 370 105 393 105 421 M172 350 C165 370 160 393 160 421"></path>
+        <path d="M345 104 V254 M318 134 C329 148 338 161 343 183 M372 134 C361 148 352 161 347 183 M318 203 C333 216 357 216 372 203"></path>
+        <path d="M325 274 C336 296 342 320 342 352 M365 274 C354 296 348 320 348 352 M324 352 C330 376 335 398 335 424 M366 352 C360 376 355 398 355 424"></path>
       </g>
     </svg>
   `;
