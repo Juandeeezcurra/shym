@@ -1491,9 +1491,20 @@ function buildSuggestion_(sets, template) {
 
 function getHomeStats() {
   const sessions = readAll_(SHEETS.SESSIONS);
+  const sets = readAll_(SHEETS.SETS);
   const routines = readAll_(SHEETS.ROUTINES);
   const activeRoutine = routines.find(r => isTrue_(r.is_active));
   const lastSession = sortSessionsDesc_(sessions)[0] || null;
+
+  let exerciseCount = null;
+  let setCount = null;
+  if (lastSession) {
+    const sessionSets = sets.filter(s => s.session_id === lastSession.session_id);
+    const exerciseNames = {};
+    sessionSets.forEach(s => { if (s.exercise_name) exerciseNames[s.exercise_name] = true; });
+    exerciseCount = Object.keys(exerciseNames).length;
+    setCount = sessionSets.length;
+  }
 
   return {
     active_routine: activeRoutine ? {
@@ -1507,6 +1518,8 @@ function getHomeStats() {
       routine_name: lastSession.routine_name || '',
       day_id: lastSession.day_id,
       day_name: lastSession.day_name || '',
+      exercise_count: exerciseCount,
+      set_count: setCount,
     } : null,
   };
 }
@@ -1931,11 +1944,22 @@ function listAllExerciseNames() {
 
 function getProgressExerciseData(params) {
   params = params || {};
-  const names = listAllExerciseNames();
+  const exerciseMap = {};
+  readAll_(SHEETS.EXERCISES).forEach(ex => {
+    const name = (ex.exercise_name || '').toString().trim();
+    if (!name) return;
+    if (!exerciseMap[name]) exerciseMap[name] = ex.muscle_group || '';
+  });
+  const exercises = Object.keys(exerciseMap)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b))
+    .map(name => ({ name, muscle_group: exerciseMap[name] || '' }));
+  const names = exercises.map(e => e.name);
   const requested = (params.exercise_name || '').toString().trim();
   const exerciseName = names.indexOf(requested) >= 0 ? requested : (names[0] || '');
   return {
     names,
+    exercises,
     selected: exerciseName,
     history: null,
   };

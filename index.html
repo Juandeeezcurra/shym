@@ -55,7 +55,7 @@
     top: 0;
     left: 0;
     right: 0;
-    height: max(24px, env(safe-area-inset-top));
+    height: env(safe-area-inset-top, 0px);
     background: #0b0e11;
     z-index: 0;
     pointer-events: none;
@@ -447,7 +447,7 @@
   }
   .input-grid {
     display: grid;
-    grid-template-columns: 28px 1fr 1fr 1fr;
+    grid-template-columns: 28px 1fr 1fr;
     gap: 8px;
     align-items: center;
     margin-top: 8px;
@@ -534,6 +534,7 @@
     outline: none;
     font-family: inherit;
   }
+  select { padding-right: 38px; }
   input:focus, select:focus, textarea:focus { border-color: var(--accent); }
   textarea { resize: vertical; min-height: 74px; }
   label.field-label {
@@ -878,6 +879,135 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* ---- Home redesign ---- */
+  .home-stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .home-stat {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .home-stat-value {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.05em;
+    line-height: 1;
+  }
+  .home-stat-label {
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .home-last-session-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .home-last-session-card:hover { border-color: rgba(255,90,42,0.3); }
+  .home-last-session-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .home-last-session-title {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    margin-bottom: 4px;
+  }
+
+  /* ---- Progress chart ---- */
+  .progress-exercise-chart {
+    width: 100%;
+    height: 150px;
+    display: block;
+    margin-top: 14px;
+  }
+  .progress-history-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .progress-history-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    background: #0b0e11;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    cursor: pointer;
+  }
+  .progress-history-item:hover { border-color: rgba(255,90,42,0.25); }
+
+  /* ---- Nutrition screen ---- */
+  .nutrition-screen-header { margin-bottom: 18px; }
+  .nutrition-date-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .nutrition-date-nav button.ghost-btn { padding: 8px 14px; }
+  .nutrition-date-label {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .nutrition-full-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 16px;
+    margin-bottom: 12px;
+  }
+  .nutrition-full-card .nutrition-macros { margin-top: 14px; }
+  .nutrition-history-chart {
+    width: 100%;
+    height: 140px;
+    display: block;
+    margin-top: 6px;
+  }
+  .nutrition-history-bar-row {
+    display: grid;
+    grid-template-columns: 48px 1fr 48px;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 12px;
+  }
+  .nutrition-bar-track {
+    height: 8px;
+    background: #0c0f12;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .nutrition-bar-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: var(--accent);
+    transition: width 0.3s ease;
+  }
+  .nutrition-water-field { display: flex; align-items: center; gap: 8px; }
+  .nutrition-water-field input { flex: 1; }
+
   @media (min-width: 900px) {
     body {
       background:
@@ -912,23 +1042,21 @@
     .nav-brand {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 6px 12px 20px;
+      padding: 4px 12px 18px;
       margin-bottom: 8px;
       border-bottom: 1px solid var(--border);
+      background: transparent;
+      border-top: 0;
+      border-left: 0;
+      border-right: 0;
+      cursor: pointer;
+      width: 100%;
     }
-    .nav-brand-dot {
-      width: 10px;
-      height: 10px;
-      background: var(--accent);
-      border-radius: 999px;
-      box-shadow: 0 0 14px rgba(255, 90, 42, 0.55);
-    }
-    .nav-brand-name {
-      font-size: 22px;
-      font-weight: 800;
-      letter-spacing: -0.04em;
-      color: var(--text);
+    .nav-brand:hover { opacity: 0.85; }
+    .nav-brand-logo {
+      height: 32px;
+      width: auto;
+      display: block;
     }
 
     .nav-btn,
@@ -999,9 +1127,8 @@
 
     /* ---------- Home ---------- */
     #screen-home.screen.active { display: block; }
-    #screen-home > .topbar { margin-bottom: 14px; }
+    #screen-home > .topbar { margin-bottom: 18px; }
     #screen-home > .topbar > .avatar { display: none; }
-    /* "Shym" duplicado con el sidebar — ocultar y promover el eyebrow */
     #screen-home > .topbar h1 { display: none; }
     #screen-home > .topbar .eyebrow {
       font-size: 15px;
@@ -1010,20 +1137,12 @@
       letter-spacing: -0.01em;
       margin: 0;
     }
-    #screen-home > .hero { margin-bottom: 20px; }
     #screen-home > .section { margin-top: 0; }
 
+    .home-stats-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .home-stat-value { font-size: 30px; }
+
     .hero { border-radius: 22px; padding: 28px 30px; }
-
-    .home-hero-inner { gap: 18px; margin-top: 10px; }
-    .home-hero-text h2 { font-size: 28px; letter-spacing: -0.035em; }
-    .home-hero-text .muted { font-size: 14px; }
-    .home-hero-actions .primary-btn { padding: 14px 22px; font-size: 15px; }
-
-    .home-grid {
-      grid-template-columns: 1fr 1fr;
-      gap: 18px;
-    }
 
     /* ---------- Cards / grids ---------- */
     .exercise-card,
@@ -1127,44 +1246,34 @@
       <div class="avatar">J</div>
     </div>
 
-    <div class="hero home-hero">
-      <div class="eyebrow">Entrenamiento</div>
-      <div class="home-hero-inner">
-        <div class="home-hero-text">
-          <h2 style="margin-bottom:6px;">Inicio rápido</h2>
-          <p class="muted" id="home-active-routine">Listo para entrenar</p>
-        </div>
-        <div class="home-hero-actions">
-          <button class="primary-btn" data-action="go-train">Empezar entrenamiento</button>
-          <div class="home-hero-secondary">
-            <button class="ghost-btn" data-go="routines">Rutinas</button>
-            <button class="ghost-btn" data-go="history">Historial</button>
-          </div>
-        </div>
+    <div class="home-stats-row">
+      <div class="home-stat">
+        <div class="home-stat-value" id="home-stat-days">—</div>
+        <div class="home-stat-label">días sin<br>entrenar</div>
+      </div>
+      <div class="home-stat">
+        <div class="home-stat-value" id="home-stat-exercises">—</div>
+        <div class="home-stat-label">ejercicios<br>últ. sesión</div>
+      </div>
+      <div class="home-stat">
+        <div class="home-stat-value" id="home-stat-sets">—</div>
+        <div class="home-stat-label">series<br>últ. sesión</div>
       </div>
     </div>
 
-    <div class="home-grid">
-      <div class="section home-section">
-        <div class="header-row">
-          <h2 style="margin:0;">Nutrición de hoy</h2>
-          <button class="ghost-btn icon-btn" data-action="edit-nutrition" aria-label="Cargar nutrición">+</button>
-        </div>
-        <div id="home-nutrition">
-          <div class="empty-state">
-            <h3>Sin registro hoy</h3>
-            <p class="muted">Tocá <b>Editar</b> para cargar peso, calorías y macros.</p>
-          </div>
-        </div>
-      </div>
+    <div id="home-last-session">
+      <div class="skeleton" style="height:90px;"></div>
+    </div>
 
-      <div class="section home-section">
-        <h2>Última sesión</h2>
-        <div id="home-last-session">
-          <div class="empty-state">
-            <h3>Sin datos cargados</h3>
-            <p class="muted">Aparece después de guardar una sesión.</p>
-          </div>
+    <div class="section home-section">
+      <div class="header-row">
+        <h2 style="margin:0;">Nutrición de hoy</h2>
+        <button class="ghost-btn icon-btn" data-action="edit-nutrition" aria-label="Cargar nutrición">+</button>
+      </div>
+      <div id="home-nutrition">
+        <div class="empty-state">
+          <h3>Sin registro hoy</h3>
+          <p class="muted">Tocá <b>+</b> para cargar calorías y macros.</p>
         </div>
       </div>
     </div>
@@ -1292,11 +1401,6 @@
       <button class="ghost-btn" data-action="change-train-day">Cambiar</button>
     </div>
 
-    <div class="card">
-      <label class="field-label">Peso corporal (opcional)</label>
-      <input id="train-bodyweight" type="number" step="0.1" min="1" placeholder="ej. 82.5" />
-    </div>
-
     <div id="train-exercises"></div>
     <button class="primary-btn full floating-save" data-action="save-session">Guardar sesión</button>
   </section>
@@ -1375,11 +1479,6 @@
       <input id="se-date" type="date" />
     </div>
 
-    <div class="card">
-      <label class="field-label">Peso corporal (opcional)</label>
-      <input id="se-bodyweight" type="number" step="0.1" min="1" />
-    </div>
-
     <div id="se-exercises"></div>
     <button class="primary-btn full floating-save" data-action="save-session-edit">Guardar cambios</button>
   </section>
@@ -1397,14 +1496,9 @@
       <button type="button" class="active" data-action="set-progress-view" data-view="exercise">Ejercicio</button>
       <button type="button" data-action="set-progress-view" data-view="heatmap">Cuerpo</button>
       <button type="button" data-action="set-progress-view" data-view="muscles">Músculos</button>
-      <button type="button" data-action="set-progress-view" data-view="bodyweight">Peso corporal</button>
     </div>
 
     <div class="card" id="progress-exercise-card">
-      <div class="segmented compact" aria-label="Filtro de progreso">
-        <button type="button" class="active" data-action="set-progress-filter" data-filter="exercise">Ejercicio</button>
-        <button type="button" data-action="set-progress-filter" data-filter="muscle">Músculo</button>
-      </div>
       <div id="progress-exercise-field">
         <label class="field-label">Ejercicio</label>
         <select id="progress-exercise"></select>
@@ -1445,30 +1539,54 @@
     </div>
   </section>
 
+  <!-- ============ NUTRITION ============ -->
+  <section id="screen-nutrition" class="screen">
+    <div class="header-row">
+      <div>
+        <div class="eyebrow">Registro diario</div>
+        <h1>Nutrición</h1>
+      </div>
+    </div>
+
+    <div class="nutrition-date-nav">
+      <button class="ghost-btn" data-action="nutrition-prev-day">←</button>
+      <span class="nutrition-date-label" id="nutrition-current-date">—</span>
+      <button class="ghost-btn" data-action="nutrition-next-day" id="nutrition-next-btn">→</button>
+    </div>
+
+    <div id="nutrition-day-content">
+      <div class="skeleton" style="height:200px;"></div>
+    </div>
+
+    <div class="section">
+      <div class="header-row">
+        <h2 style="margin:0;">Últimos 14 días</h2>
+      </div>
+      <div class="card">
+        <p class="muted" style="font-size:13px;margin-bottom:10px;">Calorías diarias</p>
+        <div id="nutrition-history-chart"></div>
+      </div>
+    </div>
+  </section>
+
 </div>
 
 <nav class="bottom-nav">
-  <div class="nav-brand" aria-hidden="true">
-    <span class="nav-brand-dot"></span>
-    <span class="nav-brand-name">Shym</span>
-  </div>
-  <button class="nav-btn active" data-go="home" aria-label="Inicio" title="Inicio">
-    <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9.5Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-    </svg>
-    <span class="nav-label">Inicio</span>
-  </button>
-  <button class="nav-btn" data-go="routines" aria-label="Rutinas" title="Rutinas">
-    <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
-    </svg>
-    <span class="nav-label">Rutinas</span>
+  <button class="nav-brand" data-go="home" aria-label="Inicio">
+    <img src="assets/logo.png" alt="Shym" class="nav-brand-logo" />
   </button>
   <button class="nav-btn nav-cta" data-action="go-train" data-nav="train" aria-label="Empezar entrenamiento" title="Entrenar">
     <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M6 8v8M18 8v8M3.5 10v4M20.5 10v4M6 12h12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
     </svg>
     <span class="nav-label">Entrenar</span>
+  </button>
+  <button class="nav-btn" data-go="nutrition" aria-label="Nutrición" title="Nutrición">
+    <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 2C8 2 5 6 5 10c0 5 4 8 7 10 3-2 7-5 7-10 0-4-3-8-7-8Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M12 7v6M9 10h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <span class="nav-label">Nutrición</span>
   </button>
   <button class="nav-btn" data-go="progress" aria-label="Progreso" title="Progreso">
     <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -1555,6 +1673,7 @@ const state = {
   progressMuscle: 'pecho',
   exerciseNameSuggestions: null,
   dayExerciseView: 'order',
+  nutritionCurrentDate: null,
   apiCache: {},
   navSeq: 0,
   loadTokens: {},
@@ -1872,6 +1991,7 @@ function goTo(screenId, params) {
     'session-edit': 'home',
     progress: 'progress',
     history: 'history',
+    nutrition: 'nutrition',
   };
   $$('.nav-btn').forEach(btn => {
     const tab = btn.dataset.go || btn.dataset.nav;
@@ -1966,7 +2086,7 @@ const nutrition = {
 
 function isEmptyNutrition(d) {
   if (!d) return true;
-  const fields = ['weight','kcal','protein','fat','carbs','steps','notes'];
+  const fields = ['weight','water','kcal','protein','fat','carbs','steps','notes'];
   const allBlank = fields.every(f => d[f] == null || d[f] === '');
   return allBlank && !d.trained;
 }
@@ -1991,6 +2111,9 @@ function renderHomeNutrition() {
     </div>
   `;
   const meta = [];
+  if (data.water != null && data.water !== '') {
+    meta.push({ label: 'Agua', value: data.water + ' L' });
+  }
   if (data.steps != null && data.steps !== '') {
     meta.push({ label: 'Pasos / actividad', value: String(data.steps) });
   }
@@ -2029,8 +2152,8 @@ function renderHomeNutrition() {
   `;
 }
 
-function handleEditNutrition() {
-  const date = todayInputValue();
+function handleEditNutrition(dateOverride) {
+  const date = dateOverride || todayInputValue();
   const data = nutrition.get(date) || {};
   const v = (k) => data[k] != null && data[k] !== '' ? escapeHtml(String(data[k])) : '';
   const trained = !!data.trained;
@@ -2038,28 +2161,34 @@ function handleEditNutrition() {
   modal.open({
     title: `Nutrición · ${formatDateLong(date)}`,
     bodyHtml: `
-      <div class="nutrition-form-field" style="margin-bottom:12px;">
-        <label class="field-label">Peso en ayunas (kg)</label>
-        <input id="nu-weight" type="number" step="0.1" min="0" inputmode="decimal" placeholder="ej. 82.5" value="${v('weight')}" />
+      <div class="nutrition-form-row" style="margin-bottom:12px;">
+        <div class="nutrition-form-field">
+          <label class="field-label">Peso en ayunas (kg)</label>
+          <input id="nu-weight" type="text" inputmode="decimal" placeholder="ej. 82,5" value="${v('weight')}" />
+        </div>
+        <div class="nutrition-form-field">
+          <label class="field-label">Agua (litros)</label>
+          <input id="nu-water" type="text" inputmode="decimal" placeholder="ej. 2,5" value="${v('water')}" />
+        </div>
       </div>
 
       <div class="nutrition-form-field" style="margin-bottom:12px;">
         <label class="field-label">Calorías consumidas (kcal)</label>
-        <input id="nu-kcal" type="number" step="1" min="0" inputmode="numeric" placeholder="ej. 2400" value="${v('kcal')}" />
+        <input id="nu-kcal" type="text" inputmode="numeric" placeholder="ej. 2400" value="${v('kcal')}" />
       </div>
 
       <div class="nutrition-form-row three" style="margin-bottom:12px;">
         <div class="nutrition-form-field">
           <label class="field-label">Proteína (g)</label>
-          <input id="nu-protein" type="number" step="1" min="0" inputmode="numeric" value="${v('protein')}" />
+          <input id="nu-protein" type="text" inputmode="numeric" value="${v('protein')}" />
         </div>
         <div class="nutrition-form-field">
           <label class="field-label">Grasas (g)</label>
-          <input id="nu-fat" type="number" step="1" min="0" inputmode="numeric" value="${v('fat')}" />
+          <input id="nu-fat" type="text" inputmode="numeric" value="${v('fat')}" />
         </div>
         <div class="nutrition-form-field">
           <label class="field-label">Carbos (g)</label>
-          <input id="nu-carbs" type="number" step="1" min="0" inputmode="numeric" value="${v('carbs')}" />
+          <input id="nu-carbs" type="text" inputmode="numeric" value="${v('carbs')}" />
         </div>
       </div>
 
@@ -2087,13 +2216,14 @@ function handleEditNutrition() {
         const trainedBtn = $('[data-nu-trained].active', root);
         const trainedVal = trainedBtn ? trainedBtn.dataset.nuTrained === '1' : false;
         const numOrNull = (id) => {
-          const raw = ($('#' + id, root).value || '').trim();
+          const raw = ($('#' + id, root).value || '').replace(',', '.').trim();
           if (!raw) return null;
           const n = Number(raw);
           return Number.isFinite(n) ? n : null;
         };
         const next = {
           weight: numOrNull('nu-weight'),
+          water: numOrNull('nu-water'),
           kcal: numOrNull('nu-kcal'),
           protein: numOrNull('nu-protein'),
           fat: numOrNull('nu-fat'),
@@ -2105,6 +2235,7 @@ function handleEditNutrition() {
         };
         nutrition.set(date, next);
         modal.close();
+        if (state.currentScreen === 'nutrition') renderNutritionDay(date);
         renderHomeNutrition();
         toast('Nutrición guardada', 'success');
       }},
@@ -2112,7 +2243,6 @@ function handleEditNutrition() {
     ],
   });
 
-  // Toggle SÍ/NO behaviour
   const root = $('#modal-root');
   $$('[data-nu-trained]', root).forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2120,6 +2250,105 @@ function handleEditNutrition() {
       btn.classList.add('active');
     });
   });
+}
+
+// ============================================================
+// NUTRITION SCREEN
+// ============================================================
+function renderNutritionScreen() {
+  const today = todayInputValue();
+  if (!state.nutritionCurrentDate) state.nutritionCurrentDate = today;
+  const date = state.nutritionCurrentDate;
+  $('#nutrition-current-date').textContent = formatDateLong(date);
+  $('#nutrition-next-btn').disabled = date >= today;
+  renderNutritionDay(date);
+  renderNutritionHistoryChart();
+}
+
+function renderNutritionDay(date) {
+  const el = $('#nutrition-day-content');
+  if (!el) return;
+  const data = nutrition.get(date) || {};
+  const macroCell = (val, label, unit) => `
+    <div class="nutrition-macro">
+      <div class="nutrition-macro-value">${val != null && val !== '' ? escapeHtml(String(val)) + (unit || '') : '—'}</div>
+      <div class="nutrition-macro-label">${escapeHtml(label)}</div>
+    </div>
+  `;
+
+  if (isEmptyNutrition(data)) {
+    el.innerHTML = `
+      <div class="nutrition-full-card" style="text-align:center;padding:28px;">
+        <p class="muted" style="margin-bottom:12px;">Sin registro para este día.</p>
+        <button class="ghost-btn" data-action="edit-nutrition-date" data-date="${escapeHtml(date)}">+ Cargar datos</button>
+      </div>
+    `;
+    return;
+  }
+
+  const metaRows = [];
+  if (data.water != null && data.water !== '') metaRows.push({ label: 'Agua', value: data.water + ' L' });
+  if (data.steps != null && data.steps !== '') metaRows.push({ label: 'Pasos', value: String(data.steps) });
+  if (data.notes && data.notes.trim()) metaRows.push({ label: 'Notas', value: data.notes.trim() });
+
+  el.innerHTML = `
+    <div class="nutrition-full-card">
+      <div class="nutrition-top">
+        <div class="nutrition-weight">
+          <div class="metric-large">${data.weight != null && data.weight !== '' ? escapeHtml(String(data.weight)) + ' kg' : '—'}</div>
+          <div class="metric-label">Peso en ayunas</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+          <span class="nutrition-trained ${data.trained ? 'yes' : ''}">${data.trained ? '✓ Entrenó' : 'Sin entrenar'}</span>
+          <button class="ghost-btn" style="padding:6px 12px;font-size:12px;" data-action="edit-nutrition-date" data-date="${escapeHtml(date)}">Editar</button>
+        </div>
+      </div>
+      <div class="nutrition-macros">
+        ${macroCell(data.kcal, 'Kcal', '')}
+        ${macroCell(data.protein, 'Proteína', ' g')}
+        ${macroCell(data.fat, 'Grasas', ' g')}
+        ${macroCell(data.carbs, 'Carbos', ' g')}
+      </div>
+      ${metaRows.length ? `
+        <div class="nutrition-meta">
+          ${metaRows.map(m => `
+            <div class="nutrition-meta-row">
+              <span class="nutrition-meta-label">${escapeHtml(m.label)}</span>
+              <span class="nutrition-meta-value">${escapeHtml(m.value)}</span>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+    </div>
+  `;
+}
+
+function renderNutritionHistoryChart() {
+  const el = $('#nutrition-history-chart');
+  if (!el) return;
+  const today = todayInputValue();
+  const days = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = parseIsoDateLocalClient(today);
+    d.setDate(d.getDate() - i);
+    days.push(formatIsoDateClient(d));
+  }
+  const records = days.map(d => ({ date: d, data: nutrition.get(d) || null }));
+  const kcals = records.map(r => (r.data && r.data.kcal != null) ? Number(r.data.kcal) : null);
+  const maxKcal = Math.max(...kcals.filter(k => k != null), 1);
+
+  el.innerHTML = records.map((r, i) => {
+    const kcal = kcals[i];
+    const pct = kcal != null ? Math.max(4, Math.round((kcal / maxKcal) * 100)) : 0;
+    const dateLabel = r.date.slice(8); // DD
+    return `
+      <div class="nutrition-history-bar-row">
+        <span class="muted-sm" style="text-align:right;">${escapeHtml(dateLabel)}</span>
+        <div class="nutrition-bar-track"><div class="nutrition-bar-fill" style="width:${pct}%;"></div></div>
+        <span class="muted-sm">${kcal != null ? escapeHtml(String(kcal)) : '—'}</span>
+      </div>
+    `;
+  }).join('');
 }
 
 async function loadHomeStats(navToken) {
@@ -2138,15 +2367,13 @@ async function loadHomeStats(navToken) {
 }
 
 function renderHomeStats(stats) {
-  const activeRoutine = stats.active_routine || null;
-  $('#home-active-routine').textContent = activeRoutine
-    ? `Rutina activa: ${activeRoutine.routine_name}`
-    : 'Sin rutina activa';
-
-  const el = $('#home-last-session');
   const last = stats.last_session;
+
   if (!last) {
-    el.innerHTML = `
+    $('#home-stat-days').textContent = '—';
+    $('#home-stat-exercises').textContent = '—';
+    $('#home-stat-sets').textContent = '—';
+    $('#home-last-session').innerHTML = `
       <div class="empty-state">
         <h3>Aún no hay sesiones</h3>
         <p class="muted">Cuando guardes una sesión, queda a mano acá.</p>
@@ -2155,15 +2382,22 @@ function renderHomeStats(stats) {
     return;
   }
 
-  el.innerHTML = `
-    <div class="card" data-action="open-session" data-session-id="${escapeHtml(last.session_id)}" style="cursor:pointer;">
-      <div class="card-row">
-        <div>
-          <h3>${escapeHtml(last.day_name || 'Sesión')}</h3>
-          <p class="muted">${escapeHtml(last.routine_name || '')} · ${formatDateLong(last.date)}</p>
-        </div>
-        <span class="pill accent">Abrir</span>
-      </div>
+  // Días desde el último entrenamiento
+  const today = parseIsoDateLocalClient(todayInputValue());
+  const lastDate = parseIsoDateLocalClient(last.date);
+  const diffMs = today - lastDate;
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+  $('#home-stat-days').textContent = diffDays === 0 ? 'hoy' : diffDays;
+  $('#home-stat-exercises').textContent = last.exercise_count != null ? last.exercise_count : '—';
+  $('#home-stat-sets').textContent = last.set_count != null ? last.set_count : '—';
+
+  const routine = stats.active_routine;
+  const subtitleParts = [last.routine_name || '', formatDateLong(last.date)].filter(Boolean);
+  $('#home-last-session').innerHTML = `
+    <div class="home-last-session-card" data-action="open-session" data-session-id="${escapeHtml(last.session_id)}">
+      <div class="home-last-session-label">Última sesión${routine ? ' · ' + escapeHtml(routine.routine_name) : ''}</div>
+      <div class="home-last-session-title">${escapeHtml(last.day_name || 'Sesión')}</div>
+      <p class="muted" style="font-size:13px;margin-top:4px;">${escapeHtml(subtitleParts.join(' · '))}</p>
     </div>
   `;
 }
@@ -3121,7 +3355,6 @@ async function startTraining({ routine_id, day_id, date, navToken }) {
 
     $('#train-day-name').textContent = day.day_name;
     $('#train-meta').textContent = `${routine.routine_name} · ${formatDateLong(date)}`;
-    $('#train-bodyweight').value = '';
     renderTrainExercises(day.exercises || []);
 
     const draft = loadSessionDraft(day_id, date);
@@ -3206,7 +3439,6 @@ function renderSetRow(ex, setNumber) {
       <div class="set-number">${setNumber}</div>
       <input type="number" step="0.5" inputmode="decimal" data-field="weight" placeholder="${escapeHtml(suggested)}" />
       <input type="number" step="1" inputmode="numeric" data-field="reps" placeholder="reps" />
-      <input type="number" step="1" inputmode="numeric" data-field="rir" placeholder="RIR" />
     </div>
   `;
 }
@@ -3214,8 +3446,7 @@ function renderSetRow(ex, setNumber) {
 function formatSetChip(set) {
   const weight = set.weight == null ? '-' : `${units.toDisplay(set.weight)}`;
   const reps = set.reps == null ? '-' : set.reps;
-  const rir = set.rir == null ? '' : ` · RIR ${set.rir}`;
-  return `${weight} ${units.label()} × ${reps}${rir}`;
+  return `${weight} ${units.label()} × ${reps}`;
 }
 
 function draftKey(day_id, date) {
@@ -3233,15 +3464,11 @@ function collectTrainDraft() {
         weight: ($('[data-field="weight"]', row).value || '').trim(),
         weight_kg: draftKgFromInput(($('[data-field="weight"]', row).value || '').trim()),
         reps: ($('[data-field="reps"]', row).value || '').trim(),
-        rir: ($('[data-field="rir"]', row).value || '').trim(),
       }))
     };
   });
-  const bodyweight = ($('#train-bodyweight').value || '').trim();
   return {
     unit: units.current,
-    bodyweight,
-    bodyweight_kg: draftKgFromInput(bodyweight),
     exercises,
     saved_at: new Date().toISOString(),
   };
@@ -3275,7 +3502,6 @@ function buildSavePayload() {
         set_number: set.set_number,
         weight: set.weight === '' ? null : canonicalKgFromDraft(set.weight, set.weight_kg),
         reps: set.reps === '' ? null : Number(set.reps),
-        rir: set.rir === '' ? null : Number(set.rir),
         note: exDraft.note || '',
       }))
     };
@@ -3285,7 +3511,6 @@ function buildSavePayload() {
     date: state.screenParams.date,
     routine_id: r.routine_id,
     day_id: day.day_id,
-    bodyweight: draft.bodyweight === '' ? null : canonicalKgFromDraft(draft.bodyweight, draft.bodyweight_kg),
     notes: '',
     exercises,
   };
@@ -3307,9 +3532,6 @@ function loadSessionDraft(day_id, date) {
 }
 
 function restoreTrainDraft(draft) {
-  $('#train-bodyweight').value = draft.bodyweight_kg !== undefined && draft.bodyweight_kg !== null && draft.bodyweight_kg !== ''
-    ? units.toDisplay(draft.bodyweight_kg)
-    : (draft.bodyweight || '');
   Object.keys(draft.exercises || {}).forEach(rexId => {
     const exDraft = draft.exercises[rexId];
     const card = $(`[data-train-exercise="${rexId}"]`);
@@ -3326,7 +3548,6 @@ function restoreTrainDraft(draft) {
         ? units.toDisplay(set.weight_kg)
         : (set.weight || '');
       $('[data-field="reps"]', row).value = set.reps || '';
-      $('[data-field="rir"]', row).value = set.rir || '';
     });
     const note = $(`[data-train-note="${rexId}"]`);
     if (note) note.value = exDraft.note || '';
@@ -3430,13 +3651,18 @@ registerScreen('history', {
   }
 });
 
+registerScreen('nutrition', {
+  onEnter(params) {
+    const today = todayInputValue();
+    state.nutritionCurrentDate = state.nutritionCurrentDate || today;
+    renderNutritionScreen();
+  }
+});
+
 async function loadProgress(navToken) {
   const loadToken = nextLoadToken('progress');
+  if (state.progressView === 'bodyweight') state.progressView = 'exercise';
   renderProgressMode();
-  if (state.progressView === 'bodyweight') {
-    await loadBodyweightHistory(navToken, loadToken);
-    return;
-  }
   if (state.progressView === 'heatmap') {
     await loadMuscleHeatmap(navToken, loadToken);
     return;
@@ -3487,7 +3713,34 @@ async function renderProgressExerciseData(data, select, content, navToken, loadT
     return;
   }
   const current = data.selected || (select.value && names.indexOf(select.value) >= 0 ? select.value : names[0]);
-  select.innerHTML = names.map(name => `<option value="${escapeHtml(name)}" ${name === current ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('');
+
+  // Group by muscle using optgroups if backend provides exercises with muscle info
+  if (data.exercises && data.exercises.length) {
+    const grouped = {};
+    const noGroup = [];
+    data.exercises.forEach(ex => {
+      const m = ex.muscle_group || '';
+      if (!m) { noGroup.push(ex.name); return; }
+      if (!grouped[m]) grouped[m] = [];
+      grouped[m].push(ex.name);
+    });
+    const MUSCLE_ORDER = ['pecho','espalda','hombros','bicep','tricep','core','piernas','gluteos','gemelos','antebrazos'];
+    const orderedGroups = MUSCLE_ORDER.filter(m => grouped[m]).concat(Object.keys(grouped).filter(m => !MUSCLE_ORDER.includes(m)));
+    let html = '';
+    orderedGroups.forEach(m => {
+      html += `<optgroup label="${escapeHtml(formatMuscleGroup(m))}">`;
+      html += grouped[m].map(name => `<option value="${escapeHtml(name)}" ${name === current ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('');
+      html += '</optgroup>';
+    });
+    if (noGroup.length) {
+      html += `<optgroup label="Otros">`;
+      html += noGroup.map(name => `<option value="${escapeHtml(name)}" ${name === current ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('');
+      html += '</optgroup>';
+    }
+    select.innerHTML = html;
+  } else {
+    select.innerHTML = names.map(name => `<option value="${escapeHtml(name)}" ${name === current ? 'selected' : ''}>${escapeHtml(name)}</option>`).join('');
+  }
   if (data.history) {
     renderExerciseHistory(data.history);
     return;
@@ -3516,11 +3769,10 @@ function renderProgressMode() {
     btn.classList.toggle('active', btn.dataset.view === state.progressView);
   });
   $('#progress-exercise-card').style.display = state.progressView === 'exercise' ? 'block' : 'none';
-  $$('[data-action="set-progress-filter"]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.filter === state.progressFilter);
-  });
-  $('#progress-exercise-field').style.display = state.progressFilter === 'exercise' ? 'block' : 'none';
-  $('#progress-muscle-field').style.display = state.progressFilter === 'muscle' ? 'block' : 'none';
+  if (state.progressView === 'exercise') {
+    $('#progress-exercise-field').style.display = state.progressFilter === 'exercise' ? 'block' : 'none';
+    $('#progress-muscle-field').style.display = state.progressFilter === 'muscle' ? 'block' : 'none';
+  }
 }
 
 function setupProgressMuscleSelect() {
@@ -3621,6 +3873,33 @@ function renderBodyweightChart(points) {
       ${coords.map(p => `<circle cx="${p.x}" cy="${p.y}" r="4" fill="var(--accent)"></circle>`).join('')}
       <text x="8" y="16" fill="var(--muted)" font-size="11">${escapeHtml(formatWeight(max))}</text>
       <text x="8" y="146" fill="var(--muted)" font-size="11">${escapeHtml(formatWeight(min))}</text>
+    </svg>
+  `;
+}
+
+function renderExerciseProgressChart(sessions) {
+  const points = sessions.slice().reverse();
+  if (points.length < 2) return `<p class="muted" style="margin-top:14px;font-size:13px;">Necesitás al menos 2 sesiones para ver la curva.</p>`;
+  const values = points.map(p => Number(p.e1rm_max || p.weight_max || 0));
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const spread = Math.max(max - min, 0.5);
+  const coords = points.map((p, i) => {
+    const x = 8 + (i / (points.length - 1)) * 284;
+    const y = 132 - ((values[i] - min) / spread) * 108;
+    return { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 };
+  });
+  const polyline = coords.map(c => `${c.x},${c.y}`).join(' ');
+  const area = `8,140 ${polyline} 292,140`;
+  return `
+    <svg class="progress-exercise-chart" viewBox="0 0 300 150" role="img" aria-label="Evolución de 1RM estimado">
+      <path d="M${area}" fill="rgba(255,90,42,0.12)"></path>
+      <polyline points="${polyline}" fill="none" stroke="var(--accent)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
+      ${coords.map((c, i) => `<circle cx="${c.x}" cy="${c.y}" r="4" fill="var(--accent)" data-action="open-session" data-session-id="${escapeHtml(points[i].session_id)}" style="cursor:pointer;"></circle>`).join('')}
+      <text x="8" y="14" fill="var(--muted)" font-size="10">${escapeHtml(units.toDisplay(max) + ' ' + units.label())}</text>
+      <text x="8" y="148" fill="var(--muted)" font-size="10">${escapeHtml(units.toDisplay(min) + ' ' + units.label())}</text>
+      <text x="10" y="140" fill="var(--muted-2)" font-size="9">${escapeHtml(formatDateShort(points[0].date))}</text>
+      <text x="240" y="140" fill="var(--muted-2)" font-size="9">${escapeHtml(formatDateShort(points[points.length - 1].date))}</text>
     </svg>
   `;
 }
@@ -4116,42 +4395,41 @@ function renderExerciseHistory(history) {
     return;
   }
 
+  const chartSvg = renderExerciseProgressChart(sessions);
+  const recentSessions = sessions.slice(0, 5);
   $('#progress-content').innerHTML = `
     ${renderExerciseGoalCard(history.exercise_name, history.goal, latestMax, latestE1rm)}
     <div class="card">
       <div class="card-row">
         <div>
           <h3>${escapeHtml(history.exercise_name)}</h3>
-          <p class="muted">Últimas ${sessions.length} sesiones</p>
+          <p class="muted">${sessions.length} sesión${sessions.length === 1 ? '' : 'es'}</p>
         </div>
         <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
           <span class="pill accent">PR: ${latestMax ? units.toDisplay(latestMax) + ' ' + units.label() : '-'}</span>
-          <span class="pill">1RM est. ${latestE1rm ? units.toDisplay(latestE1rm) + ' ' + units.label() : '-'}</span>
+          <span class="pill">1RM ${latestE1rm ? units.toDisplay(latestE1rm) + ' ' + units.label() : '-'}</span>
         </div>
       </div>
       <div class="summary-status">
         <span class="dot ${history.trend === 'Tendencia negativa' ? 'bad' : (history.trend === 'Tendencia positiva' ? '' : 'warn')}"></span>
         <p class="muted">${escapeHtml(history.trend)}</p>
       </div>
+      ${chartSvg}
     </div>
-    ${sessions.map(s => `
-      <div class="card" data-action="open-session" data-session-id="${escapeHtml(s.session_id)}" style="cursor:pointer;">
-        <div class="card-row" style="align-items:flex-start;">
-          <div style="flex:1;min-width:0;">
-            <h3>${formatDateLong(s.date)}</h3>
-            <p class="muted">${escapeHtml(s.day_name || s.routine_name || '')}</p>
-            <p class="muted-sm" style="margin-top:4px;">${escapeHtml(formatSetsLine(s.sets || []))}</p>
+    <div class="progress-history-list">
+      ${recentSessions.map(s => `
+        <div class="progress-history-item" data-action="open-session" data-session-id="${escapeHtml(s.session_id)}">
+          <div style="min-width:0;">
+            <div style="font-weight:700;font-size:14px;">${formatDateLong(s.date)}</div>
+            <div class="muted-sm" style="margin-top:2px;">${escapeHtml(formatSetsLine(s.sets || []))}</div>
           </div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">
-            <span class="pill">1RM ${s.e1rm_max ? units.toDisplay(s.e1rm_max) + ' ' + units.label() : '-'}</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span class="pill" style="font-size:12px;">1RM ${s.e1rm_max ? units.toDisplay(s.e1rm_max) + ' ' + units.label() : '-'}</span>
+            <span class="dot ${progressDotClass(s.trend)}" style="margin:0;"></span>
           </div>
         </div>
-        <div class="summary-status">
-          <span class="dot ${progressDotClass(s.trend)}"></span>
-          <p class="muted">${formatProgressDelta(s)}</p>
-        </div>
-      </div>
-    `).join('')}
+      `).join('')}
+    </div>
   `;
 }
 
@@ -4468,7 +4746,7 @@ function renderSetDetailRows(sets) {
       ${sets.map(set => `
         <div class="card-row" style="background:#0b0e11;border:1px solid var(--border);border-radius:14px;padding:10px 12px;">
           <span class="muted-sm">Serie ${set.set_number}</span>
-          <strong>${set.weight == null ? '-' : units.toDisplay(set.weight)} ${units.label()} × ${set.reps == null ? '-' : set.reps}${set.rir == null ? '' : ' · RIR ' + set.rir}</strong>
+          <strong>${set.weight == null ? '-' : units.toDisplay(set.weight)} ${units.label()} × ${set.reps == null ? '-' : set.reps}</strong>
         </div>
       `).join('')}
     </div>
@@ -4494,7 +4772,6 @@ function renderSessionEdit(session) {
   $('#se-meta').textContent = `${session.routine_name || ''} · ${session.day_name || ''}`;
   $('#se-title').textContent = 'Editar sesión';
   $('#se-date').value = session.date || todayInputValue();
-  $('#se-bodyweight').value = session.bodyweight == null ? '' : units.toDisplay(session.bodyweight);
 
   $('#se-exercises').innerHTML = (session.exercises || []).map(ex => `
     <div class="exercise-card" data-edit-exercise="${escapeHtml(ex.routine_exercise_id)}">
@@ -4518,7 +4795,6 @@ function renderEditSetRow(ex, set, fallbackNumber) {
       <div class="set-number">${escapeHtml(set.set_number || fallbackNumber)}</div>
       <input type="number" step="0.5" inputmode="decimal" data-field="weight" placeholder="${units.label()}" value="${set.weight == null ? '' : escapeHtml(units.toDisplay(set.weight))}" />
       <input type="number" step="1" inputmode="numeric" data-field="reps" placeholder="reps" value="${set.reps == null ? '' : escapeHtml(set.reps)}" />
-      <input type="number" step="1" inputmode="numeric" data-field="rir" placeholder="RIR" value="${set.rir == null ? '' : escapeHtml(set.rir)}" />
     </div>
   `;
 }
@@ -4545,7 +4821,6 @@ function buildEditPayload() {
       set_number: i + 1,
       weight: ($('[data-field="weight"]', row).value || '').trim() === '' ? null : units.fromInput($('[data-field="weight"]', row).value),
       reps: ($('[data-field="reps"]', row).value || '').trim() === '' ? null : Number($('[data-field="reps"]', row).value),
-      rir: ($('[data-field="rir"]', row).value || '').trim() === '' ? null : Number($('[data-field="rir"]', row).value),
       note: row.dataset.note || '',
     }))
   }));
@@ -4554,7 +4829,6 @@ function buildEditPayload() {
     date: $('#se-date').value || session.date,
     routine_id: session.routine_id,
     day_id: session.day_id,
-    bodyweight: ($('#se-bodyweight').value || '').trim() === '' ? null : units.fromInput($('#se-bodyweight').value),
     notes: session.notes || '',
     exercises,
   };
@@ -4794,6 +5068,26 @@ document.addEventListener('click', (e) => {
     case 'save-session-edit': runLockedAction('save-session-edit', () => handleSaveSessionEdit(t)); break;
     case 'delete-session': handleDeleteSession(); break;
     case 'edit-nutrition': handleEditNutrition(); break;
+    case 'edit-nutrition-date': handleEditNutrition(t.dataset.date); break;
+    case 'nutrition-prev-day': {
+      if (!state.nutritionCurrentDate) state.nutritionCurrentDate = todayInputValue();
+      const d = parseIsoDateLocalClient(state.nutritionCurrentDate);
+      d.setDate(d.getDate() - 1);
+      state.nutritionCurrentDate = formatIsoDateClient(d);
+      renderNutritionScreen();
+      break;
+    }
+    case 'nutrition-next-day': {
+      if (!state.nutritionCurrentDate) state.nutritionCurrentDate = todayInputValue();
+      const d = parseIsoDateLocalClient(state.nutritionCurrentDate);
+      d.setDate(d.getDate() + 1);
+      const next = formatIsoDateClient(d);
+      if (next <= todayInputValue()) {
+        state.nutritionCurrentDate = next;
+        renderNutritionScreen();
+      }
+      break;
+    }
     case 'set-units': {
       if (state.currentScreen === 'train' && state.screenParams.day_id && state.screenParams.date) {
         saveSessionDraft(state.screenParams.day_id, state.screenParams.date);

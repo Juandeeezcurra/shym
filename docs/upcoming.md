@@ -1,34 +1,31 @@
 # Proximos cambios Shym
 
-## Prioridad alta
+Los cambios activos y priorizados están en `changes-v2.md`.
 
-### 1. Adaptar la app para web (desktop / laptop)
-- Actualmente la app se ve muy rara en laptop: el layout esta optimizado solo para mobile.
-- Objetivo: que la UI sea usable y prolija en pantallas anchas, sin romper la experiencia mobile existente.
-- Puntos a revisar:
-  - Ancho maximo del contenedor principal (evitar que todo se estire de borde a borde).
-  - Tipografia y espaciados en resoluciones >= 1024px.
-  - Navegacion inferior: decidir si se mantiene como bottom-bar o se mueve a una sidebar/topbar en desktop.
-  - Heatmap corporal y tarjetas: revisar proporciones en pantalla ancha.
-  - Tests visuales en al menos: laptop 13", monitor 1440p, tablet horizontal.
+## Items absorbidos en changes-v2
 
-## Nueva seccion: Nutricion y registro diario
+Los siguientes items de esta lista pasaron a `changes-v2.md` con más detalle:
 
-Agregar una seccion dedicada a tracking de nutricion y estado corporal/diario.
+- Adaptación para web (desktop/laptop) — parcialmente implementado; continúa como mejoras de sidebar y home.
+- Sección Nutrición — especificación original abajo, ahora activa en changes-v2.
 
-### Campos del registro diario
-- **Peso en ayunas** (kg)
+---
+
+## Especificacion original: Nutricion y registro diario
+
+Referencia de campos acordados para la sección de Nutrición:
+
+- **Peso en ayunas** (kg) — movido a Nutrición, sacado de Progreso
 - **Calorias consumidas** (kcal)
 - **Proteina consumida** (g)
 - **Grasas consumidas** (g)
 - **Carbohidratos consumidos** (g)
-- **Entrenamiento**: si / no (boolean)
-- **Pasos o actividad**: opcional (numero / texto libre)
+- **Agua tomada** (litros)
+- **Entrenamiento**: si / no — puede sincronizarse con sesiones registradas del dia
 - **Notas**: hambre, energia, digestion, animo, etc. (texto libre)
 
-### Consideraciones de diseno
+Consideraciones:
 - Un registro por dia (fecha como clave).
 - Permitir edicion del dia actual y dias pasados.
-- Vista de historial: lista o calendario con resumen rapido (peso, kcal, macros).
-- Posibles graficos a futuro: evolucion de peso, kcal promedio, distribucion de macros.
-- Integracion con el resto de la app: el flag de entrenamiento del dia podria sincronizarse con sesiones registradas.
+- Vista de historial/progreso: grafico de evolucion de peso, kcal, macros y agua.
+- Inputs deben aceptar coma decimal (`,`).

@@ -1,8 +1,8 @@
 # Pendientes Shym
 
-Archivo historico: esta lista quedo completada. La fuente activa de estado y prioridades es `MEMORY.md`.
+Los cambios activos están en `changes-v2.md`. Este archivo es historial de lo ya completado.
 
-## Completados
+## Completados (v1)
 
 Prioridad alta:
 - [x] Mejorar tiempos de carga. La app se siente pesada y esto es la prioridad.
