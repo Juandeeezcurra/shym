@@ -18,6 +18,7 @@ const SHEETS = {
   SESSIONS: 'Sessions',
   SETS: 'Session_Sets',
   GOALS: 'Exercise_Goals',
+  NUTRITION: 'Nutrition',
 };
 
 const HEADERS = {
@@ -43,6 +44,9 @@ const HEADERS = {
   [SHEETS.GOALS]: [
     'goal_id', 'exercise_name', 'target_weight', 'target_1rm', 'created_at', 'updated_at'
   ],
+  [SHEETS.NUTRITION]: [
+    'date', 'weight', 'water', 'kcal', 'protein', 'fat', 'carbs', 'steps', 'notes', 'trained'
+  ],
 };
 
 let READ_CACHE_ = {};
@@ -62,6 +66,8 @@ const READ_API_CACHE_SECONDS_ = {
   listBodyweightHistory: 60,
   listAllExerciseNames: 300,
   getProgressExerciseData: 60,
+  getNutritionForDate: 30,
+  getNutritionHistory: 60,
   listExerciseHistory: 60,
   listMuscleGroupHistory: 60,
   getVolumeByMuscle: 60,
@@ -89,6 +95,7 @@ const WRITE_API_ = {
   deleteSession: true,
   setExerciseGoal: true,
   migrateHistoricalSnapshots: true,
+  saveNutritionForDate: true,
 };
 
 // ============================================================
@@ -204,6 +211,9 @@ function getApi_() {
     getExerciseGoal,
     setExerciseGoal,
     migrateHistoricalSnapshots,
+    getNutritionForDate,
+    saveNutritionForDate,
+    getNutritionHistory,
   };
 }
 
@@ -2383,4 +2393,82 @@ function resolveSetMuscleGroup_(set, exerciseMeta) {
   if (byId) return byId;
   const nameKey = normalizeExerciseNameKey_(set && set.exercise_name);
   return (exerciseMeta && nameKey && exerciseMeta.byName[nameKey]) || '';
+}
+
+// ============================================================
+// NUTRITION API
+// ============================================================
+
+function numOrNull_(val) {
+  if (val === '' || val === null || val === undefined) return null;
+  const n = Number(val);
+  return Number.isFinite(n) ? n : null;
+}
+
+function nutritionRowToObj_(row, date) {
+  return {
+    date: date || (row.date ? String(row.date).trim() : ''),
+    weight: numOrNull_(row.weight),
+    water: numOrNull_(row.water),
+    kcal: numOrNull_(row.kcal),
+    protein: numOrNull_(row.protein),
+    fat: numOrNull_(row.fat),
+    carbs: numOrNull_(row.carbs),
+    steps: row.steps != null && row.steps !== '' ? String(row.steps) : null,
+    notes: row.notes ? String(row.notes) : null,
+    trained: isTrue_(row.trained),
+  };
+}
+
+function getNutritionForDate(params) {
+  params = params || {};
+  const date = (params.date || '').toString().trim();
+  if (!date) throw new Error('date requerido');
+  const rows = readAll_(SHEETS.NUTRITION);
+  const row = rows.find(r => (r.date || '').toString().trim() === date);
+  return row ? nutritionRowToObj_(row, date) : null;
+}
+
+function saveNutritionForDate(params) {
+  params = params || {};
+  const date = (params.date || '').toString().trim();
+  if (!date) throw new Error('date requerido');
+  const rows = readAll_(SHEETS.NUTRITION);
+  const existing = rows.find(r => (r.date || '').toString().trim() === date);
+  const headers = HEADERS[SHEETS.NUTRITION];
+  const toVal = (v) => (v == null ? '' : v);
+  const rowData = headers.map(h => toVal(params[h]));
+  if (existing) {
+    const sheet = getSheet_(SHEETS.NUTRITION);
+    const allRows = sheet.getDataRange().getValues();
+    for (let i = 1; i < allRows.length; i++) {
+      if ((allRows[i][0] || '').toString().trim() === date) {
+        sheet.getRange(i + 1, 1, 1, headers.length).setValues([rowData]);
+        break;
+      }
+    }
+  } else {
+    getSheet_(SHEETS.NUTRITION).appendRow(rowData);
+  }
+  READ_CACHE_[SHEETS.NUTRITION] = null;
+  return { ok: true, date };
+}
+
+function getNutritionHistory(params) {
+  params = params || {};
+  const days = Math.max(1, Math.min(Number(params.days || 14), 90));
+  const endDate = (params.end_date || todayIso_()).toString().trim();
+  const rows = readAll_(SHEETS.NUTRITION);
+  const byDate = {};
+  rows.forEach(r => {
+    const d = (r.date || '').toString().trim();
+    if (d) byDate[d] = r;
+  });
+  const result = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = addDaysIso_(endDate, -i);
+    const row = byDate[d];
+    result.push(row ? nutritionRowToObj_(row, d) : { date: d, weight: null, water: null, kcal: null, protein: null, fat: null, carbs: null, steps: null, notes: null, trained: false });
+  }
+  return result;
 }
