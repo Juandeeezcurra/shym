@@ -2407,7 +2407,7 @@ function numOrNull_(val) {
 
 function nutritionRowToObj_(row, date) {
   return {
-    date: date || (row.date ? String(row.date).trim() : ''),
+    date: date || (row.date ? normalizeDate_(row.date) : ''),
     weight: numOrNull_(row.weight),
     water: numOrNull_(row.water),
     kcal: numOrNull_(row.kcal),
@@ -2422,27 +2422,28 @@ function nutritionRowToObj_(row, date) {
 
 function getNutritionForDate(params) {
   params = params || {};
-  const date = (params.date || '').toString().trim();
+  const date = normalizeDate_(params.date);
   if (!date) throw new Error('date requerido');
   const rows = readAll_(SHEETS.NUTRITION);
-  const row = rows.find(r => (r.date || '').toString().trim() === date);
+  const row = rows.find(r => r.date && normalizeDate_(r.date) === date);
   return row ? nutritionRowToObj_(row, date) : null;
 }
 
 function saveNutritionForDate(params) {
   params = params || {};
-  const date = (params.date || '').toString().trim();
+  const date = normalizeDate_(params.date);
   if (!date) throw new Error('date requerido');
   const rows = readAll_(SHEETS.NUTRITION);
-  const existing = rows.find(r => (r.date || '').toString().trim() === date);
+  const existing = rows.find(r => r.date && normalizeDate_(r.date) === date);
   const headers = HEADERS[SHEETS.NUTRITION];
   const toVal = (v) => (v == null ? '' : v);
-  const rowData = headers.map(h => toVal(params[h]));
+  const rowData = headers.map(h => h === 'date' ? date : toVal(params[h]));
   if (existing) {
     const sheet = getSheet_(SHEETS.NUTRITION);
     const allRows = sheet.getDataRange().getValues();
     for (let i = 1; i < allRows.length; i++) {
-      if ((allRows[i][0] || '').toString().trim() === date) {
+      const cell = allRows[i][0];
+      if (cell && normalizeDate_(cell) === date) {
         sheet.getRange(i + 1, 1, 1, headers.length).setValues([rowData]);
         break;
       }
@@ -2457,11 +2458,12 @@ function saveNutritionForDate(params) {
 function getNutritionHistory(params) {
   params = params || {};
   const days = Math.max(1, Math.min(Number(params.days || 14), 90));
-  const endDate = (params.end_date || todayIso_()).toString().trim();
+  const endDate = normalizeDate_(params.end_date || todayIso_());
   const rows = readAll_(SHEETS.NUTRITION);
   const byDate = {};
   rows.forEach(r => {
-    const d = (r.date || '').toString().trim();
+    if (!r.date) return;
+    const d = normalizeDate_(r.date);
     if (d) byDate[d] = r;
   });
   const result = [];
