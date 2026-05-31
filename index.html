@@ -404,6 +404,10 @@
     min-height: 82px;
     cursor: pointer;
   }
+  .routine-detail .day-card,
+  #screen-routine-detail .day-card {
+    min-height: 220px;
+  }
   .day-preview-list {
     list-style: none;
     margin: 8px 0 0;
@@ -1129,14 +1133,33 @@
     width: 100%;
     display: flex;
     align-items: stretch;
-    gap: 6px;
+    gap: 8px;
     margin-top: 10px;
-    overflow-x: auto;
     padding-bottom: 4px;
+  }
+  .nutrition-history-axis-y {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 12px 0 18px;
+    font-size: 10px;
+    color: var(--muted-2);
+    line-height: 1;
+    flex-shrink: 0;
+    min-width: 28px;
+    text-align: right;
+  }
+  .nutrition-history-bars {
+    flex: 1 1 0;
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+    overflow-x: auto;
+    padding-bottom: 2px;
   }
   .nutrition-history-bar-col {
     flex: 1 1 0;
-    min-width: 18px;
+    min-width: 16px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1145,9 +1168,9 @@
   }
   .nutrition-bar-value {
     color: var(--muted);
-    font-size: 10px;
+    font-size: 9px;
     line-height: 1;
-    min-height: 12px;
+    min-height: 11px;
   }
   .nutrition-bar-track {
     width: 100%;
@@ -1157,6 +1180,7 @@
     overflow: hidden;
     display: flex;
     align-items: flex-end;
+    border-bottom: 1px solid #1a1f24;
   }
   .nutrition-bar-fill {
     width: 100%;
@@ -1164,10 +1188,14 @@
     background: var(--accent);
     transition: height 0.3s ease;
   }
+  .nutrition-bar-fill.empty {
+    background: #1a1f24;
+  }
   .nutrition-bar-label {
     color: var(--muted);
     font-size: 10px;
     line-height: 1;
+    white-space: nowrap;
   }
   .nutrition-water-field { display: flex; align-items: center; gap: 8px; }
   .nutrition-water-field input { flex: 1; }
@@ -1218,12 +1246,14 @@
       width: 100%;
     }
     .nav-brand:hover { opacity: 0.85; }
-    .nav-brand-logo {
-      height: 56px;
-      width: auto;
-      display: block;
-      mix-blend-mode: screen;
-      filter: drop-shadow(0 0 8px rgba(255, 90, 42, 0.18));
+    .nav-brand-text {
+      font-size: 30px;
+      font-weight: 900;
+      letter-spacing: -0.02em;
+      color: var(--accent);
+      font-style: italic;
+      line-height: 1;
+      text-shadow: 0 0 14px rgba(255, 90, 42, 0.35);
     }
 
     .nav-btn,
@@ -1324,7 +1354,7 @@
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     }
     .day-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     #tp-days .day-grid {
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -1752,7 +1782,7 @@
 
 <nav class="bottom-nav">
   <button class="nav-brand" data-go="home" aria-label="Inicio">
-    <img src="assets/logo.png" alt="Shym" class="nav-brand-logo" />
+    <span class="nav-brand-text">Shym</span>
   </button>
   <button class="nav-btn nav-cta" data-action="go-train" data-nav="train" aria-label="Empezar entrenamiento" title="Entrenar">
     <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -2463,14 +2493,14 @@ async function handleEditNutrition(dateOverride) {
 // ============================================================
 // NUTRITION SCREEN
 // ============================================================
-function renderNutritionScreen() {
+function renderNutritionScreen(opts) {
   const today = todayInputValue();
   if (!state.nutritionCurrentDate) state.nutritionCurrentDate = today;
   const date = state.nutritionCurrentDate;
   $('#nutrition-current-date').textContent = formatDateLong(date);
   $('#nutrition-next-btn').disabled = date >= today;
-  renderNutritionDay(date);   // async, fire-and-forget
-  renderNutritionHistoryChart(); // async, fire-and-forget
+  renderNutritionDay(date);
+  if (!opts || !opts.skipChart) renderNutritionHistoryChart();
 }
 
 async function renderNutritionDay(date) {
@@ -2542,6 +2572,74 @@ async function renderNutritionDay(date) {
 const NUTRITION_METRIC_UNIT = { kcal: '', protein: 'g', fat: 'g', carbs: 'g' };
 const NUTRITION_METRIC_LABEL = { kcal: 'kcal', protein: 'g prot.', fat: 'g grasas', carbs: 'g carbos' };
 
+function buildNutritionDateSequence_(endIso, days) {
+  const result = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = parseIsoDateLocalClient(endIso);
+    d.setDate(d.getDate() - i);
+    result.push(formatIsoDateClient(d));
+  }
+  return result;
+}
+
+function paintNutritionChart_(records, metric, days) {
+  const el = $('#nutrition-history-chart');
+  if (!el) return;
+  const today = todayInputValue();
+  const dateSeq = buildNutritionDateSequence_(today, days);
+  const byDate = {};
+  (records || []).forEach(r => { if (r && r.date) byDate[r.date] = r; });
+
+  const values = dateSeq.map(d => {
+    const r = byDate[d];
+    return r && r[metric] != null && Number.isFinite(Number(r[metric])) ? Number(r[metric]) : null;
+  });
+  const present = values.filter(v => v != null);
+  const maxVal = present.length ? Math.max(...present) : 0;
+  const scale = Math.max(maxVal, 1);
+  const avg = present.length ? Math.round(present.reduce((a, b) => a + b, 0) / present.length) : null;
+  const unit = NUTRITION_METRIC_UNIT[metric] || '';
+  const label = NUTRITION_METRIC_LABEL[metric] || '';
+
+  const summaryEl = $('#nutrition-history-summary');
+  if (summaryEl) {
+    summaryEl.innerHTML = `
+      <div><strong>${avg != null ? escapeHtml(String(avg)) + unit : '—'}</strong> promedio ${escapeHtml(label)}</div>
+      <div><strong>${present.length}</strong>/${dateSeq.length} días con registro</div>
+    `;
+  }
+
+  let lastMonth = null;
+  const bars = dateSeq.map(d => {
+    const val = byDate[d] && byDate[d][metric] != null ? Number(byDate[d][metric]) : null;
+    const valid = val != null && Number.isFinite(val);
+    const pct = valid ? Math.max(3, Math.round((val / scale) * 100)) : 0;
+    const dayNum = d.slice(8);
+    const monthNum = d.slice(5, 7);
+    const showMonth = monthNum !== lastMonth;
+    lastMonth = monthNum;
+    const xLabel = showMonth ? `${dayNum}/${monthNum}` : dayNum;
+    return `
+      <div class="nutrition-history-bar-col" title="${escapeHtml(d)}${valid ? ' · ' + val + unit : ''}">
+        <span class="nutrition-bar-value">${valid ? escapeHtml(String(val)) + unit : ''}</span>
+        <div class="nutrition-bar-track">
+          <div class="nutrition-bar-fill ${valid ? '' : 'empty'}" style="height:${pct || (valid ? 0 : 2)}%;"></div>
+        </div>
+        <span class="nutrition-bar-label">${escapeHtml(xLabel)}</span>
+      </div>
+    `;
+  }).join('');
+
+  const yMaxLabel = maxVal > 0 ? `${Math.round(maxVal)}${unit}` : '';
+  el.innerHTML = `
+    <div class="nutrition-history-axis-y">
+      <span>${escapeHtml(yMaxLabel)}</span>
+      <span>0</span>
+    </div>
+    <div class="nutrition-history-bars">${bars}</div>
+  `;
+}
+
 async function renderNutritionHistoryChart() {
   const el = $('#nutrition-history-chart');
   if (!el) return;
@@ -2565,47 +2663,24 @@ async function renderNutritionHistoryChart() {
 
   const today = todayInputValue();
   const args = [{ days, end_date: today }];
-  let records = null;
-  try {
-    const cached = getApiCache('getNutritionHistory', args, API_CACHE_TTL.getNutritionHistory);
-    records = cached !== null && cached !== undefined
-      ? cached
-      : await cachedGas('getNutritionHistory', args);
-  } catch { records = []; }
 
-  const summaryEl = $('#nutrition-history-summary');
-  if (!records || !records.length) {
-    if (summaryEl) summaryEl.innerHTML = '';
-    el.innerHTML = '';
+  const cached = getApiCache('getNutritionHistory', args, API_CACHE_TTL.getNutritionHistory);
+  if (cached !== null && cached !== undefined) {
+    paintNutritionChart_(cached, metric, days);
     return;
   }
 
-  const values = records.map(r => r[metric] != null ? Number(r[metric]) : null);
-  const present = values.filter(v => v != null && Number.isFinite(v));
-  const maxVal = Math.max(...present, 1);
-  const avg = present.length ? Math.round(present.reduce((a, b) => a + b, 0) / present.length) : null;
-  const unit = NUTRITION_METRIC_UNIT[metric] || '';
-  const label = NUTRITION_METRIC_LABEL[metric] || '';
+  // Paint empty frame immediately so chart is always visible
+  paintNutritionChart_([], metric, days);
 
-  if (summaryEl) {
-    summaryEl.innerHTML = `
-      <div><strong>${avg != null ? escapeHtml(String(avg)) + unit : '—'}</strong> promedio ${escapeHtml(label)}</div>
-      <div><strong>${present.length}</strong>/${records.length} días con registro</div>
-    `;
+  try {
+    const records = await cachedGas('getNutritionHistory', args);
+    if (state.nutritionHistoryMetric === metric && Number(state.nutritionHistoryDays) === days) {
+      paintNutritionChart_(records || [], metric, days);
+    }
+  } catch {
+    // Keep empty frame on error
   }
-
-  el.innerHTML = records.map((r, i) => {
-    const val = values[i];
-    const pct = val != null ? Math.max(4, Math.round((val / maxVal) * 100)) : 0;
-    const dateLabel = (r.date || '').slice(8);
-    return `
-      <div class="nutrition-history-bar-col">
-        <span class="nutrition-bar-value">${val != null ? escapeHtml(String(val)) + unit : ''}</span>
-        <div class="nutrition-bar-track"><div class="nutrition-bar-fill" style="height:${pct}%;"></div></div>
-        <span class="nutrition-bar-label">${escapeHtml(dateLabel)}</span>
-      </div>
-    `;
-  }).join('');
 }
 
 async function loadHomeStats(navToken) {
@@ -2823,13 +2898,10 @@ function renderDays(days) {
     `;
     return;
   }
-  const previewCount = 5;
   el.innerHTML = `
     <div class="day-grid">
       ${days.map((d, i) => {
         const exs = d.exercises || [];
-        const preview = exs.slice(0, previewCount);
-        const remaining = exs.length - preview.length;
         return `
         <div class="day-card" style="display:flex;align-items:flex-start;gap:8px;">
           <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;padding-top:2px;">
@@ -2841,8 +2913,7 @@ function renderDays(days) {
             <p class="muted-sm">${exs.length} ejercicio${exs.length === 1 ? '' : 's'}</p>
             ${exs.length ? `
               <ul class="day-preview-list">
-                ${preview.map(ex => `<li>${escapeHtml(ex.exercise_name || '')}</li>`).join('')}
-                ${remaining > 0 ? `<li class="day-preview-more">+${remaining} más</li>` : ''}
+                ${exs.map(ex => `<li>${escapeHtml(ex.exercise_name || '')}</li>`).join('')}
               </ul>
             ` : `<p class="muted-sm" style="margin-top:6px;font-style:italic;opacity:.7;">Sin ejercicios</p>`}
             <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;">${renderWeekDayChips(d.week_days)}</div>
@@ -5353,7 +5424,7 @@ document.addEventListener('click', (e) => {
       const d = parseIsoDateLocalClient(state.nutritionCurrentDate);
       d.setDate(d.getDate() - 1);
       state.nutritionCurrentDate = formatIsoDateClient(d);
-      renderNutritionScreen();
+      renderNutritionScreen({ skipChart: true });
       break;
     }
     case 'nutrition-next-day': {
@@ -5363,7 +5434,7 @@ document.addEventListener('click', (e) => {
       const next = formatIsoDateClient(d);
       if (next <= todayInputValue()) {
         state.nutritionCurrentDate = next;
-        renderNutritionScreen();
+        renderNutritionScreen({ skipChart: true });
       }
       break;
     }
