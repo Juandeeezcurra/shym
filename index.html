@@ -1137,18 +1137,6 @@
     margin-top: 10px;
     padding-bottom: 4px;
   }
-  .nutrition-history-axis-y {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 12px 0 18px;
-    font-size: 10px;
-    color: var(--muted-2);
-    line-height: 1;
-    flex-shrink: 0;
-    min-width: 28px;
-    text-align: right;
-  }
   .nutrition-history-bars {
     flex: 1 1 0;
     display: flex;
@@ -1174,7 +1162,7 @@
   }
   .nutrition-bar-track {
     width: 100%;
-    height: 140px;
+    height: 180px;
     background: #0c0f12;
     border-radius: 6px;
     overflow: hidden;
@@ -2630,14 +2618,7 @@ function paintNutritionChart_(records, metric, days) {
     `;
   }).join('');
 
-  const yMaxLabel = maxVal > 0 ? `${Math.round(maxVal)}${unit}` : '';
-  el.innerHTML = `
-    <div class="nutrition-history-axis-y">
-      <span>${escapeHtml(yMaxLabel)}</span>
-      <span>0</span>
-    </div>
-    <div class="nutrition-history-bars">${bars}</div>
-  `;
+  el.innerHTML = `<div class="nutrition-history-bars">${bars}</div>`;
 }
 
 async function renderNutritionHistoryChart() {
