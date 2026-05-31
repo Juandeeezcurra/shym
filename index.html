@@ -405,7 +405,8 @@
     cursor: pointer;
   }
   .routine-detail .day-card,
-  #screen-routine-detail .day-card {
+  #screen-routine-detail .day-card,
+  #tp-days .day-card {
     min-height: 220px;
   }
   .day-preview-list {
@@ -1345,7 +1346,7 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     #tp-days .day-grid {
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     #train-exercises,
     #summary-exercises,
@@ -3674,13 +3675,20 @@ function renderTrainDays(days) {
   }
   el.innerHTML = `
     <div class="day-grid">
-      ${days.map(d => `
+      ${days.map(d => {
+        const exs = d.exercises || [];
+        return `
         <div class="day-card" data-action="start-train-day" data-day-id="${escapeHtml(d.day_id)}">
           <h3 style="margin-bottom:4px;">${escapeHtml(d.day_name)}</h3>
-          <p class="muted-sm">${d.exercises.length} ejercicio${d.exercises.length === 1 ? '' : 's'}</p>
+          <p class="muted-sm">${exs.length} ejercicio${exs.length === 1 ? '' : 's'}</p>
+          ${exs.length ? `
+            <ul class="day-preview-list">
+              ${exs.map(ex => `<li>${escapeHtml(ex.exercise_name || '')}</li>`).join('')}
+            </ul>
+          ` : `<p class="muted-sm" style="margin-top:6px;font-style:italic;opacity:.7;">Sin ejercicios</p>`}
           <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;">${renderWeekDayChips(d.week_days)}</div>
         </div>
-      `).join('')}
+      `;}).join('')}
     </div>
   `;
 }
