@@ -404,6 +404,42 @@
     min-height: 82px;
     cursor: pointer;
   }
+  .day-preview-list {
+    list-style: none;
+    margin: 8px 0 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .day-preview-list li {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.35;
+    padding-left: 10px;
+    position: relative;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .day-preview-list li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 7px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.65;
+  }
+  .day-preview-list .day-preview-more {
+    color: var(--muted-2);
+    font-style: italic;
+  }
+  .day-preview-list .day-preview-more::before {
+    display: none;
+  }
 
   /* Training */
   .train-pick-card {
@@ -678,6 +714,7 @@
     margin-bottom: 14px;
   }
   .segmented.progress-tabs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     border-radius: 32px;
     padding: 8px;
     gap: 8px;
@@ -1027,31 +1064,110 @@
     margin-bottom: 12px;
   }
   .nutrition-full-card .nutrition-macros { margin-top: 14px; }
-  .nutrition-history-chart {
-    width: 100%;
-    height: 140px;
-    display: block;
-    margin-top: 6px;
+  .nutrition-history-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
   }
-  .nutrition-history-bar-row {
-    display: grid;
-    grid-template-columns: 48px 1fr 48px;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
+  .nutrition-history-tab {
+    flex: 1 1 0;
+    min-width: 64px;
+    padding: 8px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
     font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
   }
-  .nutrition-bar-track {
-    height: 8px;
+  .nutrition-history-tab.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .nutrition-history-range {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 10px;
     background: #0c0f12;
     border-radius: 999px;
+    padding: 3px;
+    width: fit-content;
+  }
+  .nutrition-history-range-btn {
+    padding: 6px 14px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .nutrition-history-range-btn.active {
+    background: var(--border);
+    color: var(--text);
+  }
+  .nutrition-history-summary {
+    display: flex;
+    gap: 18px;
+    margin-bottom: 12px;
+    font-size: 12px;
+    color: var(--muted);
+    flex-wrap: wrap;
+  }
+  .nutrition-history-summary strong {
+    color: var(--text);
+    font-weight: 700;
+    margin-right: 4px;
+  }
+  .nutrition-history-chart {
+    width: 100%;
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
+    margin-top: 10px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .nutrition-history-bar-col {
+    flex: 1 1 0;
+    min-width: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+  }
+  .nutrition-bar-value {
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1;
+    min-height: 12px;
+  }
+  .nutrition-bar-track {
+    width: 100%;
+    height: 140px;
+    background: #0c0f12;
+    border-radius: 6px;
     overflow: hidden;
+    display: flex;
+    align-items: flex-end;
   }
   .nutrition-bar-fill {
-    height: 100%;
+    width: 100%;
     border-radius: inherit;
     background: var(--accent);
-    transition: width 0.3s ease;
+    transition: height 0.3s ease;
+  }
+  .nutrition-bar-label {
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1;
   }
   .nutrition-water-field { display: flex; align-items: center; gap: 8px; }
   .nutrition-water-field input { flex: 1; }
@@ -1090,8 +1206,9 @@
     .nav-brand {
       display: flex;
       align-items: center;
-      padding: 4px 12px 18px;
-      margin-bottom: 8px;
+      justify-content: center;
+      padding: 8px 8px 20px;
+      margin-bottom: 10px;
       border-bottom: 1px solid var(--border);
       background: transparent;
       border-top: 0;
@@ -1102,9 +1219,11 @@
     }
     .nav-brand:hover { opacity: 0.85; }
     .nav-brand-logo {
-      height: 32px;
+      height: 56px;
       width: auto;
       display: block;
+      mix-blend-mode: screen;
+      filter: drop-shadow(0 0 8px rgba(255, 90, 42, 0.18));
     }
 
     .nav-btn,
@@ -1224,7 +1343,7 @@
 
     /* ---------- Progress ---------- */
     .segmented.progress-tabs {
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       border-radius: 18px;
     }
     .segmented.progress-tabs button {
@@ -1609,10 +1728,21 @@
 
     <div class="section">
       <div class="header-row">
-        <h2 style="margin:0;">Últimos 14 días</h2>
+        <h2 style="margin:0;" id="nutrition-history-title">Últimos 14 días</h2>
       </div>
       <div class="card">
-        <p class="muted" style="font-size:13px;margin-bottom:10px;">Calorías diarias</p>
+        <div class="nutrition-history-tabs" id="nutrition-history-tabs" role="tablist">
+          <button type="button" class="nutrition-history-tab active" data-action="nutrition-history-metric" data-metric="kcal">Kcal</button>
+          <button type="button" class="nutrition-history-tab" data-action="nutrition-history-metric" data-metric="protein">Proteína</button>
+          <button type="button" class="nutrition-history-tab" data-action="nutrition-history-metric" data-metric="fat">Grasas</button>
+          <button type="button" class="nutrition-history-tab" data-action="nutrition-history-metric" data-metric="carbs">Carbos</button>
+        </div>
+        <div class="nutrition-history-range" id="nutrition-history-range">
+          <button type="button" class="nutrition-history-range-btn" data-action="nutrition-history-days" data-days="7">7d</button>
+          <button type="button" class="nutrition-history-range-btn active" data-action="nutrition-history-days" data-days="14">14d</button>
+          <button type="button" class="nutrition-history-range-btn" data-action="nutrition-history-days" data-days="30">30d</button>
+        </div>
+        <div class="nutrition-history-summary" id="nutrition-history-summary"></div>
         <div id="nutrition-history-chart"></div>
       </div>
     </div>
@@ -1730,6 +1860,8 @@ const state = {
   exerciseNameSuggestions: null,
   dayExerciseView: 'order',
   nutritionCurrentDate: null,
+  nutritionHistoryMetric: 'kcal',
+  nutritionHistoryDays: 14,
   apiCache: {},
   navSeq: 0,
   loadTokens: {},
@@ -2167,7 +2299,10 @@ function renderNutritionCard_(el, data) {
           <div class="metric-large">${data.weight != null && data.weight !== '' ? escapeHtml(String(data.weight)) + ' kg' : '—'}</div>
           <div class="metric-label">Peso en ayunas</div>
         </div>
-        <span class="nutrition-trained ${data.trained ? 'yes' : ''}">${data.trained ? '✓ Entrenó' : 'Sin entrenar'}</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+          <span class="nutrition-trained ${data.trained ? 'yes' : ''}">${data.trained ? '✓ Entrenó' : 'Sin entrenar'}</span>
+          <button class="ghost-btn" style="padding:6px 12px;font-size:12px;" data-action="edit-nutrition">Editar</button>
+        </div>
       </div>
       <div class="nutrition-macros">
         ${macroCell(data.kcal, 'Kcal', '')}
@@ -2286,8 +2421,10 @@ function openNutritionModal_(date, data) {
           // Update local cache
           setApiCache('getNutritionForDate', [{ date }], next);
           // Bust history cache so it reloads
-          delete state.apiCache[apiCacheKey('getNutritionHistory', [{ days: 14 }])];
-          delete state.apiCache[apiCacheKey('getNutritionHistory', [{ days: 14, end_date: todayInputValue() }])];
+          [7, 14, 30].forEach(d => {
+            delete state.apiCache[apiCacheKey('getNutritionHistory', [{ days: d }])];
+            delete state.apiCache[apiCacheKey('getNutritionHistory', [{ days: d, end_date: todayInputValue() }])];
+          });
           if (state.currentScreen === 'nutrition') {
             renderNutritionDay(date);
             renderNutritionHistoryChart();
@@ -2402,11 +2539,32 @@ async function renderNutritionDay(date) {
   `;
 }
 
+const NUTRITION_METRIC_UNIT = { kcal: '', protein: 'g', fat: 'g', carbs: 'g' };
+const NUTRITION_METRIC_LABEL = { kcal: 'kcal', protein: 'g prot.', fat: 'g grasas', carbs: 'g carbos' };
+
 async function renderNutritionHistoryChart() {
   const el = $('#nutrition-history-chart');
   if (!el) return;
+  const metric = state.nutritionHistoryMetric || 'kcal';
+  const days = Number(state.nutritionHistoryDays) || 14;
+
+  const tabsEl = $('#nutrition-history-tabs');
+  if (tabsEl) {
+    $$('.nutrition-history-tab', tabsEl).forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.metric === metric);
+    });
+  }
+  const rangeEl = $('#nutrition-history-range');
+  if (rangeEl) {
+    $$('.nutrition-history-range-btn', rangeEl).forEach(btn => {
+      btn.classList.toggle('active', Number(btn.dataset.days) === days);
+    });
+  }
+  const titleEl = $('#nutrition-history-title');
+  if (titleEl) titleEl.textContent = `Últimos ${days} días`;
+
   const today = todayInputValue();
-  const args = [{ days: 14, end_date: today }];
+  const args = [{ days, end_date: today }];
   let records = null;
   try {
     const cached = getApiCache('getNutritionHistory', args, API_CACHE_TTL.getNutritionHistory);
@@ -2415,19 +2573,36 @@ async function renderNutritionHistoryChart() {
       : await cachedGas('getNutritionHistory', args);
   } catch { records = []; }
 
-  if (!records || !records.length) { el.innerHTML = ''; return; }
-  const kcals = records.map(r => r.kcal != null ? Number(r.kcal) : null);
-  const maxKcal = Math.max(...kcals.filter(k => k != null), 1);
+  const summaryEl = $('#nutrition-history-summary');
+  if (!records || !records.length) {
+    if (summaryEl) summaryEl.innerHTML = '';
+    el.innerHTML = '';
+    return;
+  }
+
+  const values = records.map(r => r[metric] != null ? Number(r[metric]) : null);
+  const present = values.filter(v => v != null && Number.isFinite(v));
+  const maxVal = Math.max(...present, 1);
+  const avg = present.length ? Math.round(present.reduce((a, b) => a + b, 0) / present.length) : null;
+  const unit = NUTRITION_METRIC_UNIT[metric] || '';
+  const label = NUTRITION_METRIC_LABEL[metric] || '';
+
+  if (summaryEl) {
+    summaryEl.innerHTML = `
+      <div><strong>${avg != null ? escapeHtml(String(avg)) + unit : '—'}</strong> promedio ${escapeHtml(label)}</div>
+      <div><strong>${present.length}</strong>/${records.length} días con registro</div>
+    `;
+  }
 
   el.innerHTML = records.map((r, i) => {
-    const kcal = kcals[i];
-    const pct = kcal != null ? Math.max(4, Math.round((kcal / maxKcal) * 100)) : 0;
+    const val = values[i];
+    const pct = val != null ? Math.max(4, Math.round((val / maxVal) * 100)) : 0;
     const dateLabel = (r.date || '').slice(8);
     return `
-      <div class="nutrition-history-bar-row">
-        <span class="muted-sm" style="text-align:right;">${escapeHtml(dateLabel)}</span>
-        <div class="nutrition-bar-track"><div class="nutrition-bar-fill" style="width:${pct}%;"></div></div>
-        <span class="muted-sm">${kcal != null ? escapeHtml(String(kcal)) : '—'}</span>
+      <div class="nutrition-history-bar-col">
+        <span class="nutrition-bar-value">${val != null ? escapeHtml(String(val)) + unit : ''}</span>
+        <div class="nutrition-bar-track"><div class="nutrition-bar-fill" style="height:${pct}%;"></div></div>
+        <span class="nutrition-bar-label">${escapeHtml(dateLabel)}</span>
       </div>
     `;
   }).join('');
@@ -2648,21 +2823,32 @@ function renderDays(days) {
     `;
     return;
   }
+  const previewCount = 5;
   el.innerHTML = `
     <div class="day-grid">
-      ${days.map((d, i) => `
-        <div class="day-card" style="display:flex;align-items:center;gap:8px;">
-          <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;">
+      ${days.map((d, i) => {
+        const exs = d.exercises || [];
+        const preview = exs.slice(0, previewCount);
+        const remaining = exs.length - preview.length;
+        return `
+        <div class="day-card" style="display:flex;align-items:flex-start;gap:8px;">
+          <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;padding-top:2px;">
             <button class="ghost-btn reorder-btn" data-action="reorder-day" data-day-id="${escapeHtml(d.day_id)}" data-direction="up" ${i === 0 ? 'disabled' : ''} style="padding:2px 7px;font-size:13px;line-height:1;">↑</button>
             <button class="ghost-btn reorder-btn" data-action="reorder-day" data-day-id="${escapeHtml(d.day_id)}" data-direction="down" ${i === days.length - 1 ? 'disabled' : ''} style="padding:2px 7px;font-size:13px;line-height:1;">↓</button>
           </div>
           <div style="flex:1;min-width:0;" data-action="open-day" data-day-id="${escapeHtml(d.day_id)}">
             <h3 style="margin-bottom:4px;">${escapeHtml(d.day_name)}</h3>
-            <p class="muted-sm">${d.exercises.length} ejercicio${d.exercises.length === 1 ? '' : 's'}</p>
+            <p class="muted-sm">${exs.length} ejercicio${exs.length === 1 ? '' : 's'}</p>
+            ${exs.length ? `
+              <ul class="day-preview-list">
+                ${preview.map(ex => `<li>${escapeHtml(ex.exercise_name || '')}</li>`).join('')}
+                ${remaining > 0 ? `<li class="day-preview-more">+${remaining} más</li>` : ''}
+              </ul>
+            ` : `<p class="muted-sm" style="margin-top:6px;font-style:italic;opacity:.7;">Sin ejercicios</p>`}
             <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;">${renderWeekDayChips(d.week_days)}</div>
           </div>
         </div>
-      `).join('')}
+      `;}).join('')}
     </div>
   `;
 }
@@ -3972,23 +4158,32 @@ function renderExerciseProgressChart(sessions) {
   const values = points.map(p => Number(p.e1rm_max || p.weight_max || 0));
   const min = Math.min(...values);
   const max = Math.max(...values);
-  const spread = Math.max(max - min, 0.5);
+  const isFlat = (max - min) < 0.05;
+  const topY = 24;
+  const bottomY = 124;
+  const range = bottomY - topY;
   const coords = points.map((p, i) => {
-    const x = 8 + (i / (points.length - 1)) * 284;
-    const y = 132 - ((values[i] - min) / spread) * 108;
+    const x = 18 + (i / (points.length - 1)) * 264;
+    const y = isFlat
+      ? topY + range / 2
+      : bottomY - ((values[i] - min) / (max - min)) * range;
     return { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 };
   });
   const polyline = coords.map(c => `${c.x},${c.y}`).join(' ');
-  const area = `8,140 ${polyline} 292,140`;
+  const area = `18,${bottomY + 6} ${polyline} 282,${bottomY + 6}`;
+  const topLabel = isFlat ? '' : escapeHtml(units.toDisplay(max) + ' ' + units.label());
+  const bottomLabel = isFlat
+    ? escapeHtml(units.toDisplay(min) + ' ' + units.label())
+    : escapeHtml(units.toDisplay(min) + ' ' + units.label());
   return `
     <svg class="progress-exercise-chart" viewBox="0 0 300 150" role="img" aria-label="Evolución de 1RM estimado">
       <path d="M${area}" fill="rgba(255,90,42,0.12)"></path>
       <polyline points="${polyline}" fill="none" stroke="var(--accent)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
       ${coords.map((c, i) => `<circle cx="${c.x}" cy="${c.y}" r="4" fill="var(--accent)" data-action="open-session" data-session-id="${escapeHtml(points[i].session_id)}" style="cursor:pointer;"></circle>`).join('')}
-      <text x="8" y="14" fill="var(--muted)" font-size="10">${escapeHtml(units.toDisplay(max) + ' ' + units.label())}</text>
-      <text x="8" y="148" fill="var(--muted)" font-size="10">${escapeHtml(units.toDisplay(min) + ' ' + units.label())}</text>
-      <text x="10" y="140" fill="var(--muted-2)" font-size="9">${escapeHtml(formatDateShort(points[0].date))}</text>
-      <text x="240" y="140" fill="var(--muted-2)" font-size="9">${escapeHtml(formatDateShort(points[points.length - 1].date))}</text>
+      ${topLabel ? `<text x="8" y="18" fill="var(--muted)" font-size="10">${topLabel}</text>` : ''}
+      <text x="8" y="146" fill="var(--muted)" font-size="10">${bottomLabel}</text>
+      <text x="18" y="${bottomY + 16}" fill="var(--muted-2)" font-size="9" text-anchor="start">${escapeHtml(formatDateShort(points[0].date))}</text>
+      <text x="282" y="${bottomY + 16}" fill="var(--muted-2)" font-size="9" text-anchor="end">${escapeHtml(formatDateShort(points[points.length - 1].date))}</text>
     </svg>
   `;
 }
@@ -5169,6 +5364,22 @@ document.addEventListener('click', (e) => {
       if (next <= todayInputValue()) {
         state.nutritionCurrentDate = next;
         renderNutritionScreen();
+      }
+      break;
+    }
+    case 'nutrition-history-metric': {
+      const m = t.dataset.metric;
+      if (m && m !== state.nutritionHistoryMetric) {
+        state.nutritionHistoryMetric = m;
+        renderNutritionHistoryChart();
+      }
+      break;
+    }
+    case 'nutrition-history-days': {
+      const d = Number(t.dataset.days);
+      if (d && d !== state.nutritionHistoryDays) {
+        state.nutritionHistoryDays = d;
+        renderNutritionHistoryChart();
       }
       break;
     }
