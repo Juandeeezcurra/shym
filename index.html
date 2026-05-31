@@ -928,6 +928,117 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* ---- Home: bodyweight sparkline ---- */
+  .home-bw {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 12px 16px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .home-bw-main {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .home-bw-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .home-bw-value {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+  }
+  .home-bw-value small { font-size: 12px; font-weight: 700; color: var(--muted); margin-left: 4px; }
+  .home-bw-delta {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    margin-top: 2px;
+  }
+  .home-bw-delta.up { color: var(--accent); }
+  .home-bw-delta.down { color: var(--good); }
+  .home-bw-delta.flat { color: var(--muted); }
+  .home-bw-spark {
+    flex: 1;
+    height: 38px;
+    min-width: 0;
+  }
+  .home-bw-spark svg { width: 100%; height: 100%; display: block; }
+
+  /* ---- Home: PR card ---- */
+  .home-pr {
+    background: linear-gradient(135deg, rgba(73,226,120,0.10) 0%, rgba(17,21,25,0.94) 70%);
+    border: 1px solid rgba(73,226,120,0.25);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+    margin-bottom: 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    transition: border-color 0.12s;
+  }
+  .home-pr:hover { border-color: rgba(73,226,120,0.5); }
+  .home-pr-medal {
+    flex-shrink: 0;
+    width: 38px; height: 38px;
+    border-radius: 999px;
+    background: rgba(73,226,120,0.18);
+    border: 1px solid rgba(73,226,120,0.35);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+  }
+  .home-pr-body {
+    flex: 1; min-width: 0;
+  }
+  .home-pr-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--good);
+    font-weight: 800;
+    margin-bottom: 2px;
+  }
+  .home-pr-title {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    line-height: 1.25;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .home-pr-meta {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 2px;
+  }
+  .home-pr-meta strong { color: var(--text); }
+
+  /* ---- Week card delta enhancement ---- */
+  .home-week-delta {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 999px;
+    margin-left: 6px;
+  }
+  .home-week-delta.up { background: rgba(255,90,42,0.16); color: var(--accent); }
+  .home-week-delta.down { background: rgba(255,255,255,0.06); color: var(--muted); }
+  .home-week-delta.flat { background: rgba(255,255,255,0.06); color: var(--muted); }
+
   /* ---- Home: today's training card ---- */
   .home-today {
     position: relative;
@@ -1688,6 +1799,8 @@
       <div class="avatar">J</div>
     </div>
 
+    <div id="home-bw-card" class="home-bw" style="display:none;"></div>
+
     <div id="home-today-card" class="home-today">
       <div class="skeleton" style="height:160px;"></div>
     </div>
@@ -1695,6 +1808,8 @@
     <div id="home-week-card" class="home-week">
       <div class="skeleton" style="height:140px;"></div>
     </div>
+
+    <div id="home-pr-card" class="home-pr" style="display:none;"></div>
 
     <div class="section home-section">
       <div class="header-row">
@@ -3049,9 +3164,111 @@ async function loadHomeStats(navToken) {
 }
 
 function renderHomeStats(stats) {
+  renderHomeBodyweightCard_(stats.bodyweight_history);
   renderHomeTodayCard_(stats);
   renderHomeWeekCard_(stats);
+  renderHomePrCard_(stats.recent_pr);
   renderHomeLastSession_(stats.last_session);
+}
+
+function renderHomeBodyweightCard_(history) {
+  const el = $('#home-bw-card');
+  if (!el) return;
+  const points = (history || []).filter(p => p && p.weight != null);
+  if (points.length < 2) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'flex';
+
+  const latest = points[points.length - 1];
+  const last7 = points.filter(p => p.date >= addDaysIso_Client(latest.date, -6));
+  const prev7Start = addDaysIso_Client(latest.date, -13);
+  const prev7End = addDaysIso_Client(latest.date, -7);
+  const prev7 = points.filter(p => p.date >= prev7Start && p.date <= prev7End);
+
+  let deltaHtml = '';
+  if (last7.length && prev7.length) {
+    const avg = arr => arr.reduce((a, p) => a + p.weight, 0) / arr.length;
+    const diff = avg(last7) - avg(prev7);
+    const sign = diff > 0.05 ? '▲' : (diff < -0.05 ? '▼' : '–');
+    const cls = diff > 0.05 ? 'up' : (diff < -0.05 ? 'down' : 'flat');
+    const fmt = Math.abs(diff) >= 0.1 ? Math.abs(diff).toFixed(1) : Math.abs(diff).toFixed(2);
+    deltaHtml = `<div class="home-bw-delta ${cls}">${sign} ${fmt} kg vs sem. ant.</div>`;
+  }
+
+  const W = 200, H = 38, pad = 4;
+  const weights = points.map(p => p.weight);
+  const minW = Math.min(...weights);
+  const maxW = Math.max(...weights);
+  const range = (maxW - minW) || 1;
+  const stepX = points.length > 1 ? (W - pad * 2) / (points.length - 1) : 0;
+  const ptsXY = points.map((p, i) => {
+    const x = pad + stepX * i;
+    const y = pad + (H - pad * 2) * (1 - (p.weight - minW) / range);
+    return [x, y];
+  });
+  const path = ptsXY.map((xy, i) => `${i === 0 ? 'M' : 'L'}${xy[0].toFixed(1)},${xy[1].toFixed(1)}`).join(' ');
+  const area = `${path} L${ptsXY[ptsXY.length-1][0].toFixed(1)},${H} L${ptsXY[0][0].toFixed(1)},${H} Z`;
+  const lastPt = ptsXY[ptsXY.length - 1];
+
+  el.innerHTML = `
+    <div class="home-bw-main">
+      <span class="home-bw-label">Peso</span>
+      <span class="home-bw-value">${latest.weight.toFixed(1)}<small>kg</small></span>
+      ${deltaHtml}
+    </div>
+    <div class="home-bw-spark">
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="bw-grad" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stop-color="var(--accent)" stop-opacity="0.35" />
+            <stop offset="100%" stop-color="var(--accent)" stop-opacity="0" />
+          </linearGradient>
+        </defs>
+        <path d="${area}" fill="url(#bw-grad)" />
+        <path d="${path}" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" />
+        <circle cx="${lastPt[0].toFixed(1)}" cy="${lastPt[1].toFixed(1)}" r="2.4" fill="var(--accent)" />
+      </svg>
+    </div>
+  `;
+}
+
+function addDaysIso_Client(iso, days) {
+  const d = parseIsoDateLocalClient(iso);
+  d.setDate(d.getDate() + days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${dd}`;
+}
+
+function renderHomePrCard_(pr) {
+  const el = $('#home-pr-card');
+  if (!el) return;
+  if (!pr || !pr.exercise_name) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'flex';
+
+  const today = parseIsoDateLocalClient(todayInputValue());
+  const prDate = parseIsoDateLocalClient(pr.date);
+  const daysAgo = Math.max(0, Math.round((today - prDate) / 86400000));
+  const dateLabel = daysAgo === 0 ? 'hoy' : daysAgo === 1 ? 'ayer' : `hace ${daysAgo} días`;
+
+  const unit = pr.type === 'e1rm' ? 'kg e1RM' : 'kg';
+  const prev = pr.previous != null ? Number(pr.previous) : null;
+  const val = Number(pr.value);
+  const diff = prev != null && !isNaN(prev) ? (val - prev) : null;
+  const diffStr = diff != null && diff > 0
+    ? ` (+${diff % 1 === 0 ? diff : diff.toFixed(1)})`
+    : '';
+
+  el.dataset.action = 'open-session';
+  el.dataset.sessionId = pr.session_id || '';
+  el.innerHTML = `
+    <div class="home-pr-medal">🏆</div>
+    <div class="home-pr-body">
+      <div class="home-pr-label">PR reciente · ${escapeHtml(dateLabel)}</div>
+      <div class="home-pr-title">${escapeHtml(pr.exercise_name)}</div>
+      <div class="home-pr-meta"><strong>${val % 1 === 0 ? val : val.toFixed(1)} ${unit}</strong>${diffStr}</div>
+    </div>
+  `;
 }
 
 function renderHomeTodayCard_(stats) {
@@ -3148,9 +3365,21 @@ function renderHomeWeekCard_(stats) {
     `;
   }).join('');
   const summary = stats.week_summary || { session_count: 0, total_volume: 0 };
-  const volStr = summary.total_volume >= 1000
-    ? (summary.total_volume / 1000).toFixed(1) + 'k'
-    : Math.round(summary.total_volume);
+  const prev = stats.previous_week_summary;
+  const fmtVol = (v) => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(Math.round(v));
+  const volStr = fmtVol(summary.total_volume);
+  let deltaHtml = '';
+  if (prev && prev.total_volume > 0) {
+    const ratio = summary.total_volume / prev.total_volume;
+    const pct = Math.round((ratio - 1) * 100);
+    if (Math.abs(pct) >= 1) {
+      const cls = pct > 0 ? 'up' : 'down';
+      const arrow = pct > 0 ? '▲' : '▼';
+      deltaHtml = `<span class="home-week-delta ${cls}">${arrow} ${Math.abs(pct)}%</span>`;
+    } else {
+      deltaHtml = `<span class="home-week-delta flat">= sem. ant.</span>`;
+    }
+  }
   el.innerHTML = `
     <div class="home-week-head">
       <div class="home-week-title">Esta semana</div>
@@ -3159,7 +3388,7 @@ function renderHomeWeekCard_(stats) {
     <div class="home-week-grid">${cells}</div>
     <div class="home-week-footer">
       <span><strong>${summary.session_count}</strong> ${summary.session_count === 1 ? 'sesión' : 'sesiones'}</span>
-      <span><strong>${volStr}</strong> kg movidos</span>
+      <span><strong>${volStr}</strong> kg ${deltaHtml}</span>
     </div>
   `;
 }

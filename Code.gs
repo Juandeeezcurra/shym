@@ -1594,6 +1594,10 @@ function getHomeStats() {
     }
   }
 
+  const previousWeekSummary = getPreviousWeekSummary_(sessions, sets, today);
+  const bodyweightHistory = getRecentBodyweight_(14);
+  const recentPr = getMostRecentPr_(sessions, sets);
+
   return {
     today: today,
     today_weekday: todayWeekday,
@@ -1619,8 +1623,79 @@ function getHomeStats() {
       session_count: weekSessionCount,
       total_volume: weekVolume,
     },
+    previous_week_summary: previousWeekSummary,
+    bodyweight_history: bodyweightHistory,
+    recent_pr: recentPr,
     today_day: todayDay,
   };
+}
+
+function getRecentBodyweight_(days) {
+  const today = todayIso_();
+  const start = addDaysIso_(today, -(days - 1));
+  const rows = readAll_(SHEETS.NUTRITION) || [];
+  const out = [];
+  rows.forEach(r => {
+    if (!r || !r.date) return;
+    const d = normalizeDate_(r.date);
+    if (!d || d < start || d > today) return;
+    const w = numOrNull_(r.weight);
+    if (w == null) return;
+    out.push({ date: d, weight: w });
+  });
+  out.sort((a, b) => a.date.localeCompare(b.date));
+  return out;
+}
+
+function getMostRecentPr_(sessions, sets) {
+  const setsBySession = groupBy_(sets || [], 'session_id');
+  const history = {};
+  let mostRecent = null;
+  sortSessionsAsc_(sessions || []).forEach(session => {
+    const byExercise = {};
+    (setsBySession[session.session_id] || []).forEach(set => {
+      const name = (set.exercise_name || '').toString().trim();
+      if (!name) return;
+      if (!byExercise[name]) byExercise[name] = [];
+      byExercise[name].push({
+        weight: set.weight === '' ? null : Number(set.weight),
+        reps: set.reps === '' ? null : Number(set.reps),
+      });
+    });
+    Object.keys(byExercise).forEach(exerciseName => {
+      const current = calcSetMetrics_(byExercise[exerciseName]);
+      const prev = history[exerciseName] || { weight_max: 0, e1rm_max: 0 };
+      let prInfo = null;
+      if (prev.weight_max > 0 && current.weight_max > prev.weight_max) {
+        prInfo = {
+          type: 'weight',
+          value: current.weight_max,
+          previous: prev.weight_max,
+        };
+      } else if (prev.e1rm_max > 0 && current.e1rm_max > prev.e1rm_max) {
+        prInfo = {
+          type: 'e1rm',
+          value: Math.round(current.e1rm_max * 10) / 10,
+          previous: Math.round(prev.e1rm_max * 10) / 10,
+        };
+      }
+      if (prInfo) {
+        mostRecent = {
+          date: normalizeDate_(session.date),
+          session_id: session.session_id,
+          exercise_name: exerciseName,
+          type: prInfo.type,
+          value: prInfo.value,
+          previous: prInfo.previous,
+        };
+      }
+      history[exerciseName] = {
+        weight_max: Math.max(prev.weight_max || 0, current.weight_max || 0),
+        e1rm_max: Math.max(prev.e1rm_max || 0, current.e1rm_max || 0),
+      };
+    });
+  });
+  return mostRecent;
 }
 
 function getPreviousWeekSummary_(sessions, sets, todayIso) {
