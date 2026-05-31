@@ -1500,9 +1500,13 @@ function buildSuggestion_(sets, template) {
 // ============================================================
 
 function getHomeStats() {
+  const today = todayIso_();
+  const todayWeekday = getIsoWeekday_(today);
   const sessions = readAll_(SHEETS.SESSIONS);
   const sets = readAll_(SHEETS.SETS);
   const routines = readAll_(SHEETS.ROUTINES);
+  const allDays = readAll_(SHEETS.DAYS);
+  const allExercises = readAll_(SHEETS.EXERCISES);
   const activeRoutine = routines.find(r => isTrue_(r.is_active));
   const lastSession = sortSessionsDesc_(sessions)[0] || null;
 
@@ -1516,7 +1520,84 @@ function getHomeStats() {
     setCount = sessionSets.length;
   }
 
+  const setsBySession = groupBy_(sets, 'session_id');
+  const weekActivity = [];
+  const weekRange = getWeekRange_(today);
+  for (let i = 0; i < 7; i++) {
+    const iso = addDaysIso_(weekRange.start, i);
+    const daySessions = sessions.filter(s => normalizeDate_(s.date) === iso);
+    let volume = 0;
+    daySessions.forEach(ses => {
+      volume += calcRawVolume_(setsBySession[ses.session_id] || []);
+    });
+    weekActivity.push({
+      date: iso,
+      weekday: getIsoWeekday_(iso),
+      session_count: daySessions.length,
+      total_volume: Math.round(volume * 100) / 100,
+      is_today: iso === today,
+      is_future: iso > today,
+    });
+  }
+  const weekSessionCount = weekActivity.reduce((a, d) => a + d.session_count, 0);
+  const weekVolume = Math.round(weekActivity.reduce((a, d) => a + d.total_volume, 0) * 100) / 100;
+  const trainedToday = sessions.some(s => normalizeDate_(s.date) === today);
+
+  let todayDay = null;
+  if (activeRoutine) {
+    const routineDays = allDays
+      .filter(d => d.routine_id === activeRoutine.routine_id)
+      .sort((a, b) => Number(a.day_order || 0) - Number(b.day_order || 0));
+    let chosenDay = routineDays.find(d => parseWeekDays_(d.week_days).indexOf(todayWeekday) >= 0);
+    let isScheduledToday = !!chosenDay;
+    if (!chosenDay) {
+      const scheduled = routineDays.filter(d => parseWeekDays_(d.week_days).length > 0);
+      if (scheduled.length) {
+        let bestDay = null;
+        let bestDist = 99;
+        scheduled.forEach(d => {
+          parseWeekDays_(d.week_days).forEach(wd => {
+            let dist = wd - todayWeekday;
+            if (dist <= 0) dist += 7;
+            if (dist < bestDist) { bestDist = dist; bestDay = d; }
+          });
+        });
+        chosenDay = bestDay;
+      }
+    }
+    if (!chosenDay && routineDays.length) {
+      const lastInRoutine = sortSessionsDesc_(sessions.filter(s => s.routine_id === activeRoutine.routine_id))[0];
+      if (lastInRoutine) {
+        const idx = routineDays.findIndex(d => d.day_id === lastInRoutine.day_id);
+        chosenDay = routineDays[(idx + 1) % routineDays.length];
+      } else {
+        chosenDay = routineDays[0];
+      }
+    }
+    if (chosenDay) {
+      const dayExercises = allExercises
+        .filter(e => e.day_id === chosenDay.day_id)
+        .sort((a, b) => Number(a.exercise_order || 0) - Number(b.exercise_order || 0))
+        .map(e => ({
+          exercise_name: e.exercise_name,
+          target_sets: Number(e.target_sets || 0),
+          target_reps_min: Number(e.target_reps_min || 0),
+          target_reps_max: Number(e.target_reps_max || 0),
+          muscle_group: normalizeMuscleGroup_(e.muscle_group),
+        }));
+      todayDay = {
+        day_id: chosenDay.day_id,
+        day_name: chosenDay.day_name,
+        is_scheduled_today: isScheduledToday,
+        exercises: dayExercises,
+      };
+    }
+  }
+
   return {
+    today: today,
+    today_weekday: todayWeekday,
+    trained_today: trainedToday,
     active_routine: activeRoutine ? {
       routine_id: activeRoutine.routine_id,
       routine_name: activeRoutine.routine_name,
@@ -1531,6 +1612,14 @@ function getHomeStats() {
       exercise_count: exerciseCount,
       set_count: setCount,
     } : null,
+    week_activity: weekActivity,
+    week_summary: {
+      start: weekRange.start,
+      end: weekRange.end,
+      session_count: weekSessionCount,
+      total_volume: weekVolume,
+    },
+    today_day: todayDay,
   };
 }
 

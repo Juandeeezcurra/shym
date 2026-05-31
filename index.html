@@ -928,6 +928,262 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
 
+  /* ---- Home: today's training card ---- */
+  .home-today {
+    position: relative;
+    background: linear-gradient(160deg, rgba(255,90,42,0.10) 0%, rgba(17,21,25,0.94) 60%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 18px 16px 16px;
+    margin-bottom: 18px;
+    overflow: hidden;
+  }
+  .home-today::before {
+    content: '';
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 160px; height: 160px;
+    background: radial-gradient(circle, rgba(255,90,42,0.18) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .home-today-eyebrow {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .home-today-eyebrow .dot {
+    width: 6px; height: 6px;
+    border-radius: 999px;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px rgba(255,90,42,0.18);
+  }
+  .home-today-eyebrow.done .dot { background: var(--good); box-shadow: 0 0 0 4px rgba(73,226,120,0.18); }
+  .home-today-title {
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    margin-bottom: 4px;
+  }
+  .home-today-sub {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 14px;
+  }
+  .home-today-exercises {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 14px;
+    margin-bottom: 16px;
+  }
+  .home-today-ex {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    min-width: 0;
+    font-size: 13px;
+  }
+  .home-today-ex::before {
+    content: '';
+    flex: 0 0 5px;
+    width: 5px; height: 5px;
+    border-radius: 999px;
+    background: var(--accent);
+    transform: translateY(-2px);
+  }
+  .home-today-ex-name {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .home-today-ex-meta {
+    color: var(--muted);
+    font-size: 11px;
+    flex-shrink: 0;
+  }
+  .home-today-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .home-today-btn {
+    flex: 1;
+    background: var(--accent);
+    color: #101010;
+    border: 0;
+    border-radius: 999px;
+    padding: 13px 18px;
+    font-size: 15px;
+    font-weight: 800;
+    cursor: pointer;
+    letter-spacing: -0.01em;
+  }
+  .home-today-btn:hover { opacity: 0.9; }
+  .home-today-btn.secondary {
+    background: transparent;
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .home-today-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    background: rgba(73,226,120,0.14);
+    border: 1px solid rgba(73,226,120,0.35);
+    color: var(--good);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  /* ---- Home: weekly heatmap ---- */
+  .home-week {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    margin-bottom: 18px;
+  }
+  .home-week-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+  .home-week-title {
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+  }
+  .home-week-sub {
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .home-week-grid {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .home-week-day {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .home-week-day-letter {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .home-week-day.is-today .home-week-day-letter { color: var(--accent); }
+  .home-week-cell {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: var(--muted);
+    font-weight: 700;
+    transition: transform 0.12s;
+  }
+  .home-week-cell.intensity-1 { background: rgba(255,90,42,0.18); border-color: rgba(255,90,42,0.28); color: rgba(255,255,255,0.7); }
+  .home-week-cell.intensity-2 { background: rgba(255,90,42,0.40); border-color: rgba(255,90,42,0.55); color: #fff; }
+  .home-week-cell.intensity-3 { background: rgba(255,90,42,0.72); border-color: rgba(255,90,42,0.85); color: #fff; }
+  .home-week-cell.intensity-4 { background: var(--accent); border-color: var(--accent); color: #101010; }
+  .home-week-day.is-today .home-week-cell { box-shadow: 0 0 0 2px var(--accent); }
+  .home-week-day.is-future .home-week-cell { opacity: 0.4; }
+  .home-week-footer {
+    margin-top: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .home-week-footer strong { color: var(--text); font-weight: 800; }
+
+  /* ---- Home: macro rings ---- */
+  .macro-rings {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .macro-ring {
+    background: #0c0f12;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 12px 6px 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: border-color 0.12s;
+  }
+  .macro-ring:hover { border-color: rgba(255,90,42,0.35); }
+  .macro-ring-svg {
+    width: 64px;
+    height: 64px;
+    transform: rotate(-90deg);
+  }
+  .macro-ring-track { stroke: rgba(255,255,255,0.08); }
+  .macro-ring-value-arc {
+    transition: stroke-dasharray 0.4s ease;
+  }
+  .macro-ring-center {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+  .macro-ring-svg-wrap {
+    position: relative;
+    width: 64px; height: 64px;
+  }
+  .macro-ring-pct {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 2px;
+    font-weight: 700;
+  }
+  .macro-ring-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    font-weight: 800;
+  }
+  .macro-ring-target {
+    font-size: 10px;
+    color: var(--muted);
+    opacity: 0.7;
+  }
+
   /* ---- Home redesign ---- */
   .home-stats-row {
     display: grid;
@@ -1432,37 +1688,32 @@
       <div class="avatar">J</div>
     </div>
 
-    <div class="home-stats-row">
-      <div class="home-stat">
-        <div class="home-stat-value" id="home-stat-days">—</div>
-        <div class="home-stat-label">días sin<br>entrenar</div>
-      </div>
-      <div class="home-stat">
-        <div class="home-stat-value" id="home-stat-exercises">—</div>
-        <div class="home-stat-label">ejercicios<br>últ. sesión</div>
-      </div>
-      <div class="home-stat">
-        <div class="home-stat-value" id="home-stat-sets">—</div>
-        <div class="home-stat-label">series<br>últ. sesión</div>
-      </div>
+    <div id="home-today-card" class="home-today">
+      <div class="skeleton" style="height:160px;"></div>
     </div>
 
-    <div id="home-train-cta" style="margin-bottom:16px;">
-      <div class="skeleton" style="height:66px;"></div>
-    </div>
-
-    <div id="home-last-session">
-      <div class="skeleton" style="height:90px;"></div>
+    <div id="home-week-card" class="home-week">
+      <div class="skeleton" style="height:140px;"></div>
     </div>
 
     <div class="section home-section">
       <div class="header-row">
         <h2 style="margin:0;">Nutrición de hoy</h2>
-        <button class="ghost-btn icon-btn" data-action="edit-nutrition" aria-label="Cargar nutrición">+</button>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="ghost-btn" style="padding:6px 10px;font-size:12px;" data-action="edit-macro-goals">Objetivos</button>
+          <button class="ghost-btn icon-btn" data-action="edit-nutrition" aria-label="Cargar nutrición">+</button>
+        </div>
       </div>
-      <div id="home-nutrition">
+      <div id="home-macro-rings">
+        <div class="skeleton" style="height:120px;"></div>
+      </div>
+      <div id="home-nutrition" style="margin-top:14px;">
         <div class="skeleton" style="height:60px;"></div>
       </div>
+    </div>
+
+    <div id="home-last-session" style="margin-top:18px;">
+      <div class="skeleton" style="height:90px;"></div>
     </div>
   </section>
 
@@ -2343,18 +2594,135 @@ function renderNutritionCard_(el, data) {
   `;
 }
 
+const MACRO_GOALS_LS_KEY = 'shym:macro-goals:v1';
+const MACRO_GOALS_DEFAULT = { kcal: 2400, protein: 180, fat: 70, carbs: 280 };
+
+function getMacroGoals_() {
+  try {
+    const raw = localStorage.getItem(MACRO_GOALS_LS_KEY);
+    if (!raw) return { ...MACRO_GOALS_DEFAULT };
+    const parsed = JSON.parse(raw) || {};
+    return {
+      kcal: Number(parsed.kcal) || MACRO_GOALS_DEFAULT.kcal,
+      protein: Number(parsed.protein) || MACRO_GOALS_DEFAULT.protein,
+      fat: Number(parsed.fat) || MACRO_GOALS_DEFAULT.fat,
+      carbs: Number(parsed.carbs) || MACRO_GOALS_DEFAULT.carbs,
+    };
+  } catch { return { ...MACRO_GOALS_DEFAULT }; }
+}
+
+function setMacroGoals_(goals) {
+  try { localStorage.setItem(MACRO_GOALS_LS_KEY, JSON.stringify(goals)); } catch {}
+}
+
+function renderMacroRings_(data) {
+  const el = $('#home-macro-rings');
+  if (!el) return;
+  const goals = getMacroGoals_();
+  const macros = [
+    { key: 'kcal', label: 'Kcal', unit: '', goal: goals.kcal, value: data ? data.kcal : null },
+    { key: 'protein', label: 'Prot', unit: 'g', goal: goals.protein, value: data ? data.protein : null },
+    { key: 'fat', label: 'Grasa', unit: 'g', goal: goals.fat, value: data ? data.fat : null },
+    { key: 'carbs', label: 'Carbo', unit: 'g', goal: goals.carbs, value: data ? data.carbs : null },
+  ];
+  const R = 26;
+  const CIRC = 2 * Math.PI * R;
+  const html = macros.map(m => {
+    const num = Number(m.value);
+    const valid = !isNaN(num) && m.value != null && m.value !== '';
+    const value = valid ? num : 0;
+    const goal = Math.max(1, Number(m.goal) || 0);
+    const pct = Math.max(0, Math.min(1, value / goal));
+    const dash = (pct * CIRC).toFixed(2);
+    const display = valid ? Math.round(value) : '—';
+    const pctText = valid ? Math.round(pct * 100) + '%' : '0%';
+    return `
+      <div class="macro-ring" data-action="edit-nutrition" role="button" aria-label="${escapeHtml(m.label)}">
+        <div class="macro-ring-svg-wrap">
+          <svg class="macro-ring-svg" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="${R}" fill="none" stroke-width="6" class="macro-ring-track"></circle>
+            <circle cx="32" cy="32" r="${R}" fill="none" stroke="var(--accent)" stroke-width="6" stroke-linecap="round"
+              class="macro-ring-value-arc"
+              stroke-dasharray="${dash} ${(CIRC - parseFloat(dash)).toFixed(2)}"></circle>
+          </svg>
+          <div class="macro-ring-center">
+            <span>${display}${valid && m.unit ? `<span style="font-size:9px;color:var(--muted);font-weight:700;">${m.unit}</span>` : ''}</span>
+            <span class="macro-ring-pct">${pctText}</span>
+          </div>
+        </div>
+        <div class="macro-ring-label">${escapeHtml(m.label)}</div>
+        <div class="macro-ring-target">/ ${m.goal}${m.unit}</div>
+      </div>
+    `;
+  }).join('');
+  el.innerHTML = `<div class="macro-rings">${html}</div>`;
+}
+
+function openMacroGoalsModal_() {
+  const g = getMacroGoals_();
+  modal.open({
+    title: 'Objetivos diarios',
+    bodyHtml: `
+      <p class="muted" style="font-size:13px;margin-top:0;margin-bottom:14px;">Estos valores se usan para los anillos de progreso del día.</p>
+      <div class="nutrition-form-field" style="margin-bottom:10px;">
+        <label class="field-label">Calorías (kcal)</label>
+        <input id="mg-kcal" type="text" inputmode="numeric" value="${g.kcal}" />
+      </div>
+      <div class="nutrition-form-row three">
+        <div class="nutrition-form-field">
+          <label class="field-label">Proteína (g)</label>
+          <input id="mg-protein" type="text" inputmode="numeric" value="${g.protein}" />
+        </div>
+        <div class="nutrition-form-field">
+          <label class="field-label">Grasas (g)</label>
+          <input id="mg-fat" type="text" inputmode="numeric" value="${g.fat}" />
+        </div>
+        <div class="nutrition-form-field">
+          <label class="field-label">Carbos (g)</label>
+          <input id="mg-carbs" type="text" inputmode="numeric" value="${g.carbs}" />
+        </div>
+      </div>
+    `,
+    actions: [
+      { label: 'Guardar', kind: 'primary', onClick: () => {
+        const root = $('#modal-root');
+        const parse = (id, fallback) => {
+          const v = Number(($('#' + id, root).value || '').toString().replace(',', '.'));
+          return isNaN(v) || v <= 0 ? fallback : Math.round(v);
+        };
+        setMacroGoals_({
+          kcal: parse('mg-kcal', g.kcal),
+          protein: parse('mg-protein', g.protein),
+          fat: parse('mg-fat', g.fat),
+          carbs: parse('mg-carbs', g.carbs),
+        });
+        modal.close();
+        renderHomeNutrition();
+      }},
+    ]
+  });
+}
+
 async function renderHomeNutrition() {
   const el = $('#home-nutrition');
   if (!el) return;
   const today = todayInputValue();
   const cached = getApiCache('getNutritionForDate', [{ date: today }], API_CACHE_TTL.getNutritionForDate);
-  if (cached !== undefined && cached !== null) { renderNutritionCard_(el, cached); return; }
-  // Show skeleton while loading
+  if (cached !== undefined && cached !== null) {
+    renderMacroRings_(cached);
+    renderNutritionCard_(el, cached);
+    return;
+  }
+  renderMacroRings_(null);
   el.innerHTML = `<div class="skeleton" style="height:60px;"></div>`;
   try {
     const data = await cachedGas('getNutritionForDate', [{ date: today }]);
-    if ($('#home-nutrition') === el) renderNutritionCard_(el, data);
+    if ($('#home-nutrition') === el) {
+      renderMacroRings_(data);
+      renderNutritionCard_(el, data);
+    }
   } catch {
+    renderMacroRings_(null);
     renderNutritionCard_(el, null);
   }
 }
@@ -2681,39 +3049,137 @@ async function loadHomeStats(navToken) {
 }
 
 function renderHomeStats(stats) {
-  const last = stats.last_session;
-  const routine = stats.active_routine;
+  renderHomeTodayCard_(stats);
+  renderHomeWeekCard_(stats);
+  renderHomeLastSession_(stats.last_session);
+}
 
-  // Routine CTA
-  const ctaEl = $('#home-train-cta');
-  if (ctaEl) {
-    if (routine) {
-      ctaEl.innerHTML = `
-        <div class="home-train-cta">
-          <div class="home-train-cta-info">
-            <div class="home-train-cta-label">Rutina activa</div>
-            <div class="home-train-cta-name">${escapeHtml(routine.routine_name)}</div>
-          </div>
-          <button class="home-train-cta-btn" data-action="go-train">Entrenar →</button>
-        </div>
-      `;
-    } else {
-      ctaEl.innerHTML = `
-        <div class="home-train-cta">
-          <div class="home-train-cta-info">
-            <div class="home-train-cta-name" style="font-size:14px;font-weight:600;color:var(--muted);">Sin rutina activa</div>
-          </div>
-          <button class="ghost-btn" data-go="routines">Crear rutina</button>
-        </div>
-      `;
-    }
+function renderHomeTodayCard_(stats) {
+  const el = $('#home-today-card');
+  if (!el) return;
+  const routine = stats.active_routine;
+  if (!routine) {
+    el.innerHTML = `
+      <div class="home-today-eyebrow"><span class="dot"></span> Sin rutina activa</div>
+      <div class="home-today-title">Armá tu primera rutina</div>
+      <div class="home-today-sub">Creá una rutina y activala para ver tu plan del día acá.</div>
+      <div class="home-today-actions">
+        <button class="home-today-btn" data-go="routines">Crear rutina</button>
+      </div>
+    `;
+    return;
+  }
+  const trained = !!stats.trained_today;
+  const day = stats.today_day;
+  const scheduled = day && day.is_scheduled_today;
+  const eyebrow = trained
+    ? `<div class="home-today-eyebrow done"><span class="dot"></span> Entrenado hoy</div>`
+    : `<div class="home-today-eyebrow"><span class="dot"></span> ${scheduled ? 'Hoy toca' : 'Próximo entreno'}</div>`;
+  const title = day ? day.day_name : routine.routine_name;
+  const subtitleBits = [routine.routine_name];
+  if (day && !scheduled && !trained) subtitleBits.push('no programado para hoy');
+  const subtitle = subtitleBits.filter(Boolean).join(' · ');
+
+  let exercisesHtml = '';
+  if (day && day.exercises && day.exercises.length) {
+    const visible = day.exercises.slice(0, 6);
+    const remaining = day.exercises.length - visible.length;
+    exercisesHtml = `
+      <div class="home-today-exercises">
+        ${visible.map(ex => {
+          const reps = ex.target_reps_min && ex.target_reps_max
+            ? (ex.target_reps_min === ex.target_reps_max ? ex.target_reps_min : `${ex.target_reps_min}–${ex.target_reps_max}`)
+            : '';
+          const meta = ex.target_sets && reps ? `${ex.target_sets}×${reps}` : (ex.target_sets ? `${ex.target_sets} ser.` : '');
+          return `
+            <div class="home-today-ex">
+              <span class="home-today-ex-name">${escapeHtml(ex.exercise_name || '')}</span>
+              ${meta ? `<span class="home-today-ex-meta">${escapeHtml(meta)}</span>` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+      ${remaining > 0 ? `<div class="muted" style="font-size:11px;margin-top:-6px;margin-bottom:14px;">+ ${remaining} más</div>` : ''}
+    `;
   }
 
+  const ctaBtn = trained
+    ? `<button class="home-today-btn secondary" data-action="go-train">Entrenar otra vez</button>`
+    : `<button class="home-today-btn" data-action="go-train">Entrenar →</button>`;
+
+  el.innerHTML = `
+    ${eyebrow}
+    <div class="home-today-title">${escapeHtml(title || 'Hoy')}</div>
+    <div class="home-today-sub">${escapeHtml(subtitle)}</div>
+    ${exercisesHtml}
+    <div class="home-today-actions">${ctaBtn}</div>
+  `;
+}
+
+function renderHomeWeekCard_(stats) {
+  const el = $('#home-week-card');
+  if (!el) return;
+  const week = stats.week_activity || [];
+  if (!week.length) { el.innerHTML = ''; return; }
+  const maxVol = Math.max(...week.map(d => d.total_volume || 0), 0);
+  const letters = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+  const cells = week.map((d, i) => {
+    let cls = '';
+    if (d.session_count > 0) {
+      if (maxVol <= 0) cls = 'intensity-2';
+      else {
+        const ratio = (d.total_volume || 0) / maxVol;
+        if (ratio >= 0.85) cls = 'intensity-4';
+        else if (ratio >= 0.55) cls = 'intensity-3';
+        else if (ratio >= 0.25) cls = 'intensity-2';
+        else cls = 'intensity-1';
+      }
+    }
+    const dayCls = [
+      d.is_today ? 'is-today' : '',
+      d.is_future ? 'is-future' : '',
+    ].filter(Boolean).join(' ');
+    const dayNum = d.date.slice(8, 10);
+    return `
+      <div class="home-week-day ${dayCls}">
+        <div class="home-week-day-letter">${letters[i]}</div>
+        <div class="home-week-cell ${cls}">${d.session_count > 0 ? '●' : dayNum}</div>
+      </div>
+    `;
+  }).join('');
+  const summary = stats.week_summary || { session_count: 0, total_volume: 0 };
+  const volStr = summary.total_volume >= 1000
+    ? (summary.total_volume / 1000).toFixed(1) + 'k'
+    : Math.round(summary.total_volume);
+  el.innerHTML = `
+    <div class="home-week-head">
+      <div class="home-week-title">Esta semana</div>
+      <div class="home-week-sub">${escapeHtml(formatWeekRange_(summary.start, summary.end))}</div>
+    </div>
+    <div class="home-week-grid">${cells}</div>
+    <div class="home-week-footer">
+      <span><strong>${summary.session_count}</strong> ${summary.session_count === 1 ? 'sesión' : 'sesiones'}</span>
+      <span><strong>${volStr}</strong> kg movidos</span>
+    </div>
+  `;
+}
+
+function formatWeekRange_(startIso, endIso) {
+  if (!startIso || !endIso) return '';
+  const s = parseIsoDateLocalClient(startIso);
+  const e = parseIsoDateLocalClient(endIso);
+  const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  if (s.getMonth() === e.getMonth()) {
+    return `${s.getDate()} – ${e.getDate()} ${months[e.getMonth()]}`;
+  }
+  return `${s.getDate()} ${months[s.getMonth()]} – ${e.getDate()} ${months[e.getMonth()]}`;
+}
+
+function renderHomeLastSession_(last) {
+  const el = $('#home-last-session');
+  if (!el) return;
   if (!last) {
-    $('#home-stat-days').textContent = '—';
-    $('#home-stat-exercises').textContent = '—';
-    $('#home-stat-sets').textContent = '—';
-    $('#home-last-session').innerHTML = `
+    el.innerHTML = `
       <div class="empty-state">
         <h3>Aún no hay sesiones</h3>
         <p class="muted">Cuando guardes una sesión, queda a mano acá.</p>
@@ -2721,20 +3187,15 @@ function renderHomeStats(stats) {
     `;
     return;
   }
-
-  const today = parseIsoDateLocalClient(todayInputValue());
-  const lastDate = parseIsoDateLocalClient(last.date);
-  const diffDays = Math.round((today - lastDate) / (1000 * 60 * 60 * 24));
-  $('#home-stat-days').textContent = diffDays === 0 ? 'hoy' : diffDays;
-  $('#home-stat-exercises').textContent = last.exercise_count != null ? last.exercise_count : '—';
-  $('#home-stat-sets').textContent = last.set_count != null ? last.set_count : '—';
-
   const subtitleParts = [last.routine_name || '', formatDateLong(last.date)].filter(Boolean);
-  $('#home-last-session').innerHTML = `
+  const metaBits = [];
+  if (last.exercise_count != null) metaBits.push(`${last.exercise_count} ej.`);
+  if (last.set_count != null) metaBits.push(`${last.set_count} series`);
+  el.innerHTML = `
     <div class="home-last-session-card" data-action="open-session" data-session-id="${escapeHtml(last.session_id)}">
       <div class="home-last-session-label">Última sesión</div>
       <div class="home-last-session-title">${escapeHtml(last.day_name || 'Sesión')}</div>
-      <p class="muted" style="font-size:13px;margin-top:4px;">${escapeHtml(subtitleParts.join(' · '))}</p>
+      <p class="muted" style="font-size:13px;margin-top:4px;">${escapeHtml(subtitleParts.join(' · '))}${metaBits.length ? ` · ${escapeHtml(metaBits.join(' · '))}` : ''}</p>
     </div>
   `;
 }
@@ -5408,6 +5869,7 @@ document.addEventListener('click', (e) => {
     case 'delete-session': handleDeleteSession(); break;
     case 'edit-nutrition': handleEditNutrition(); break;
     case 'edit-nutrition-date': handleEditNutrition(t.dataset.date); break;
+    case 'edit-macro-goals': openMacroGoalsModal_(); break;
     case 'nutrition-prev-day': {
       if (!state.nutritionCurrentDate) state.nutritionCurrentDate = todayInputValue();
       const d = parseIsoDateLocalClient(state.nutritionCurrentDate);
