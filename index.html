@@ -836,25 +836,45 @@
     border-radius: 999px;
     flex: 0 0 auto;
   }
+  .muscle-map-card {
+    padding: 18px 16px 20px;
+    background:
+      radial-gradient(circle at 50% 22%, rgba(255,255,255,0.04), transparent 34%),
+      linear-gradient(145deg, rgba(18, 24, 30, 0.98), rgba(10, 14, 18, 0.98));
+    border-color: rgba(118, 134, 148, 0.24);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 18px 50px rgba(0,0,0,0.28);
+  }
+  .muscle-map-title {
+    margin: 0;
+    font-size: 28px;
+    line-height: 1.05;
+    letter-spacing: -0.035em;
+  }
+  .muscle-map-subtitle {
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.3;
+  }
   .body-heatmap {
-    width: 100%;
+    width: min(100%, 680px);
     height: auto;
     aspect-ratio: 480 / 560;
-    max-height: 580px;
+    max-height: none;
     display: block;
-    margin-top: 14px;
-    background: #0b0e11;
-    border: 1px solid var(--border);
-    border-radius: 16px;
+    margin: 8px auto 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
   }
   .body-silhouette-fill {
-    fill: #1a2127;
+    fill: #141a20;
     stroke: none;
     pointer-events: none;
   }
   .body-silhouette-edge {
     fill: none;
-    stroke: rgba(180,196,206,0.55);
+    stroke: rgba(189,202,212,0.58);
     stroke-width: 1.25;
     stroke-linecap: round;
     stroke-linejoin: round;
@@ -862,24 +882,37 @@
   }
   .heat-zone {
     cursor: pointer;
-    stroke: rgba(11,14,17,0.55);
-    stroke-width: 0.6;
+    stroke: rgba(7,10,13,0.68);
+    stroke-width: 1.1;
     stroke-linejoin: round;
     transition: opacity 0.15s ease;
+    filter: url(#muscle-soft-glow);
   }
   .heat-zone:active {
     opacity: 0.78;
   }
   .heat-zone.is-empty {
-    opacity: 0.76;
+    opacity: 0.88;
   }
   .muscle-line {
     fill: none;
-    stroke: rgba(220,232,240,0.28);
-    stroke-width: 0.85;
+    stroke: rgba(255,229,210,0.18);
+    stroke-width: 0.7;
     stroke-linecap: round;
     stroke-linejoin: round;
     pointer-events: none;
+  }
+  .muscle-map-card .muscle-volume-legend {
+    justify-content: center;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .muscle-map-card .pill {
+    padding: 12px 16px;
+    min-width: 0;
+    font-size: 14px;
+    background: rgba(22, 28, 35, 0.86);
+    border-color: rgba(114, 128, 140, 0.22);
   }
   .muscle-distribution-preview {
     display: grid;
@@ -5619,11 +5652,11 @@ function renderMuscleHeatmap(data) {
   const top = groups.slice().sort((a, b) => Number(b.volume || 0) - Number(a.volume || 0))[0];
   const hasVolume = total > 0;
   $('#progress-content').innerHTML = `
-    <div class="card">
+    <div class="card muscle-map-card">
       <div class="card-row" style="align-items:flex-start;">
         <div>
-          <h3>Mapa muscular</h3>
-          <p class="muted">Vista detallada por músculo y porción</p>
+          <h2 class="muscle-map-title">Mapa muscular</h2>
+          <p class="muscle-map-subtitle">Vista detallada por músculo y porción</p>
         </div>
       </div>
       ${renderBodyHeatmapSvg(groups, subzones)}
@@ -5637,23 +5670,20 @@ function renderMuscleHeatmap(data) {
           </span>
         `;}).join('')}
       </div>
-      <div class="summary-status">
-        <span class="dot ${hasVolume ? '' : 'warn'}"></span>
-        <p class="muted">${hasVolume ? formatEffectiveSets(total) + ' series efectivas · mayor foco: ' + escapeHtml(formatMuscleGroup(top.muscle_group)) + '.' : 'Guardá sesiones con distribución muscular para pintar la intensidad.'}</p>
-      </div>
     </div>
   `;
 }
 
 function heatmapColor(intensity) {
   const i = Math.max(0, Math.min(Number(intensity || 0), 1));
-  if (i <= 0) return 'rgba(84,110,129,0.42)';
-  const alpha = Math.round((0.34 + i * 0.58) * 100) / 100;
-  return `rgba(255,90,42,${alpha})`;
+  if (i <= 0) return 'rgba(255,94,28,0.54)';
+  const alpha = Math.round((0.58 + i * 0.34) * 100) / 100;
+  return `rgba(255,94,28,${alpha})`;
 }
 
-function heatmapFill(statsBySubzone, subzone) {
-  return heatmapColor(statsBySubzone[subzone] ? statsBySubzone[subzone].intensity : 0);
+function heatmapOpacity(statsBySubzone, subzone) {
+  const i = Math.max(0, Math.min(Number(statsBySubzone[subzone] ? statsBySubzone[subzone].intensity : 0), 1));
+  return Math.round((0.66 + i * 0.28) * 100) / 100;
 }
 
 function bodySilhouettePath(cx) {
@@ -5725,7 +5755,7 @@ function bodySilhouettePath(cx) {
 function heatPath(d, subzone, statsBySubzone) {
   const group = MUSCLE_SUBZONE_TO_GROUP[subzone] || '';
   const emptyClass = statsBySubzone[subzone] && Number(statsBySubzone[subzone].volume || 0) > 0 ? '' : ' is-empty';
-  return `<path class="heat-zone${emptyClass}" d="${d}" fill="${heatmapFill(statsBySubzone, subzone)}" data-action="select-heatmap-muscle" data-muscle="${group}" data-subzone="${subzone}"><title>${escapeHtml(formatMuscleSubzone(subzone))}</title></path>`;
+  return `<path class="heat-zone${emptyClass}" d="${d}" fill="url(#muscle-hotspot)" opacity="${heatmapOpacity(statsBySubzone, subzone)}" data-action="select-heatmap-muscle" data-muscle="${group}" data-subzone="${subzone}"><title>${escapeHtml(formatMuscleSubzone(subzone))}</title></path>`;
 }
 
 function frontHeatZones(cx, statsBySubzone) {
@@ -5751,7 +5781,13 @@ function frontHeatZones(cx, statsBySubzone) {
     z(`M ${L(50)} 230 C ${L(60)} 244 ${L(58)} 273 ${L(49)} 289 C ${L(49)} 268 ${L(50)} 248 ${L(50)} 230 Z`, 'braquiorradial'),
     z(`M ${R(8)} 188 L ${R(20)} 190 L ${R(22)} 260 C ${R(16)} 268 ${R(9)} 272 ${R(3)} 272 L ${R(3)} 190 Z`, 'oblicuos'),
     z(`M ${L(8)} 188 L ${L(20)} 190 L ${L(22)} 260 C ${L(16)} 268 ${L(9)} 272 ${L(3)} 272 L ${L(3)} 190 Z`, 'oblicuos'),
-    z(`M ${L(3)} 190 L ${R(3)} 190 L ${R(15)} 264 C ${R(8)} 275 ${L(8)} 275 ${L(15)} 264 Z`, 'recto_abdominal'),
+    z(`M ${L(16)} 190 C ${L(8)} 188 ${L(2)} 190 ${L(2)} 198 L ${L(2)} 211 C ${L(8)} 214 ${L(16)} 214 ${L(21)} 210 L ${L(21)} 198 C ${L(21)} 193 ${L(19)} 191 ${L(16)} 190 Z`, 'recto_abdominal'),
+    z(`M ${R(16)} 190 C ${R(8)} 188 ${R(2)} 190 ${R(2)} 198 L ${R(2)} 211 C ${R(8)} 214 ${R(16)} 214 ${R(21)} 210 L ${R(21)} 198 C ${R(21)} 193 ${R(19)} 191 ${R(16)} 190 Z`, 'recto_abdominal'),
+    z(`M ${L(20)} 216 C ${L(12)} 214 ${L(3)} 215 ${L(3)} 223 L ${L(3)} 237 C ${L(10)} 241 ${L(18)} 240 ${L(22)} 235 L ${L(22)} 223 C ${L(22)} 219 ${L(22)} 217 ${L(20)} 216 Z`, 'recto_abdominal'),
+    z(`M ${R(20)} 216 C ${R(12)} 214 ${R(3)} 215 ${R(3)} 223 L ${R(3)} 237 C ${R(10)} 241 ${R(18)} 240 ${R(22)} 235 L ${R(22)} 223 C ${R(22)} 219 ${R(22)} 217 ${R(20)} 216 Z`, 'recto_abdominal'),
+    z(`M ${L(20)} 243 C ${L(12)} 241 ${L(4)} 242 ${L(4)} 250 L ${L(4)} 262 C ${L(11)} 268 ${L(19)} 266 ${L(23)} 258 L ${L(23)} 250 C ${L(23)} 246 ${L(22)} 244 ${L(20)} 243 Z`, 'recto_abdominal'),
+    z(`M ${R(20)} 243 C ${R(12)} 241 ${R(4)} 242 ${R(4)} 250 L ${R(4)} 262 C ${R(11)} 268 ${R(19)} 266 ${R(23)} 258 L ${R(23)} 250 C ${R(23)} 246 ${R(22)} 244 ${R(20)} 243 Z`, 'recto_abdominal'),
+    z(`M ${L(8)} 268 C ${L(3)} 272 ${R(3)} 272 ${R(8)} 268 L ${R(16)} 286 C ${R(8)} 294 ${L(8)} 294 ${L(16)} 286 Z`, 'recto_abdominal'),
     z(`M ${R(25)} 184 C ${R(34)} 196 ${R(33)} 223 ${R(28)} 252 C ${R(23)} 254 ${R(23)} 225 ${R(25)} 184 Z`, 'serrato'),
     z(`M ${L(25)} 184 C ${L(34)} 196 ${L(33)} 223 ${L(28)} 252 C ${L(23)} 254 ${L(23)} 225 ${L(25)} 184 Z`, 'serrato'),
     z(`M ${R(8)} 308 C ${R(22)} 304 ${R(36)} 312 ${R(40)} 326 C ${R(38)} 358 ${R(34)} 389 ${R(29)} 410 L ${R(15)} 408 C ${R(10)} 380 ${R(8)} 348 ${R(8)} 320 Z`, 'cuadriceps'),
@@ -5838,6 +5874,20 @@ function renderBodyHeatmapSvg(groups, subzones) {
   return `
     <svg class="body-heatmap" viewBox="0 0 480 560" role="img" aria-label="Heatmap corporal por volumen">
       <defs>
+        <filter id="muscle-soft-glow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur in="SourceAlpha" stdDeviation="1.2" result="blur"></feGaussianBlur>
+          <feFlood flood-color="#ff6a21" flood-opacity="0.22" result="glow"></feFlood>
+          <feComposite in="glow" in2="blur" operator="in" result="softGlow"></feComposite>
+          <feMerge>
+            <feMergeNode in="softGlow"></feMergeNode>
+            <feMergeNode in="SourceGraphic"></feMergeNode>
+          </feMerge>
+        </filter>
+        <radialGradient id="muscle-hotspot" cx="35%" cy="22%" r="82%">
+          <stop offset="0%" stop-color="#ffad32" stop-opacity="0.98"></stop>
+          <stop offset="48%" stop-color="#ff5e1c" stop-opacity="0.96"></stop>
+          <stop offset="100%" stop-color="#c93412" stop-opacity="0.9"></stop>
+        </radialGradient>
         <clipPath id="body-clip-front" clipPathUnits="userSpaceOnUse"><path d="${frontPath}"></path></clipPath>
         <clipPath id="body-clip-back" clipPathUnits="userSpaceOnUse"><path d="${backPath}"></path></clipPath>
       </defs>
