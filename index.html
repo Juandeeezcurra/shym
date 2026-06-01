@@ -75,6 +75,16 @@
   h1 { font-size: 30px; line-height: 1.05; letter-spacing: -0.04em; }
   h2 { font-size: 20px; letter-spacing: -0.03em; margin-bottom: 12px; }
   h3 { font-size: 16px; letter-spacing: -0.02em; }
+  .home-title-link {
+    cursor: pointer;
+    width: fit-content;
+    max-width: 100%;
+    transition: color 0.12s ease, opacity 0.12s ease;
+  }
+  .home-title-link:active {
+    color: var(--accent);
+    opacity: 0.82;
+  }
 
   .eyebrow { color: var(--muted); font-size: 13px; margin-bottom: 6px; }
   .muted { color: var(--muted); font-size: 13px; line-height: 1.4; }
@@ -1822,7 +1832,7 @@
     <div class="topbar">
       <div>
         <div class="eyebrow" id="home-date">—</div>
-        <h1>Shym</h1>
+        <h1 class="home-title-link" data-go="home" title="Ir al inicio">Shym</h1>
       </div>
       <div class="avatar">J</div>
     </div>
@@ -1865,7 +1875,7 @@
     <div class="header-row">
       <div>
         <div class="eyebrow">Editor</div>
-        <h1>Rutinas</h1>
+        <h1 class="home-title-link" data-go="home" title="Ir al inicio">Rutinas</h1>
       </div>
       <button class="ghost-btn" data-action="new-routine">+ Nueva</button>
     </div>
@@ -1886,7 +1896,7 @@
 
     <div style="margin-bottom: 18px;">
       <div class="eyebrow">Rutina</div>
-      <h1 id="rd-name">—</h1>
+      <h1 id="rd-name" class="home-title-link" data-go="home" title="Ir al inicio">—</h1>
     </div>
 
     <div class="section">
@@ -1920,7 +1930,7 @@
 
     <div style="margin-bottom: 18px;">
       <div class="eyebrow" id="dd-routine-name">—</div>
-      <h1 id="dd-day-name">—</h1>
+      <h1 id="dd-day-name" class="home-title-link" data-go="home" title="Ir al inicio">—</h1>
     </div>
 
     <div id="dd-schedule"></div>
@@ -1943,7 +1953,7 @@
     <div class="header-row">
       <div>
         <div class="eyebrow">Entrenamiento</div>
-        <h1>Empezar</h1>
+        <h1 class="home-title-link" data-go="home" title="Ir al inicio">Empezar</h1>
       </div>
       <div class="unit-toggle" aria-label="Unidades">
         <button type="button" data-action="set-units" data-unit="kg">kg</button>
@@ -1977,7 +1987,7 @@
     <div class="header-row">
       <div>
         <div class="eyebrow" id="train-meta">Entrenamiento</div>
-        <h1 id="train-day-name">—</h1>
+        <h1 id="train-day-name" class="home-title-link" data-go="home" title="Ir al inicio">—</h1>
       </div>
       <button class="ghost-btn" data-action="change-train-day">Cambiar</button>
     </div>
@@ -1991,7 +2001,7 @@
     <div class="header-row">
       <div>
         <div class="eyebrow" id="summary-meta">Resumen</div>
-        <h1>Sesión guardada</h1>
+        <h1 class="home-title-link" data-go="home" title="Ir al inicio">Sesión guardada</h1>
       </div>
     </div>
 
@@ -2026,7 +2036,7 @@
 
     <div style="margin-bottom: 18px;">
       <div class="eyebrow" id="sd-meta">Sesión</div>
-      <h1 id="sd-title">—</h1>
+      <h1 id="sd-title" class="home-title-link" data-go="home" title="Ir al inicio">—</h1>
     </div>
 
     <div class="hero">
@@ -2052,7 +2062,7 @@
 
     <div style="margin-bottom: 18px;">
       <div class="eyebrow" id="se-meta">Editar sesión</div>
-      <h1 id="se-title">—</h1>
+      <h1 id="se-title" class="home-title-link" data-go="home" title="Ir al inicio">—</h1>
     </div>
 
     <div class="card">
@@ -2069,7 +2079,7 @@
     <div class="header-row">
       <div>
         <div class="eyebrow">Análisis</div>
-        <h1>Progreso</h1>
+        <h1 class="home-title-link" data-go="home" title="Ir al inicio">Progreso</h1>
       </div>
     </div>
 
@@ -2104,7 +2114,7 @@
     <div class="header-row">
       <div>
         <div class="eyebrow">Registro</div>
-        <h1>Historial</h1>
+        <h1 class="home-title-link" data-go="home" title="Ir al inicio">Historial</h1>
       </div>
       <button class="ghost-btn" data-action="refresh-history">Actualizar</button>
     </div>
@@ -2125,7 +2135,7 @@
     <div class="header-row">
       <div>
         <div class="eyebrow">Registro diario</div>
-        <h1>Nutrición</h1>
+        <h1 class="home-title-link" data-go="home" title="Ir al inicio">Nutrición</h1>
       </div>
     </div>
 
