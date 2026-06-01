@@ -914,6 +914,16 @@
     background: rgba(22, 28, 35, 0.86);
     border-color: rgba(114, 128, 140, 0.22);
   }
+  .muscle-map-image-shell {
+    width: 100%;
+  }
+  .muscle-map-reference {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 18px;
+    box-shadow: 0 18px 48px rgba(0,0,0,0.24);
+  }
   .muscle-distribution-preview {
     display: grid;
     gap: 8px;
@@ -5636,8 +5646,6 @@ async function loadMuscleHeatmap(navToken, loadToken) {
 
 function renderMuscleHeatmap(data) {
   const groups = data.groups || [];
-  const subzones = data.subzones || [];
-  const total = groups.reduce((sum, group) => sum + Number(group.volume || group.effective_sets || 0), 0);
   if (!groups.length) {
     $('#progress-content').innerHTML = `
       <div class="empty-state">
@@ -5649,27 +5657,9 @@ function renderMuscleHeatmap(data) {
     return;
   }
 
-  const top = groups.slice().sort((a, b) => Number(b.volume || 0) - Number(a.volume || 0))[0];
-  const hasVolume = total > 0;
   $('#progress-content').innerHTML = `
-    <div class="card muscle-map-card">
-      <div class="card-row" style="align-items:flex-start;">
-        <div>
-          <h2 class="muscle-map-title">Mapa muscular</h2>
-          <p class="muscle-map-subtitle">Vista detallada por músculo y porción</p>
-        </div>
-      </div>
-      ${renderBodyHeatmapSvg(groups, subzones)}
-      <div class="muscle-volume-legend">
-        ${MUSCLE_GROUPS.filter(group => group.value).map(group => {
-          const stats = groups.find(item => normalizeMuscleGroupValue(item.muscle_group) === group.value) || {};
-          return `
-          <span class="pill" data-action="select-heatmap-muscle" data-muscle="${escapeHtml(group.value)}">
-            <span class="legend-dot" style="background:${heatmapColor(stats.intensity)};"></span>
-            ${escapeHtml(group.label)}
-          </span>
-        `;}).join('')}
-      </div>
+    <div class="muscle-map-image-shell">
+      <img class="muscle-map-reference" src="assets/muscle-map.png" alt="Mapa muscular detallado con vista frontal y dorsal" loading="eager">
     </div>
   `;
 }
