@@ -937,7 +937,7 @@
   .muscle-map-reference-wrap.is-hovering {
     cursor: pointer;
   }
-  .muscle-map-reference-img {
+  .muscle-map-reference-canvas {
     display: block;
     width: 100%;
     height: auto;
@@ -5792,6 +5792,10 @@ const muscleMapHitmap = {
   loading: null,
   canvas: null,
   ctx: null,
+  baseReady: false,
+  baseLoading: null,
+  baseCanvas: null,
+  baseCtx: null,
 };
 
 function renderReferenceMuscleMap(groups, subzones) {
@@ -5804,14 +5808,39 @@ function renderReferenceMuscleMap(groups, subzones) {
     return acc;
   }, {});
   state.muscleMapStats = { subzones: statsBySubzone, groups: statsByGroup };
-  loadMuscleMapHitmap();
+  requestAnimationFrame(renderMuscleMapCanvasWhenReady);
 
   return `
     <div class="muscle-map-reference-wrap" data-muscle-map="reference">
-      <img class="muscle-map-reference-img" src="assets/muscle-map.png" alt="Mapa muscular detallado con vista frontal y dorsal" loading="eager">
+      <canvas id="muscle-map-canvas" class="muscle-map-reference-canvas" width="${REFERENCE_MAP_WIDTH}" height="${REFERENCE_MAP_HEIGHT}" role="img" aria-label="Mapa muscular detallado con intensidad por volumen"></canvas>
       <div id="muscle-map-tooltip" class="muscle-map-tooltip" role="tooltip"></div>
     </div>
   `;
+}
+
+function loadMuscleMapBaseImage() {
+  if (muscleMapHitmap.baseReady) return Promise.resolve();
+  if (muscleMapHitmap.baseLoading) return muscleMapHitmap.baseLoading;
+  muscleMapHitmap.baseLoading = new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = REFERENCE_MAP_WIDTH;
+      canvas.height = REFERENCE_MAP_HEIGHT;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      ctx.drawImage(img, 0, 0, REFERENCE_MAP_WIDTH, REFERENCE_MAP_HEIGHT);
+      muscleMapHitmap.baseCanvas = canvas;
+      muscleMapHitmap.baseCtx = ctx;
+      muscleMapHitmap.baseReady = true;
+      resolve();
+    };
+    img.onerror = () => {
+      muscleMapHitmap.baseReady = true;
+      resolve();
+    };
+    img.src = 'assets/muscle-map.png';
+  });
+  return muscleMapHitmap.baseLoading;
 }
 
 function loadMuscleMapHitmap() {
@@ -5830,10 +5859,81 @@ function loadMuscleMapHitmap() {
       muscleMapHitmap.ready = true;
       resolve();
     };
-    img.onerror = () => resolve();
+    img.onerror = () => {
+      muscleMapHitmap.ready = true;
+      resolve();
+    };
     img.src = 'assets/muscle-map-hitmap.png?v=2';
   });
   return muscleMapHitmap.loading;
+}
+
+function loadMuscleMapAssets() {
+  return Promise.all([loadMuscleMapBaseImage(), loadMuscleMapHitmap()]);
+}
+
+function renderMuscleMapCanvasWhenReady() {
+  const canvas = document.getElementById('muscle-map-canvas');
+  if (!canvas) return;
+  if (!muscleMapHitmap.baseReady || !muscleMapHitmap.ready) {
+    loadMuscleMapAssets().then(renderMuscleMapCanvasWhenReady);
+    return;
+  }
+  if (!muscleMapHitmap.baseCtx || !muscleMapHitmap.ctx) return;
+
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  let base;
+  let hitmap;
+  try {
+    base = muscleMapHitmap.baseCtx.getImageData(0, 0, REFERENCE_MAP_WIDTH, REFERENCE_MAP_HEIGHT);
+    hitmap = muscleMapHitmap.ctx.getImageData(0, 0, REFERENCE_MAP_WIDTH, REFERENCE_MAP_HEIGHT);
+  } catch (err) {
+    ctx.drawImage(muscleMapHitmap.baseCanvas, 0, 0, REFERENCE_MAP_WIDTH, REFERENCE_MAP_HEIGHT);
+    return;
+  }
+
+  const data = base.data;
+  const hit = hitmap.data;
+  const statsStore = state.muscleMapStats || { subzones: {} };
+  for (let i = 0; i < data.length; i += 4) {
+    const hitId = hit[i];
+    const hitAlpha = hit[i + 3];
+    if (!hitAlpha || hitId >= 100) continue;
+    const entry = MUSCLE_HITMAP_ENTRIES[hitId];
+    if (!entry || entry.type !== 'subzone') continue;
+    const stats = statsStore.subzones[entry.value] || {};
+    const volume = Number(stats.effective_sets || stats.volume || 0);
+    const intensity = volume > 0
+      ? Math.max(0.18, Math.min(1, Number(stats.intensity || 0)))
+      : 0;
+    const shaded = shadeMuscleMapPixel(data[i], data[i + 1], data[i + 2], intensity);
+    data[i] = shaded[0];
+    data[i + 1] = shaded[1];
+    data[i + 2] = shaded[2];
+  }
+  ctx.putImageData(base, 0, 0);
+}
+
+function shadeMuscleMapPixel(r, g, b, intensity) {
+  const gray = Math.round(r * 0.28 + g * 0.48 + b * 0.24);
+  const inactive = [
+    Math.round(gray * 0.42 + 18),
+    Math.round(gray * 0.48 + 22),
+    Math.round(gray * 0.58 + 30),
+  ];
+  if (intensity <= 0) return inactive;
+
+  const active = [
+    Math.min(255, Math.round(r * 0.96 + 48 * intensity)),
+    Math.min(210, Math.round(g * 0.86 + 38 * intensity)),
+    Math.max(18, Math.round(b * 0.72 - 18 * intensity)),
+  ];
+  const blend = Math.min(1, 0.2 + intensity * 0.8);
+  return [
+    Math.round(inactive[0] * (1 - blend) + active[0] * blend),
+    Math.round(inactive[1] * (1 - blend) + active[1] * blend),
+    Math.round(inactive[2] * (1 - blend) + active[2] * blend),
+  ];
 }
 
 function getMuscleMapHitFromEvent(event) {
@@ -5841,9 +5941,9 @@ function getMuscleMapHitFromEvent(event) {
     ? event.target.closest('[data-muscle-map="reference"]')
     : null;
   if (!wrap || !muscleMapHitmap.ready || !muscleMapHitmap.ctx) return null;
-  const img = wrap.querySelector('.muscle-map-reference-img');
-  if (!img) return null;
-  const rect = img.getBoundingClientRect();
+  const canvas = wrap.querySelector('.muscle-map-reference-canvas');
+  if (!canvas) return null;
+  const rect = canvas.getBoundingClientRect();
   if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) {
     return null;
   }
