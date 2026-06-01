@@ -31,7 +31,7 @@ const HEADERS = {
   [SHEETS.EXERCISES]: [
     'routine_exercise_id', 'day_id', 'exercise_order', 'exercise_name',
     'target_sets', 'target_reps_min', 'target_reps_max',
-    'suggested_weight', 'technique_note', 'muscle_group'
+    'suggested_weight', 'technique_note', 'muscle_group', 'muscle_distribution'
   ],
   [SHEETS.SESSIONS]: [
     'session_id', 'date', 'routine_id', 'day_id',
@@ -39,7 +39,7 @@ const HEADERS = {
   ],
   [SHEETS.SETS]: [
     'set_id', 'session_id', 'routine_exercise_id', 'exercise_name',
-    'set_number', 'weight', 'reps', 'rir', 'note', 'muscle_group'
+    'set_number', 'weight', 'reps', 'rir', 'note', 'muscle_group', 'muscle_distribution'
   ],
   [SHEETS.GOALS]: [
     'goal_id', 'exercise_name', 'target_weight', 'target_1rm', 'created_at', 'updated_at'
@@ -266,6 +266,8 @@ function migrateHistoricalSnapshots_() {
     sets_checked: sets.length,
     sets_updated: 0,
     sets_unresolved: 0,
+    exercise_distributions_updated: 0,
+    set_distributions_updated: 0,
   };
 
   const lock = LockService.getScriptLock();
@@ -290,6 +292,23 @@ function migrateHistoricalSnapshots_() {
       }
     });
 
+    exercises.forEach(ex => {
+      if (!ex.routine_exercise_id) return;
+      const muscleGroup = resolveExerciseMuscleGroup_(ex, exerciseMeta);
+      const muscleDistribution = resolveExerciseMuscleDistribution_(ex, exerciseMeta);
+      const partial = {};
+      if (muscleGroup && safeNormalizeMuscleGroup_(ex.muscle_group) !== muscleGroup) {
+        partial.muscle_group = muscleGroup;
+      }
+      if (!Object.keys(parseMuscleDistribution_(ex.muscle_distribution)).length && Object.keys(muscleDistribution).length) {
+        partial.muscle_distribution = JSON.stringify(muscleDistribution);
+      }
+      if (Object.keys(partial).length) {
+        updateRowById_(SHEETS.EXERCISES, 'routine_exercise_id', ex.routine_exercise_id, partial);
+        result.exercise_distributions_updated++;
+      }
+    });
+
     sets.forEach(set => {
       if (!set.set_id) {
         result.sets_unresolved++;
@@ -297,9 +316,18 @@ function migrateHistoricalSnapshots_() {
       }
       const existingGroup = safeNormalizeMuscleGroup_(set.muscle_group);
       const muscleGroup = resolveSetMuscleGroup_(set, exerciseMeta);
+      const muscleDistribution = resolveSetMuscleDistribution_(set, exerciseMeta);
+      const partial = {};
       if (!existingGroup && muscleGroup) {
-        updateRowById_(SHEETS.SETS, 'set_id', set.set_id, { muscle_group: muscleGroup });
+        partial.muscle_group = muscleGroup;
+      }
+      if (!Object.keys(parseMuscleDistribution_(set.muscle_distribution)).length && Object.keys(muscleDistribution).length) {
+        partial.muscle_distribution = JSON.stringify(muscleDistribution);
+      }
+      if (Object.keys(partial).length) {
+        updateRowById_(SHEETS.SETS, 'set_id', set.set_id, partial);
         result.sets_updated++;
+        if (partial.muscle_distribution) result.set_distributions_updated++;
       }
       if (!muscleGroup) result.sets_unresolved++;
     });
@@ -459,13 +487,321 @@ function isTrue_(v) {
   return v === true || v === 'TRUE' || v === 'true' || v === 1;
 }
 
-const MUSCLE_GROUPS_ = ['pecho', 'espalda', 'hombros', 'bicep', 'tricep', 'core', 'piernas'];
+const MUSCLE_GROUPS_ = ['pecho', 'espalda', 'hombros', 'biceps', 'triceps', 'core', 'piernas'];
+
+const MUSCLE_GROUP_LABELS_ = {
+  pecho: 'Pecho',
+  espalda: 'Espalda',
+  hombros: 'Hombros',
+  biceps: 'Bíceps',
+  triceps: 'Tríceps',
+  core: 'Core',
+  piernas: 'Piernas',
+};
+
+const MUSCLE_GROUP_DEFS_ = {
+  pecho: [
+    'pectoral_superior',
+    'pectoral_medio',
+    'pectoral_inferior',
+  ],
+  espalda: [
+    'dorsal_ancho',
+    'trapecio_superior',
+    'trapecio_medio',
+    'trapecio_inferior',
+    'romboides',
+    'redondo_mayor',
+    'erectores_espinales',
+  ],
+  hombros: [
+    'deltoide_anterior',
+    'deltoide_lateral',
+    'deltoide_posterior',
+  ],
+  biceps: [
+    'biceps_cabeza_larga',
+    'biceps_cabeza_corta',
+    'braquial',
+    'braquiorradial',
+  ],
+  triceps: [
+    'triceps_cabeza_larga',
+    'triceps_cabeza_lateral',
+    'triceps_cabeza_medial',
+  ],
+  core: [
+    'recto_abdominal',
+    'oblicuos',
+    'serrato',
+  ],
+  piernas: [
+    'cuadriceps',
+    'aductores',
+    'gluteo_mayor',
+    'isquios',
+    'gemelos',
+    'tibial_anterior',
+  ],
+};
+
+const MUSCLE_SUBZONE_LABELS_ = {
+  pectoral_superior: 'Pectoral superior',
+  pectoral_medio: 'Pectoral medio',
+  pectoral_inferior: 'Pectoral inferior',
+  dorsal_ancho: 'Dorsal ancho',
+  trapecio_superior: 'Trapecio superior',
+  trapecio_medio: 'Trapecio medio',
+  trapecio_inferior: 'Trapecio inferior',
+  romboides: 'Romboides',
+  redondo_mayor: 'Redondo mayor',
+  erectores_espinales: 'Erectores espinales',
+  deltoide_anterior: 'Deltoide anterior',
+  deltoide_lateral: 'Deltoide lateral',
+  deltoide_posterior: 'Deltoide posterior',
+  biceps_cabeza_larga: 'Bíceps cabeza larga',
+  biceps_cabeza_corta: 'Bíceps cabeza corta',
+  braquial: 'Braquial',
+  braquiorradial: 'Braquiorradial',
+  triceps_cabeza_larga: 'Tríceps cabeza larga',
+  triceps_cabeza_lateral: 'Tríceps cabeza lateral',
+  triceps_cabeza_medial: 'Tríceps cabeza medial',
+  recto_abdominal: 'Recto abdominal',
+  oblicuos: 'Oblicuos',
+  serrato: 'Serrato',
+  cuadriceps: 'Cuádriceps',
+  aductores: 'Aductores',
+  gluteo_mayor: 'Glúteo mayor',
+  isquios: 'Isquios',
+  gemelos: 'Gemelos',
+  tibial_anterior: 'Tibial anterior',
+};
+
+const MUSCLE_SUBZONE_ALIASES_ = {
+  pectorales_superior: 'pectoral_superior',
+  pectorales_medio: 'pectoral_medio',
+  pectorales_inferior: 'pectoral_inferior',
+  pecho_superior: 'pectoral_superior',
+  pecho_medio: 'pectoral_medio',
+  pecho_inferior: 'pectoral_inferior',
+  triceps: 'triceps_cabeza_lateral',
+  tricep: 'triceps_cabeza_lateral',
+  biceps: 'biceps_cabeza_larga',
+  bicep: 'biceps_cabeza_larga',
+  abs: 'recto_abdominal',
+  abdominales: 'recto_abdominal',
+  gluteos: 'gluteo_mayor',
+  gluteo: 'gluteo_mayor',
+  femorales: 'isquios',
+  isquiotibiales: 'isquios',
+  pantorrillas: 'gemelos',
+};
+
+const MUSCLE_GROUP_FALLBACK_DISTRIBUTIONS_ = {
+  pecho: {
+    pectoral_superior: 25,
+    pectoral_medio: 50,
+    pectoral_inferior: 25,
+  },
+  espalda: {
+    dorsal_ancho: 32,
+    trapecio_superior: 10,
+    trapecio_medio: 14,
+    trapecio_inferior: 10,
+    romboides: 12,
+    redondo_mayor: 12,
+    erectores_espinales: 10,
+  },
+  hombros: {
+    deltoide_anterior: 34,
+    deltoide_lateral: 33,
+    deltoide_posterior: 33,
+  },
+  biceps: {
+    biceps_cabeza_larga: 35,
+    biceps_cabeza_corta: 35,
+    braquial: 20,
+    braquiorradial: 10,
+  },
+  triceps: {
+    triceps_cabeza_larga: 40,
+    triceps_cabeza_lateral: 35,
+    triceps_cabeza_medial: 25,
+  },
+  core: {
+    recto_abdominal: 45,
+    oblicuos: 35,
+    serrato: 20,
+  },
+  piernas: {
+    cuadriceps: 28,
+    aductores: 12,
+    gluteo_mayor: 20,
+    isquios: 18,
+    gemelos: 14,
+    tibial_anterior: 8,
+  },
+};
+
+const EXERCISE_MUSCLE_MAP_ = {
+  press_plano: {
+    pectoral_medio: 55,
+    pectoral_inferior: 10,
+    pectoral_superior: 10,
+    triceps_cabeza_lateral: 8,
+    triceps_cabeza_medial: 7,
+    deltoide_anterior: 10,
+  },
+  press_banca: {
+    pectoral_medio: 55,
+    pectoral_inferior: 10,
+    pectoral_superior: 10,
+    triceps_cabeza_lateral: 8,
+    triceps_cabeza_medial: 7,
+    deltoide_anterior: 10,
+  },
+  bench_press: {
+    pectoral_medio: 55,
+    pectoral_inferior: 10,
+    pectoral_superior: 10,
+    triceps_cabeza_lateral: 8,
+    triceps_cabeza_medial: 7,
+    deltoide_anterior: 10,
+  },
+  press_inclinado: {
+    pectoral_superior: 45,
+    pectoral_medio: 20,
+    deltoide_anterior: 20,
+    triceps_cabeza_lateral: 5,
+    triceps_cabeza_medial: 5,
+    serrato: 5,
+  },
+  press_inclinado_mancuernas: {
+    pectoral_superior: 45,
+    pectoral_medio: 20,
+    deltoide_anterior: 20,
+    triceps_cabeza_lateral: 5,
+    triceps_cabeza_medial: 5,
+    serrato: 5,
+  },
+  press_militar: {
+    deltoide_anterior: 45,
+    deltoide_lateral: 25,
+    triceps_cabeza_lateral: 12,
+    triceps_cabeza_medial: 8,
+    serrato: 10,
+  },
+  elevaciones_laterales: {
+    deltoide_lateral: 82,
+    deltoide_anterior: 8,
+    trapecio_superior: 10,
+  },
+  vuelos_laterales: {
+    deltoide_lateral: 82,
+    deltoide_anterior: 8,
+    trapecio_superior: 10,
+  },
+  face_pull: {
+    deltoide_posterior: 45,
+    trapecio_medio: 22,
+    trapecio_inferior: 12,
+    romboides: 16,
+    braquial: 5,
+  },
+  dominadas: {
+    dorsal_ancho: 45,
+    redondo_mayor: 15,
+    biceps_cabeza_larga: 8,
+    biceps_cabeza_corta: 7,
+    braquial: 10,
+    trapecio_medio: 5,
+    trapecio_inferior: 5,
+    deltoide_posterior: 5,
+  },
+  jalon_al_pecho: {
+    dorsal_ancho: 44,
+    redondo_mayor: 14,
+    biceps_cabeza_larga: 8,
+    biceps_cabeza_corta: 8,
+    braquial: 10,
+    trapecio_medio: 8,
+    trapecio_inferior: 5,
+    deltoide_posterior: 3,
+  },
+  remo: {
+    dorsal_ancho: 28,
+    romboides: 20,
+    trapecio_medio: 18,
+    deltoide_posterior: 12,
+    redondo_mayor: 10,
+    biceps_cabeza_larga: 5,
+    biceps_cabeza_corta: 4,
+    braquial: 3,
+  },
+  curl_biceps: {
+    biceps_cabeza_larga: 38,
+    biceps_cabeza_corta: 34,
+    braquial: 18,
+    braquiorradial: 10,
+  },
+  curl_martillo: {
+    braquial: 38,
+    braquiorradial: 32,
+    biceps_cabeza_larga: 18,
+    biceps_cabeza_corta: 12,
+  },
+  extension_triceps: {
+    triceps_cabeza_larga: 45,
+    triceps_cabeza_lateral: 30,
+    triceps_cabeza_medial: 25,
+  },
+  sentadilla: {
+    cuadriceps: 40,
+    gluteo_mayor: 25,
+    aductores: 15,
+    isquios: 10,
+    erectores_espinales: 5,
+    recto_abdominal: 5,
+  },
+  prensa: {
+    cuadriceps: 45,
+    gluteo_mayor: 20,
+    aductores: 15,
+    isquios: 10,
+    gemelos: 5,
+    recto_abdominal: 5,
+  },
+  peso_muerto: {
+    isquios: 25,
+    gluteo_mayor: 25,
+    erectores_espinales: 20,
+    dorsal_ancho: 10,
+    trapecio_superior: 10,
+    aductores: 5,
+    braquiorradial: 5,
+  },
+  hip_thrust: {
+    gluteo_mayor: 55,
+    isquios: 18,
+    aductores: 12,
+    cuadriceps: 10,
+    recto_abdominal: 5,
+  },
+  zancadas: {
+    cuadriceps: 32,
+    gluteo_mayor: 30,
+    aductores: 14,
+    isquios: 14,
+    gemelos: 6,
+    recto_abdominal: 4,
+  },
+};
 
 function normalizeMuscleGroup_(value) {
   const v = (value || '').toString().trim().toLowerCase();
   if (!v) return '';
-  if (v === 'bícep' || v === 'biceps' || v === 'bíceps') return 'bicep';
-  if (v === 'trícep' || v === 'triceps' || v === 'tríceps') return 'tricep';
+  if (v === 'bicep' || v === 'bícep' || v === 'biceps' || v === 'bíceps') return 'biceps';
+  if (v === 'tricep' || v === 'trícep' || v === 'triceps' || v === 'tríceps') return 'triceps';
   if (MUSCLE_GROUPS_.indexOf(v) < 0) throw new Error('Grupo muscular invalido.');
   return v;
 }
@@ -479,7 +815,139 @@ function safeNormalizeMuscleGroup_(value) {
 }
 
 function normalizeExerciseNameKey_(value) {
-  return (value || '').toString().trim().toLowerCase();
+  return normalizeLookupKey_(value);
+}
+
+function normalizeLookupKey_(value) {
+  return (value || '').toString().trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+function getAllMuscleSubzones_() {
+  return MUSCLE_GROUPS_.reduce((acc, group) => acc.concat(MUSCLE_GROUP_DEFS_[group] || []), []);
+}
+
+function getMuscleSubzoneGroup_(subzone) {
+  const key = normalizeMuscleSubzoneKey_(subzone);
+  for (let i = 0; i < MUSCLE_GROUPS_.length; i++) {
+    const group = MUSCLE_GROUPS_[i];
+    if ((MUSCLE_GROUP_DEFS_[group] || []).indexOf(key) >= 0) return group;
+  }
+  return '';
+}
+
+function normalizeMuscleSubzoneKey_(value) {
+  const key = normalizeLookupKey_(value);
+  if (!key) return '';
+  return MUSCLE_SUBZONE_ALIASES_[key] || key;
+}
+
+function cloneDistribution_(dist) {
+  const out = {};
+  Object.keys(dist || {}).forEach(key => { out[key] = Number(dist[key] || 0); });
+  return out;
+}
+
+function parseMuscleDistribution_(value) {
+  if (value === undefined || value === null || value === '') return {};
+  let raw = value;
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed) return {};
+    try {
+      raw = JSON.parse(trimmed);
+    } catch (err) {
+      return {};
+    }
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+
+  const dist = {};
+  Object.keys(raw).forEach(rawKey => {
+    const subzone = normalizeMuscleSubzoneKey_(rawKey);
+    if (!subzone || !getMuscleSubzoneGroup_(subzone)) return;
+    const percent = Number(raw[rawKey]);
+    if (!isFinite(percent) || percent <= 0) return;
+    dist[subzone] = (dist[subzone] || 0) + percent;
+  });
+  return normalizeDistributionTotal_(dist);
+}
+
+function normalizeDistributionTotal_(dist) {
+  const keys = Object.keys(dist || {}).filter(key => Number(dist[key]) > 0);
+  if (!keys.length) return {};
+  const total = keys.reduce((sum, key) => sum + Number(dist[key] || 0), 0);
+  if (!isFinite(total) || total <= 0) return {};
+  const out = {};
+  let roundedTotal = 0;
+  keys.forEach(key => {
+    const value = Math.round((Number(dist[key]) / total) * 10000) / 100;
+    out[key] = value;
+    roundedTotal += value;
+  });
+  const diff = Math.round((100 - roundedTotal) * 100) / 100;
+  if (keys.length && diff !== 0) {
+    out[keys[0]] = Math.round((out[keys[0]] + diff) * 100) / 100;
+  }
+  return out;
+}
+
+function defaultMuscleDistribution_(exerciseName, fallbackGroup) {
+  const nameKey = normalizeExerciseNameKey_(exerciseName);
+  const mapKey = getExerciseMuscleMapKey_(nameKey);
+  if (mapKey && EXERCISE_MUSCLE_MAP_[mapKey]) {
+    return cloneDistribution_(EXERCISE_MUSCLE_MAP_[mapKey]);
+  }
+  const group = safeNormalizeMuscleGroup_(fallbackGroup);
+  if (group && MUSCLE_GROUP_FALLBACK_DISTRIBUTIONS_[group]) {
+    return cloneDistribution_(MUSCLE_GROUP_FALLBACK_DISTRIBUTIONS_[group]);
+  }
+  return {};
+}
+
+function getExerciseMuscleMapKey_(nameKey) {
+  if (!nameKey) return '';
+  if (EXERCISE_MUSCLE_MAP_[nameKey]) return nameKey;
+  if (nameKey.indexOf('press_inclinado') >= 0) return 'press_inclinado';
+  if (nameKey.indexOf('press_plano') >= 0 || nameKey.indexOf('press_banca') >= 0) return 'press_plano';
+  if (nameKey.indexOf('press_militar') >= 0 || nameKey.indexOf('overhead_press') >= 0) return 'press_militar';
+  if (nameKey.indexOf('elevacion_lateral') >= 0 || nameKey.indexOf('elevaciones_laterales') >= 0 || nameKey.indexOf('vuelos_laterales') >= 0) return 'elevaciones_laterales';
+  if (nameKey.indexOf('face_pull') >= 0) return 'face_pull';
+  if (nameKey.indexOf('dominad') >= 0 || nameKey.indexOf('pull_up') >= 0) return 'dominadas';
+  if (nameKey.indexOf('jalon') >= 0 || nameKey.indexOf('lat_pulldown') >= 0) return 'jalon_al_pecho';
+  if (nameKey.indexOf('remo') >= 0 || nameKey.indexOf('row') >= 0) return 'remo';
+  if (nameKey.indexOf('curl_martillo') >= 0) return 'curl_martillo';
+  if (nameKey.indexOf('curl') >= 0) return 'curl_biceps';
+  if (nameKey.indexOf('extension_triceps') >= 0 || nameKey.indexOf('pushdown') >= 0) return 'extension_triceps';
+  if (nameKey.indexOf('sentadilla') >= 0 || nameKey.indexOf('squat') >= 0) return 'sentadilla';
+  if (nameKey.indexOf('prensa') >= 0 || nameKey.indexOf('leg_press') >= 0) return 'prensa';
+  if (nameKey.indexOf('peso_muerto') >= 0 || nameKey.indexOf('deadlift') >= 0) return 'peso_muerto';
+  if (nameKey.indexOf('hip_thrust') >= 0) return 'hip_thrust';
+  if (nameKey.indexOf('zancada') >= 0 || nameKey.indexOf('lunge') >= 0) return 'zancadas';
+  return '';
+}
+
+function normalizeMuscleDistribution_(value, fallbackGroup, exerciseName) {
+  const parsed = parseMuscleDistribution_(value);
+  if (Object.keys(parsed).length) return parsed;
+  return defaultMuscleDistribution_(exerciseName, fallbackGroup);
+}
+
+function serializeMuscleDistribution_(value, fallbackGroup, exerciseName) {
+  const dist = normalizeMuscleDistribution_(value, fallbackGroup, exerciseName);
+  return Object.keys(dist).length ? JSON.stringify(dist) : '';
+}
+
+function dominantMuscleGroupFromDistribution_(distribution) {
+  const totals = {};
+  Object.keys(distribution || {}).forEach(subzone => {
+    const group = getMuscleSubzoneGroup_(subzone);
+    if (!group) return;
+    totals[group] = (totals[group] || 0) + Number(distribution[subzone] || 0);
+  });
+  return Object.keys(totals).sort((a, b) => totals[b] - totals[a] || a.localeCompare(b))[0] || '';
 }
 
 function resolveExerciseMuscleGroup_(exercise, exerciseMeta) {
@@ -490,7 +958,14 @@ function resolveExerciseMuscleGroup_(exercise, exerciseMeta) {
     : '';
   if (byId) return byId;
   const nameKey = normalizeExerciseNameKey_(exercise && exercise.exercise_name);
-  return (exerciseMeta && nameKey && exerciseMeta.byName[nameKey]) || '';
+  const byName = (exerciseMeta && nameKey && exerciseMeta.byName[nameKey]) || '';
+  if (byName) return byName;
+  const distribution = normalizeMuscleDistribution_(
+    exercise && (exercise.muscleDistribution || exercise.muscle_distribution),
+    '',
+    exercise && exercise.exercise_name
+  );
+  return dominantMuscleGroupFromDistribution_(distribution);
 }
 
 function normalizeWeekDays_(value) {
@@ -636,6 +1111,7 @@ function duplicateRoutine(params) {
         .sort((a, b) => Number(a.exercise_order || 0) - Number(b.exercise_order || 0))
         .forEach(ex => {
           const muscleGroup = resolveExerciseMuscleGroup_(ex, exerciseMeta);
+          const muscleDistribution = resolveExerciseMuscleDistribution_(ex, exerciseMeta);
           appendRow_(SHEETS.EXERCISES, {
             routine_exercise_id: genId_('rex'),
             day_id: dayIdMap[day.day_id],
@@ -647,6 +1123,7 @@ function duplicateRoutine(params) {
             suggested_weight: ex.suggested_weight,
             technique_note: ex.technique_note || '',
             muscle_group: muscleGroup,
+            muscle_distribution: serializeMuscleDistribution_(muscleDistribution, muscleGroup, ex.exercise_name),
           });
         });
     });
@@ -714,17 +1191,23 @@ function getRoutine(routine_id) {
     exercises: exercises
       .filter(e => e.day_id === d.day_id)
       .sort((a, b) => Number(a.exercise_order || 0) - Number(b.exercise_order || 0))
-      .map(e => ({
-        routine_exercise_id: e.routine_exercise_id,
-        exercise_order: Number(e.exercise_order || 0),
-        exercise_name: e.exercise_name,
-        target_sets: Number(e.target_sets || 0),
-        target_reps_min: Number(e.target_reps_min || 0),
-        target_reps_max: Number(e.target_reps_max || 0),
-        suggested_weight: e.suggested_weight === '' ? null : Number(e.suggested_weight),
-        technique_note: e.technique_note || '',
-        muscle_group: normalizeMuscleGroup_(e.muscle_group),
-      })),
+      .map(e => {
+        const muscleGroup = normalizeMuscleGroup_(e.muscle_group);
+        const muscleDistribution = normalizeMuscleDistribution_(e.muscle_distribution, muscleGroup, e.exercise_name);
+        return {
+          routine_exercise_id: e.routine_exercise_id,
+          exercise_order: Number(e.exercise_order || 0),
+          exercise_name: e.exercise_name,
+          target_sets: Number(e.target_sets || 0),
+          target_reps_min: Number(e.target_reps_min || 0),
+          target_reps_max: Number(e.target_reps_max || 0),
+          suggested_weight: e.suggested_weight === '' ? null : Number(e.suggested_weight),
+          technique_note: e.technique_note || '',
+          muscle_group: muscleGroup,
+          muscleDistribution,
+          muscle_distribution: JSON.stringify(muscleDistribution),
+        };
+      }),
   }));
 
   return {
@@ -842,6 +1325,11 @@ function addExercise(params) {
   const swRaw         = params.suggested_weight;
   const technique_note = (params.technique_note || '').toString().trim();
   const muscle_group = normalizeMuscleGroup_(params.muscle_group);
+  const muscle_distribution = serializeMuscleDistribution_(
+    params.muscleDistribution !== undefined ? params.muscleDistribution : params.muscle_distribution,
+    muscle_group,
+    exercise_name
+  );
 
   if (!day_id)        throw new Error('day_id requerido.');
   if (!exercise_name) throw new Error('El nombre del ejercicio no puede estar vacío.');
@@ -878,6 +1366,7 @@ function addExercise(params) {
     suggested_weight,
     technique_note,
     muscle_group,
+    muscle_distribution,
   });
   return getRoutine(day.routine_id);
 }
@@ -927,6 +1416,17 @@ function updateExercise(params) {
     const muscleGroup = normalizeMuscleGroup_(params.muscle_group);
     if (!muscleGroup) throw new Error('Elegí el grupo muscular principal.');
     partial.muscle_group = muscleGroup;
+  }
+  if (
+    params.muscleDistribution !== undefined ||
+    params.muscle_distribution !== undefined ||
+    partial.exercise_name !== undefined ||
+    partial.muscle_group !== undefined
+  ) {
+    const nextName = partial.exercise_name !== undefined ? partial.exercise_name : ex.exercise_name;
+    const nextGroup = partial.muscle_group !== undefined ? partial.muscle_group : normalizeMuscleGroup_(ex.muscle_group);
+    const rawDistribution = params.muscleDistribution !== undefined ? params.muscleDistribution : params.muscle_distribution;
+    partial.muscle_distribution = serializeMuscleDistribution_(rawDistribution, nextGroup, nextName);
   }
 
   updateRowById_(SHEETS.EXERCISES, 'routine_exercise_id', rex_id, partial);
@@ -1165,6 +1665,7 @@ function saveSession(params) {
           routine_exercise_id: ex.routine_exercise_id,
           exercise_name: ex.exercise_name,
           muscle_group: ex.muscle_group || '',
+          muscle_distribution: ex.muscle_distribution || '',
           set_number: set.set_number,
           weight: set.weight === null ? '' : set.weight,
           reps: set.reps === null ? '' : set.reps,
@@ -1207,16 +1708,23 @@ function getSession(params) {
   sets.forEach(set => {
     const rexId = set.routine_exercise_id || set.exercise_name;
     const muscleGroup = resolveSetMuscleGroup_(set, exerciseMeta);
+    const muscleDistribution = resolveSetMuscleDistribution_(set, exerciseMeta);
     if (!grouped[rexId]) {
       grouped[rexId] = {
         routine_exercise_id: set.routine_exercise_id,
         exercise_name: set.exercise_name,
         muscle_group: muscleGroup,
+        muscleDistribution,
+        muscle_distribution: JSON.stringify(muscleDistribution),
         sets: [],
       };
     }
     if (!grouped[rexId].muscle_group) {
       grouped[rexId].muscle_group = muscleGroup;
+    }
+    if (!Object.keys(grouped[rexId].muscleDistribution || {}).length && Object.keys(muscleDistribution).length) {
+      grouped[rexId].muscleDistribution = muscleDistribution;
+      grouped[rexId].muscle_distribution = JSON.stringify(muscleDistribution);
     }
     grouped[rexId].sets.push({
       set_number: Number(set.set_number || 0),
@@ -1303,6 +1811,7 @@ function editSession(params) {
           routine_exercise_id: ex.routine_exercise_id,
           exercise_name: ex.exercise_name,
           muscle_group: ex.muscle_group || '',
+          muscle_distribution: ex.muscle_distribution || '',
           set_number: set.set_number,
           weight: set.weight === null ? '' : set.weight,
           reps: set.reps === null ? '' : set.reps,
@@ -1356,14 +1865,24 @@ function prepareSessionExercises_(items) {
     });
 
     if (sets.length > 0) {
+      const muscleGroup = resolveExerciseMuscleGroup_({
+        routine_exercise_id: rexId,
+        exercise_name: exerciseName,
+        muscle_group: item.muscle_group || (template && template.muscle_group),
+      }, exerciseMeta);
+      const muscleDistribution = normalizeMuscleDistribution_(
+        item.muscleDistribution !== undefined
+          ? item.muscleDistribution
+          : (item.muscle_distribution !== undefined ? item.muscle_distribution : (template && template.muscle_distribution)),
+        muscleGroup,
+        exerciseName
+      );
       prepared.push({
         routine_exercise_id: rexId,
         exercise_name: exerciseName,
-        muscle_group: resolveExerciseMuscleGroup_({
-          routine_exercise_id: rexId,
-          exercise_name: exerciseName,
-          muscle_group: item.muscle_group || (template && template.muscle_group),
-        }, exerciseMeta),
+        muscle_group: muscleGroup,
+        muscleDistribution,
+        muscle_distribution: JSON.stringify(muscleDistribution),
         template,
         sets,
       });
@@ -1408,6 +1927,7 @@ function buildSessionSummary_(session, exercises, routine, day) {
       routine_exercise_id: ex.routine_exercise_id,
       exercise_name: ex.exercise_name,
       muscle_group: ex.muscle_group || '',
+      muscleDistribution: ex.muscleDistribution || {},
       sets: ex.sets,
       previous_sets: previousSets,
       metrics: currentMetrics,
@@ -2175,10 +2695,11 @@ function listAllExerciseNames() {
 function getProgressExerciseData(params) {
   params = params || {};
   const exerciseMap = {};
+  const exerciseMeta = buildExerciseMuscleMeta_(readAll_(SHEETS.EXERCISES));
   readAll_(SHEETS.EXERCISES).forEach(ex => {
     const name = (ex.exercise_name || '').toString().trim();
     if (!name) return;
-    if (!exerciseMap[name]) exerciseMap[name] = ex.muscle_group || '';
+    if (!exerciseMap[name]) exerciseMap[name] = resolveExerciseMuscleGroup_(ex, exerciseMeta);
   });
   const exercises = Object.keys(exerciseMap)
     .filter(Boolean)
@@ -2361,6 +2882,7 @@ function getVolumeByMuscle(params) {
   });
 
   const groups = MUSCLE_GROUPS_.filter(Boolean);
+  const subzones = getAllMuscleSubzones_();
   const byWeek = {};
   for (let i = 0; i < weeks; i++) {
     const weekStart = addDaysIso_(start, i * 7);
@@ -2368,8 +2890,30 @@ function getVolumeByMuscle(params) {
       week_start: weekStart,
       week_end: addDaysIso_(weekStart, 6),
       total_volume: 0,
+      direct_sets: 0,
+      indirect_sets: 0,
       groups: groups.reduce((acc, group) => {
         acc[group] = 0;
+        return acc;
+      }, {}),
+      direct_groups: groups.reduce((acc, group) => {
+        acc[group] = 0;
+        return acc;
+      }, {}),
+      indirect_groups: groups.reduce((acc, group) => {
+        acc[group] = 0;
+        return acc;
+      }, {}),
+      subzones: subzones.reduce((acc, subzone) => {
+        acc[subzone] = 0;
+        return acc;
+      }, {}),
+      direct_subzones: subzones.reduce((acc, subzone) => {
+        acc[subzone] = 0;
+        return acc;
+      }, {}),
+      indirect_subzones: subzones.reduce((acc, subzone) => {
+        acc[subzone] = 0;
         return acc;
       }, {}),
     };
@@ -2380,33 +2924,111 @@ function getVolumeByMuscle(params) {
     if (!session) return;
     const date = normalizeDate_(session.date);
     if (date < start || date > today) return;
-    const group = resolveSetMuscleGroup_(set, exerciseMeta);
-    if (!group) return;
     const weekStart = getWeekRange_(date).start;
     if (!byWeek[weekStart]) return;
-    const volume = calcRawVolume_([set]);
-    byWeek[weekStart].groups[group] += volume;
-    byWeek[weekStart].total_volume += volume;
+    const stimuli = getSetMuscleStimuli_(set, exerciseMeta);
+    stimuli.forEach(stimulus => {
+      const value = Number(stimulus.effective_sets || 0);
+      if (value <= 0) return;
+      byWeek[weekStart].groups[stimulus.muscle_group] += value;
+      byWeek[weekStart].subzones[stimulus.subzone] += value;
+      byWeek[weekStart].total_volume += value;
+      if (stimulus.direct) {
+        byWeek[weekStart].direct_sets += value;
+        byWeek[weekStart].direct_groups[stimulus.muscle_group] += value;
+        byWeek[weekStart].direct_subzones[stimulus.subzone] += value;
+      } else {
+        byWeek[weekStart].indirect_sets += value;
+        byWeek[weekStart].indirect_groups[stimulus.muscle_group] += value;
+        byWeek[weekStart].indirect_subzones[stimulus.subzone] += value;
+      }
+    });
   });
 
   const weekItems = Object.keys(byWeek).sort().map(weekStart => {
     const item = byWeek[weekStart];
     groups.forEach(group => {
-      item.groups[group] = Math.round(item.groups[group] * 100) / 100;
+      item.groups[group] = round2_(item.groups[group]);
+      item.direct_groups[group] = round2_(item.direct_groups[group]);
+      item.indirect_groups[group] = round2_(item.indirect_groups[group]);
     });
-    item.total_volume = Math.round(item.total_volume * 100) / 100;
+    subzones.forEach(subzone => {
+      item.subzones[subzone] = round2_(item.subzones[subzone]);
+      item.direct_subzones[subzone] = round2_(item.direct_subzones[subzone]);
+      item.indirect_subzones[subzone] = round2_(item.indirect_subzones[subzone]);
+    });
+    item.total_volume = round2_(item.total_volume);
+    item.direct_sets = round2_(item.direct_sets);
+    item.indirect_sets = round2_(item.indirect_sets);
     return item;
   });
   const totals = groups.reduce((acc, group) => {
-    acc[group] = Math.round(weekItems.reduce((sum, week) => sum + Number(week.groups[group] || 0), 0) * 100) / 100;
+    acc[group] = round2_(weekItems.reduce((sum, week) => sum + Number(week.groups[group] || 0), 0));
     return acc;
   }, {});
+  const directTotals = groups.reduce((acc, group) => {
+    acc[group] = round2_(weekItems.reduce((sum, week) => sum + Number(week.direct_groups[group] || 0), 0));
+    return acc;
+  }, {});
+  const indirectTotals = groups.reduce((acc, group) => {
+    acc[group] = round2_(weekItems.reduce((sum, week) => sum + Number(week.indirect_groups[group] || 0), 0));
+    return acc;
+  }, {});
+  const subzoneTotals = subzones.reduce((acc, subzone) => {
+    acc[subzone] = round2_(weekItems.reduce((sum, week) => sum + Number(week.subzones[subzone] || 0), 0));
+    return acc;
+  }, {});
+  const subzoneDirectTotals = subzones.reduce((acc, subzone) => {
+    acc[subzone] = round2_(weekItems.reduce((sum, week) => sum + Number(week.direct_subzones[subzone] || 0), 0));
+    return acc;
+  }, {});
+  const subzoneIndirectTotals = subzones.reduce((acc, subzone) => {
+    acc[subzone] = round2_(weekItems.reduce((sum, week) => sum + Number(week.indirect_subzones[subzone] || 0), 0));
+    return acc;
+  }, {});
+  const groupDetails = groups.map(group => ({
+    muscle_group: group,
+    label: MUSCLE_GROUP_LABELS_[group] || group,
+    volume: totals[group],
+    effective_sets: totals[group],
+    direct_sets: directTotals[group],
+    indirect_sets: indirectTotals[group],
+    subzones: (MUSCLE_GROUP_DEFS_[group] || []).map(subzone => ({
+      subzone,
+      label: MUSCLE_SUBZONE_LABELS_[subzone] || subzone,
+      muscle_group: group,
+      volume: subzoneTotals[subzone],
+      effective_sets: subzoneTotals[subzone],
+      direct_sets: subzoneDirectTotals[subzone],
+      indirect_sets: subzoneIndirectTotals[subzone],
+    })),
+  }));
+  const subzoneDetails = subzones.map(subzone => ({
+    subzone,
+    label: MUSCLE_SUBZONE_LABELS_[subzone] || subzone,
+    muscle_group: getMuscleSubzoneGroup_(subzone),
+    volume: subzoneTotals[subzone],
+    effective_sets: subzoneTotals[subzone],
+    direct_sets: subzoneDirectTotals[subzone],
+    indirect_sets: subzoneIndirectTotals[subzone],
+  }));
 
   return {
     start,
     end: today,
+    metric: 'effective_sets',
+    model: getMuscleModelMeta_(),
     groups,
+    subzones,
     totals,
+    direct_totals: directTotals,
+    indirect_totals: indirectTotals,
+    subzone_totals: subzoneTotals,
+    subzone_direct_totals: subzoneDirectTotals,
+    subzone_indirect_totals: subzoneIndirectTotals,
+    group_details: groupDetails,
+    subzone_details: subzoneDetails,
+    insights: buildMuscleVolumeInsights_(groupDetails, subzoneDetails, weeks),
     weeks: weekItems,
   };
 }
@@ -2426,10 +3048,30 @@ function getMuscleHeatmap(params) {
   });
 
   const groups = MUSCLE_GROUPS_.filter(Boolean);
+  const subzones = getAllMuscleSubzones_();
   const stats = groups.reduce((acc, group) => {
     acc[group] = {
       muscle_group: group,
+      label: MUSCLE_GROUP_LABELS_[group] || group,
       volume: 0,
+      effective_sets: 0,
+      direct_sets: 0,
+      indirect_sets: 0,
+      set_count: 0,
+      session_count: 0,
+      exercise_count: 0,
+    };
+    return acc;
+  }, {});
+  const subzoneStats = subzones.reduce((acc, subzone) => {
+    acc[subzone] = {
+      subzone,
+      label: MUSCLE_SUBZONE_LABELS_[subzone] || subzone,
+      muscle_group: getMuscleSubzoneGroup_(subzone),
+      volume: 0,
+      effective_sets: 0,
+      direct_sets: 0,
+      indirect_sets: 0,
       set_count: 0,
       session_count: 0,
       exercise_count: 0,
@@ -2444,38 +3086,149 @@ function getMuscleHeatmap(params) {
     if (!session) return;
     const date = normalizeDate_(session.date);
     if (date < start || date > today) return;
-    const group = resolveSetMuscleGroup_(set, exerciseMeta);
-    if (!group || !stats[group]) return;
-
-    stats[group].volume += calcRawVolume_([set]);
-    stats[group].set_count++;
-
-    const sessionKey = group + '|' + set.session_id;
-    if (!sessionSeen[sessionKey]) {
-      sessionSeen[sessionKey] = true;
-      stats[group].session_count++;
-    }
-
-    const exerciseKey = group + '|' + (set.routine_exercise_id || set.exercise_name || '');
-    if (!exerciseSeen[exerciseKey]) {
-      exerciseSeen[exerciseKey] = true;
-      stats[group].exercise_count++;
-    }
+    const stimuli = getSetMuscleStimuli_(set, exerciseMeta);
+    const touchedGroups = {};
+    const touchedSubzones = {};
+    stimuli.forEach(stimulus => {
+      const value = Number(stimulus.effective_sets || 0);
+      if (value <= 0) return;
+      const group = stimulus.muscle_group;
+      stats[group].volume += value;
+      stats[group].effective_sets += value;
+      subzoneStats[stimulus.subzone].volume += value;
+      subzoneStats[stimulus.subzone].effective_sets += value;
+      if (stimulus.direct) {
+        stats[group].direct_sets += value;
+        subzoneStats[stimulus.subzone].direct_sets += value;
+      } else {
+        stats[group].indirect_sets += value;
+        subzoneStats[stimulus.subzone].indirect_sets += value;
+      }
+      touchedGroups[group] = true;
+      touchedSubzones[stimulus.subzone] = true;
+    });
+    Object.keys(touchedGroups).forEach(group => {
+      stats[group].set_count++;
+      const sessionKey = group + '|' + set.session_id;
+      if (!sessionSeen[sessionKey]) {
+        sessionSeen[sessionKey] = true;
+        stats[group].session_count++;
+      }
+      const exerciseKey = group + '|' + (set.routine_exercise_id || set.exercise_name || '');
+      if (!exerciseSeen[exerciseKey]) {
+        exerciseSeen[exerciseKey] = true;
+        stats[group].exercise_count++;
+      }
+    });
+    Object.keys(touchedSubzones).forEach(subzone => {
+      subzoneStats[subzone].set_count++;
+      const sessionKey = subzone + '|' + set.session_id;
+      if (!sessionSeen[sessionKey]) {
+        sessionSeen[sessionKey] = true;
+        subzoneStats[subzone].session_count++;
+      }
+      const exerciseKey = subzone + '|' + (set.routine_exercise_id || set.exercise_name || '');
+      if (!exerciseSeen[exerciseKey]) {
+        exerciseSeen[exerciseKey] = true;
+        subzoneStats[subzone].exercise_count++;
+      }
+    });
   });
 
   const maxVolume = Math.max.apply(null, groups.map(group => stats[group].volume));
+  const maxSubzoneVolume = Math.max.apply(null, subzones.map(subzone => subzoneStats[subzone].volume));
   groups.forEach(group => {
-    stats[group].volume = Math.round(stats[group].volume * 100) / 100;
-    stats[group].intensity = maxVolume > 0 ? Math.round((stats[group].volume / maxVolume) * 100) / 100 : 0;
+    stats[group].volume = round2_(stats[group].volume);
+    stats[group].effective_sets = stats[group].volume;
+    stats[group].direct_sets = round2_(stats[group].direct_sets);
+    stats[group].indirect_sets = round2_(stats[group].indirect_sets);
+    stats[group].intensity = maxVolume > 0 ? round2_(stats[group].volume / maxVolume) : 0;
+  });
+  subzones.forEach(subzone => {
+    subzoneStats[subzone].volume = round2_(subzoneStats[subzone].volume);
+    subzoneStats[subzone].effective_sets = subzoneStats[subzone].volume;
+    subzoneStats[subzone].direct_sets = round2_(subzoneStats[subzone].direct_sets);
+    subzoneStats[subzone].indirect_sets = round2_(subzoneStats[subzone].indirect_sets);
+    subzoneStats[subzone].intensity = maxSubzoneVolume > 0 ? round2_(subzoneStats[subzone].volume / maxSubzoneVolume) : 0;
   });
 
   return {
     start,
     end: today,
     days: daysBack,
-    max_volume: Math.round(maxVolume * 100) / 100,
+    metric: 'effective_sets',
+    model: getMuscleModelMeta_(),
+    max_volume: round2_(maxVolume),
+    max_subzone_volume: round2_(maxSubzoneVolume),
     groups: groups.map(group => stats[group]),
+    subzones: subzones.map(subzone => subzoneStats[subzone]),
   };
+}
+
+function buildMuscleVolumeInsights_(groupDetails, subzoneDetails, weeks) {
+  const insights = [];
+  const averageDivisor = Math.max(Number(weeks || 1), 1);
+  const bySubzone = {};
+  (subzoneDetails || []).forEach(item => { bySubzone[item.subzone] = item; });
+
+  const anterior = bySubzone.deltoide_anterior || {};
+  const posterior = bySubzone.deltoide_posterior || {};
+  if (Number(anterior.volume || 0) >= 4 && Number(anterior.volume || 0) > Number(posterior.volume || 0) * 1.8) {
+    insights.push({
+      type: 'imbalance',
+      severity: 'warn',
+      title: 'Deltoide anterior dominante',
+      text: 'El deltoide anterior recibe bastante más estímulo que el posterior. Revisá remos, face pulls o vuelos posteriores.',
+      subzones: ['deltoide_anterior', 'deltoide_posterior'],
+    });
+  }
+
+  (subzoneDetails || []).forEach(item => {
+    const direct = Number(item.direct_sets || 0);
+    const indirect = Number(item.indirect_sets || 0);
+    if (indirect >= 3 && indirect > Math.max(1, direct) * 1.5) {
+      insights.push({
+        type: 'indirect_excess',
+        severity: 'warn',
+        title: (item.label || item.subzone) + ' indirecto',
+        text: (item.label || item.subzone) + ' acumula más estímulo indirecto que directo.',
+        subzones: [item.subzone],
+      });
+    }
+  });
+
+  (groupDetails || []).forEach(group => {
+    if (Number(group.volume || 0) <= 0) return;
+    const active = (group.subzones || []).filter(sub => Number(sub.volume || 0) > 0);
+    const missing = (group.subzones || []).filter(sub => Number(sub.volume || 0) === 0);
+    if (active.length >= 2) {
+      const sorted = active.slice().sort((a, b) => Number(a.volume || 0) - Number(b.volume || 0));
+      const low = sorted[0];
+      const high = sorted[sorted.length - 1];
+      if (Number(high.volume || 0) >= 4 && Number(low.volume || 0) * 2.2 < Number(high.volume || 0)) {
+        insights.push({
+          type: 'imbalance',
+          severity: 'info',
+          title: 'Desequilibrio en ' + (group.label || group.muscle_group),
+          text: (low.label || low.subzone) + ' queda muy por debajo de ' + (high.label || high.subzone) + '.',
+          muscle_group: group.muscle_group,
+          subzones: [low.subzone, high.subzone],
+        });
+      }
+    }
+    if (missing.length && Number(group.volume || 0) / averageDivisor >= 3) {
+      insights.push({
+        type: 'undertrained',
+        severity: 'info',
+        title: (missing[0].label || missing[0].subzone) + ' sin estímulo',
+        text: 'Dentro de ' + (group.label || group.muscle_group) + ', esta porción no recibió series efectivas en el período.',
+        muscle_group: group.muscle_group,
+        subzones: [missing[0].subzone],
+      });
+    }
+  });
+
+  return insights.slice(0, 4);
 }
 
 function listMuscleGroupHistory(params) {
@@ -2496,8 +3249,10 @@ function listMuscleGroupHistory(params) {
 
   const bySession = {};
   sets.forEach(set => {
-    const group = resolveSetMuscleGroup_(set, exerciseMeta);
-    if (group !== muscleGroup) return;
+    const groupStimuli = getSetMuscleStimuli_(set, exerciseMeta)
+      .filter(stimulus => stimulus.muscle_group === muscleGroup);
+    const effectiveSets = groupStimuli.reduce((sum, stimulus) => sum + Number(stimulus.effective_sets || 0), 0);
+    if (effectiveSets <= 0) return;
 
     const session = sessionsById[set.session_id];
     if (!session) return;
@@ -2518,12 +3273,25 @@ function listMuscleGroupHistory(params) {
     if (!bySession[session.session_id].exercises[exerciseName]) {
       bySession[session.session_id].exercises[exerciseName] = [];
     }
+    const directSets = groupStimuli
+      .filter(stimulus => stimulus.direct)
+      .reduce((sum, stimulus) => sum + Number(stimulus.effective_sets || 0), 0);
+    const indirectSets = effectiveSets - directSets;
     bySession[session.session_id].exercises[exerciseName].push({
       set_number: Number(set.set_number || 0),
       weight: set.weight === '' ? null : Number(set.weight),
       reps: set.reps === '' ? null : Number(set.reps),
       rir: set.rir === '' ? null : Number(set.rir),
       note: set.note || '',
+      effective_sets: round2_(effectiveSets),
+      direct_sets: round2_(directSets),
+      indirect_sets: round2_(indirectSets),
+      subzones: groupStimuli.map(stimulus => ({
+        subzone: stimulus.subzone,
+        label: MUSCLE_SUBZONE_LABELS_[stimulus.subzone] || stimulus.subzone,
+        effective_sets: round2_(stimulus.effective_sets),
+        direct: stimulus.direct,
+      })),
     });
   });
 
@@ -2539,18 +3307,26 @@ function listMuscleGroupHistory(params) {
         const exerciseSets = item.exercises[name]
           .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0));
         const metrics = calcSetMetrics_(exerciseSets);
+        const effectiveSets = round2_(exerciseSets.reduce((sum, set) => sum + Number(set.effective_sets || 0), 0));
+        const directSets = round2_(exerciseSets.reduce((sum, set) => sum + Number(set.direct_sets || 0), 0));
+        const indirectSets = round2_(exerciseSets.reduce((sum, set) => sum + Number(set.indirect_sets || 0), 0));
         return {
           exercise_name: name,
           sets: exerciseSets,
-          volume: Math.round(metrics.volume * 100) / 100,
+          volume: effectiveSets,
+          effective_sets: effectiveSets,
+          direct_sets: directSets,
+          indirect_sets: indirectSets,
           weight_max: metrics.weight_max,
           e1rm_max: metrics.e1rm_max,
         };
       });
       const allSets = exerciseSummaries.reduce((acc, ex) => acc.concat(ex.sets), []);
-      const metrics = calcSetMetrics_(allSets);
       item.exercises = exerciseSummaries;
-      item.volume = Math.round(metrics.volume * 100) / 100;
+      item.volume = round2_(exerciseSummaries.reduce((sum, ex) => sum + Number(ex.effective_sets || 0), 0));
+      item.effective_sets = item.volume;
+      item.direct_sets = round2_(exerciseSummaries.reduce((sum, ex) => sum + Number(ex.direct_sets || 0), 0));
+      item.indirect_sets = round2_(exerciseSummaries.reduce((sum, ex) => sum + Number(ex.indirect_sets || 0), 0));
       item.set_count = allSets.length;
       item.exercise_count = exerciseSummaries.length;
       return item;
@@ -2563,7 +3339,7 @@ function listMuscleGroupHistory(params) {
       return;
     }
     const prev = chronological[idx - 1];
-    item.delta_volume = Math.round((item.volume - prev.volume) * 100) / 100;
+    item.delta_volume = round2_(item.volume - prev.volume);
     item.trend = item.volume > prev.volume ? 'up' : (item.volume < prev.volume ? 'down' : 'flat');
   });
 
@@ -2579,29 +3355,60 @@ function listMuscleGroupHistory(params) {
 
   return {
     muscle_group: muscleGroup,
+    label: MUSCLE_GROUP_LABELS_[muscleGroup] || muscleGroup,
+    metric: 'effective_sets',
     trend,
     sessions: chronological.reverse().slice(0, limit),
   };
 }
 
 function buildExerciseMuscleMeta_(exercises) {
-  const result = { byId: {}, byName: {} };
+  const result = { byId: {}, byName: {}, distributionById: {}, distributionByName: {} };
   const nameCounts = {};
+  const distributionCounts = {};
   (exercises || []).forEach(ex => {
-    const group = safeNormalizeMuscleGroup_(ex.muscle_group);
+    const group = resolveExerciseMuscleGroup_(ex, null) || safeNormalizeMuscleGroup_(ex.muscle_group);
     if (!group) return;
+    const distribution = normalizeMuscleDistribution_(ex.muscle_distribution, group, ex.exercise_name);
+    const distributionKey = JSON.stringify(distribution);
     if (ex.routine_exercise_id) result.byId[ex.routine_exercise_id] = group;
+    if (ex.routine_exercise_id && Object.keys(distribution).length) result.distributionById[ex.routine_exercise_id] = distribution;
     const nameKey = normalizeExerciseNameKey_(ex.exercise_name);
     if (!nameKey) return;
     if (!nameCounts[nameKey]) nameCounts[nameKey] = {};
     nameCounts[nameKey][group] = (nameCounts[nameKey][group] || 0) + 1;
+    if (!distributionCounts[nameKey]) distributionCounts[nameKey] = {};
+    distributionCounts[nameKey][distributionKey] = (distributionCounts[nameKey][distributionKey] || 0) + 1;
   });
 
   Object.keys(nameCounts).forEach(nameKey => {
     result.byName[nameKey] = Object.keys(nameCounts[nameKey])
       .sort((a, b) => nameCounts[nameKey][b] - nameCounts[nameKey][a] || a.localeCompare(b))[0];
   });
+  Object.keys(distributionCounts).forEach(nameKey => {
+    const distributionKey = Object.keys(distributionCounts[nameKey])
+      .sort((a, b) => distributionCounts[nameKey][b] - distributionCounts[nameKey][a] || a.localeCompare(b))[0];
+    try {
+      result.distributionByName[nameKey] = JSON.parse(distributionKey);
+    } catch (err) {
+      result.distributionByName[nameKey] = {};
+    }
+  });
   return result;
+}
+
+function resolveExerciseMuscleDistribution_(exercise, exerciseMeta) {
+  const direct = parseMuscleDistribution_(exercise && (exercise.muscleDistribution || exercise.muscle_distribution));
+  if (Object.keys(direct).length) return direct;
+  const byId = exerciseMeta && exercise && exercise.routine_exercise_id
+    ? exerciseMeta.distributionById[exercise.routine_exercise_id]
+    : null;
+  if (byId && Object.keys(byId).length) return byId;
+  const nameKey = normalizeExerciseNameKey_(exercise && exercise.exercise_name);
+  const byName = exerciseMeta && nameKey ? exerciseMeta.distributionByName[nameKey] : null;
+  if (byName && Object.keys(byName).length) return byName;
+  const group = resolveExerciseMuscleGroup_(exercise, exerciseMeta);
+  return defaultMuscleDistribution_(exercise && exercise.exercise_name, group);
 }
 
 function resolveSetMuscleGroup_(set, exerciseMeta) {
@@ -2612,7 +3419,58 @@ function resolveSetMuscleGroup_(set, exerciseMeta) {
     : '';
   if (byId) return byId;
   const nameKey = normalizeExerciseNameKey_(set && set.exercise_name);
-  return (exerciseMeta && nameKey && exerciseMeta.byName[nameKey]) || '';
+  const byName = (exerciseMeta && nameKey && exerciseMeta.byName[nameKey]) || '';
+  if (byName) return byName;
+  return dominantMuscleGroupFromDistribution_(resolveSetMuscleDistribution_(set, exerciseMeta));
+}
+
+function resolveSetMuscleDistribution_(set, exerciseMeta) {
+  const direct = parseMuscleDistribution_(set && (set.muscleDistribution || set.muscle_distribution));
+  if (Object.keys(direct).length) return direct;
+  const byId = exerciseMeta && set && set.routine_exercise_id
+    ? exerciseMeta.distributionById[set.routine_exercise_id]
+    : null;
+  if (byId && Object.keys(byId).length) return byId;
+  const nameKey = normalizeExerciseNameKey_(set && set.exercise_name);
+  const byName = exerciseMeta && nameKey ? exerciseMeta.distributionByName[nameKey] : null;
+  if (byName && Object.keys(byName).length) return byName;
+  const group = safeNormalizeMuscleGroup_(set && set.muscle_group)
+    || (exerciseMeta && set && set.routine_exercise_id ? exerciseMeta.byId[set.routine_exercise_id] : '')
+    || (exerciseMeta && nameKey ? exerciseMeta.byName[nameKey] : '');
+  return defaultMuscleDistribution_(set && set.exercise_name, group);
+}
+
+function getSetMuscleStimuli_(set, exerciseMeta) {
+  const distribution = resolveSetMuscleDistribution_(set, exerciseMeta);
+  const primaryGroup = resolveSetMuscleGroup_(set, exerciseMeta) || dominantMuscleGroupFromDistribution_(distribution);
+  return Object.keys(distribution).map(subzone => {
+    const group = getMuscleSubzoneGroup_(subzone);
+    const percent = Number(distribution[subzone] || 0);
+    return {
+      muscle_group: group,
+      subzone,
+      percent,
+      effective_sets: percent / 100,
+      direct: group === primaryGroup,
+    };
+  }).filter(item => item.muscle_group && item.percent > 0);
+}
+
+function round2_(n) {
+  return Math.round(Number(n || 0) * 100) / 100;
+}
+
+function getMuscleModelMeta_() {
+  return {
+    groups: MUSCLE_GROUPS_.map(group => ({
+      muscle_group: group,
+      label: MUSCLE_GROUP_LABELS_[group] || group,
+      subzones: (MUSCLE_GROUP_DEFS_[group] || []).map(subzone => ({
+        subzone,
+        label: MUSCLE_SUBZONE_LABELS_[subzone] || subzone,
+      })),
+    })),
+  };
 }
 
 // ============================================================
