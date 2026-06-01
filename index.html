@@ -369,6 +369,14 @@
   .pill.good { color: var(--good); background: rgba(73,226,120,0.12); border-color: rgba(73,226,120,0.3); }
   .pill.warn { color: var(--warn); background: rgba(255,209,102,0.12); border-color: rgba(255,209,102,0.28); }
   .pill.bad { color: var(--bad); background: rgba(255,107,107,0.12); border-color: rgba(255,107,107,0.28); }
+  .pill.pr {
+    color: #ffd166;
+    background: linear-gradient(180deg, rgba(255,209,102,0.18), rgba(255,176,32,0.10));
+    border-color: rgba(255,209,102,0.45);
+    font-weight: 600;
+    box-shadow: 0 0 0 1px rgba(255,209,102,0.08), 0 4px 12px rgba(255,176,32,0.08);
+  }
+  .pill.pr .pr-star { color: #ffd166; }
 
   .summary-status {
     display: flex;
@@ -4613,7 +4621,8 @@ function renderTrainExercises(exercises) {
 
   el.innerHTML = exercises.map(ex => {
     const last = state.lastSetsByExercise[ex.routine_exercise_id];
-    const lastChips = last && last.sets && last.sets.length
+    const hasLastSets = last && last.sets && last.sets.length;
+    const lastChips = hasLastSets
       ? `
         <p class="muted" style="margin-top:14px;">Última vez · ${formatDateLong(last.date)}</p>
         <div class="last-set-row">
@@ -4621,6 +4630,16 @@ function renderTrainExercises(exercises) {
         </div>
       `
       : `<p class="muted" style="margin-top:14px;margin-bottom:14px;">Sin datos previos</p>`;
+    const pr = last && last.pr;
+    const prPill = pr && pr.weight != null
+      ? `<span class="pill pr" title="PR${pr.date ? ' · ' + pr.date : ''}"><span class="pr-star">★</span>${units.toDisplay(pr.weight)} ${units.label()}${pr.reps ? ' × ' + pr.reps : ''}</span>`
+      : '';
+    const suggestedPill = ex.suggested_weight != null && ex.suggested_weight !== ''
+      ? `<span class="pill accent">${units.toDisplay(ex.suggested_weight)} ${units.label()}</span>`
+      : '';
+    const rightPills = (prPill || suggestedPill)
+      ? `<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0;">${prPill}${suggestedPill}</div>`
+      : '';
     const setRows = Array.from({ length: Number(ex.target_sets || 1) }, (_, i) => renderSetRow(ex, i + 1)).join('');
     return `
       <div class="exercise-card" data-train-exercise="${escapeHtml(ex.routine_exercise_id)}">
@@ -4629,7 +4648,7 @@ function renderTrainExercises(exercises) {
             <h3 style="word-break:break-word;">${escapeHtml(ex.exercise_name)}</h3>
             <p class="muted">${ex.target_sets} series · ${ex.target_reps_min}-${ex.target_reps_max} reps</p>
           </div>
-          ${ex.suggested_weight != null && ex.suggested_weight !== '' ? `<span class="pill accent">${units.toDisplay(ex.suggested_weight)} ${units.label()}</span>` : ''}
+          ${rightPills}
         </div>
         ${ex.technique_note ? `<p class="muted-sm" style="margin-top:8px;">${escapeHtml(ex.technique_note)}</p>` : ''}
         ${lastChips}

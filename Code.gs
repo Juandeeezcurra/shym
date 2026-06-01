@@ -1050,9 +1050,14 @@ function getLastSessionForDay(params) {
     });
 
   const sessionIndex = {};
-  sessions.forEach(s => { sessionIndex[s.session_id] = true; });
+  const dateBySessionId = {};
+  sessions.forEach(s => {
+    sessionIndex[s.session_id] = true;
+    dateBySessionId[s.session_id] = normalizeDate_(s.date);
+  });
 
   const setsBySessionAndName = {};
+  const prByName = {};
   readAll_(SHEETS.SETS).forEach(set => {
     if (!sessionIndex[set.session_id]) return;
     const rawName = set.exercise_name || nameByRexId[set.routine_exercise_id] || '';
@@ -1061,6 +1066,21 @@ function getLastSessionForDay(params) {
     const key = set.session_id + '|' + nameKey;
     if (!setsBySessionAndName[key]) setsBySessionAndName[key] = [];
     setsBySessionAndName[key].push(set);
+
+    const w = set.weight === '' ? null : Number(set.weight);
+    const r = set.reps === '' ? null : Number(set.reps);
+    if (w == null || !(w > 0)) return;
+    const current = prByName[nameKey];
+    const beats = !current
+      || w > current.weight
+      || (w === current.weight && (r || 0) > (current.reps || 0));
+    if (beats) {
+      prByName[nameKey] = {
+        weight: w,
+        reps: r,
+        date: dateBySessionId[set.session_id] || '',
+      };
+    }
   });
 
   const result = {};
@@ -1068,6 +1088,8 @@ function getLastSessionForDay(params) {
   exercises.forEach(ex => {
     const nameKey = normalizeExerciseNameKey_(ex.exercise_name);
     if (!nameKey) return;
+    const pr = prByName[nameKey] || null;
+    let lastEntry = null;
     for (let i = 0; i < sessions.length; i++) {
       const session = sessions[i];
       const sessionSets = (setsBySessionAndName[session.session_id + '|' + nameKey] || [])
@@ -1080,13 +1102,16 @@ function getLastSessionForDay(params) {
           note: set.note || '',
         }));
       if (sessionSets.length > 0) {
-        result[ex.routine_exercise_id] = {
+        lastEntry = {
           session_id: session.session_id,
           date: normalizeDate_(session.date),
           sets: sessionSets,
         };
         break;
       }
+    }
+    if (lastEntry || pr) {
+      result[ex.routine_exercise_id] = Object.assign({}, lastEntry || { sets: [] }, { pr });
     }
   });
 
