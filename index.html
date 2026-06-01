@@ -419,6 +419,13 @@
   #tp-days .day-card {
     min-height: 220px;
   }
+  #screen-routine-detail .day-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  #screen-routine-detail .day-card {
+    width: 100%;
+    min-width: 0;
+  }
   .day-preview-list {
     list-style: none;
     margin: 8px 0 0;
@@ -1748,6 +1755,9 @@
       grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     }
     .day-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    #screen-routine-detail .day-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
     #tp-days .day-grid {
