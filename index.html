@@ -698,8 +698,20 @@
   }
   .activity-grid {
     display: grid;
-    grid-template-columns: repeat(13, minmax(0, 1fr));
-    gap: 5px;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .activity-weekdays {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .activity-weekdays span {
+    text-align: center;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
   }
   .activity-cell {
     aspect-ratio: 1;
@@ -708,6 +720,10 @@
     background: #0b0e11;
     cursor: pointer;
     min-width: 0;
+    position: relative;
+  }
+  .activity-cell.today {
+    box-shadow: inset 0 0 0 2px var(--accent);
   }
   .activity-cell.level-1 { background: rgba(255, 90, 42, 0.22); border-color: rgba(255, 90, 42, 0.28); }
   .activity-cell.level-2 { background: rgba(255, 90, 42, 0.42); border-color: rgba(255, 90, 42, 0.45); }
@@ -5817,36 +5833,51 @@ function renderActivityCalendar(activity) {
   const days = buildActivityDays(activity);
   const byDate = {};
   (activity.days || []).forEach(d => { byDate[d.date] = d; });
-  const trainedDays = (activity.days || []).length;
-  const totalSessions = (activity.days || []).reduce((sum, d) => sum + Number(d.session_count || 0), 0);
+  const today = todayInputValue();
+  const trainedDaysInWindow = days.filter(d => byDate[d.date]).length;
+  const totalSessions = days.reduce((sum, d) => sum + Number((byDate[d.date] || {}).session_count || 0), 0);
+  const weekdayLabels = ['L', 'M', 'X', 'J', 'V', 'S', 'D'];
 
   el.innerHTML = `
     <div class="card-row">
       <div>
         <h3>Actividad</h3>
-        <p class="muted">Últimas 13 semanas</p>
+        <p class="muted">Últimas 8 semanas</p>
       </div>
       <span class="pill accent">${totalSessions} sesión${totalSessions === 1 ? '' : 'es'}</span>
     </div>
-    <div class="activity-grid" style="margin-top:14px;">
-      ${days.map(day => {
-        const data = byDate[day.date];
-        const level = activityLevel(data);
-        return `
-          <button
-            type="button"
-            class="activity-cell level-${level}${day.future ? ' future' : ''}${state.historySelectedDate === day.date ? ' selected' : ''}"
-            data-action="select-history-date"
-            data-date="${escapeHtml(day.date)}"
-            ${day.future ? 'disabled' : ''}
-            title="${escapeHtml(formatActivityTitle(day.date, data))}"
-            aria-label="${escapeHtml(formatActivityTitle(day.date, data))}">
-          </button>
-        `;
-      }).join('')}
+    <div style="margin-top:14px;">
+      <div class="activity-weekdays">
+        ${weekdayLabels.map(l => `<span>${l}</span>`).join('')}
+      </div>
+      <div class="activity-grid">
+        ${days.map(day => {
+          const data = byDate[day.date];
+          const level = activityLevel(data);
+          const isToday = day.date === today;
+          const classes = [
+            'activity-cell',
+            `level-${level}`,
+            day.future ? 'future' : '',
+            isToday ? 'today' : '',
+            state.historySelectedDate === day.date ? 'selected' : '',
+          ].filter(Boolean).join(' ');
+          return `
+            <button
+              type="button"
+              class="${classes}"
+              data-action="select-history-date"
+              data-date="${escapeHtml(day.date)}"
+              ${day.future ? 'disabled' : ''}
+              title="${escapeHtml(formatActivityTitle(day.date, data))}"
+              aria-label="${escapeHtml(formatActivityTitle(day.date, data))}">
+            </button>
+          `;
+        }).join('')}
+      </div>
     </div>
     <div class="activity-legend">
-      <p class="muted-sm">${trainedDays} día${trainedDays === 1 ? '' : 's'} con entrenamiento</p>
+      <p class="muted-sm">${trainedDaysInWindow} día${trainedDaysInWindow === 1 ? '' : 's'} con entrenamiento</p>
       <div style="display:flex;gap:4px;align-items:center;">
         <span class="muted-sm">Menos</span>
         <span class="activity-cell level-0" style="width:12px;height:12px;aspect-ratio:auto;"></span>
@@ -5860,14 +5891,15 @@ function renderActivityCalendar(activity) {
 }
 
 function buildActivityDays(activity) {
-  const end = parseIsoDateLocalClient(activity.end || todayInputValue());
-  const start = new Date(end);
-  start.setDate(start.getDate() - 90);
-  const offset = start.getDay() === 0 ? 6 : start.getDay() - 1;
-  start.setDate(start.getDate() - offset);
-
   const today = parseIsoDateLocalClient(todayInputValue());
-  return Array.from({ length: 91 }, (_, i) => {
+  const todayDow = today.getDay();
+  const daysToSunday = todayDow === 0 ? 0 : 7 - todayDow;
+  const end = new Date(today);
+  end.setDate(today.getDate() + daysToSunday);
+  const start = new Date(end);
+  start.setDate(end.getDate() - 55);
+
+  return Array.from({ length: 56 }, (_, i) => {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
     return {
