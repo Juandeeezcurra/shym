@@ -867,6 +867,9 @@
     border: 0;
     border-radius: 0;
   }
+  .body-reference-image {
+    pointer-events: none;
+  }
   .body-silhouette-fill {
     fill: #141a20;
     stroke: none;
@@ -882,17 +885,26 @@
   }
   .heat-zone {
     cursor: pointer;
-    stroke: rgba(7,10,13,0.68);
-    stroke-width: 1.1;
+    stroke: transparent;
+    stroke-width: 0.8;
     stroke-linejoin: round;
     transition: opacity 0.15s ease;
+    pointer-events: all;
+    mix-blend-mode: screen;
+  }
+  .heat-zone:hover {
+    opacity: 0.42;
+    stroke: rgba(255,234,218,0.34);
     filter: url(#muscle-soft-glow);
   }
   .heat-zone:active {
-    opacity: 0.78;
+    opacity: 0.52;
   }
   .heat-zone.is-empty {
-    opacity: 0.88;
+    opacity: 0.01;
+  }
+  .heat-zone.is-empty:hover {
+    opacity: 0.16;
   }
   .muscle-line {
     fill: none;
@@ -913,16 +925,6 @@
     font-size: 14px;
     background: rgba(22, 28, 35, 0.86);
     border-color: rgba(114, 128, 140, 0.22);
-  }
-  .muscle-map-image-shell {
-    width: 100%;
-  }
-  .muscle-map-reference {
-    display: block;
-    width: 100%;
-    height: auto;
-    border-radius: 18px;
-    box-shadow: 0 18px 48px rgba(0,0,0,0.24);
   }
   .muscle-distribution-preview {
     display: grid;
@@ -5646,6 +5648,7 @@ async function loadMuscleHeatmap(navToken, loadToken) {
 
 function renderMuscleHeatmap(data) {
   const groups = data.groups || [];
+  const subzones = data.subzones || [];
   if (!groups.length) {
     $('#progress-content').innerHTML = `
       <div class="empty-state">
@@ -5658,8 +5661,24 @@ function renderMuscleHeatmap(data) {
   }
 
   $('#progress-content').innerHTML = `
-    <div class="muscle-map-image-shell">
-      <img class="muscle-map-reference" src="assets/muscle-map.png" alt="Mapa muscular detallado con vista frontal y dorsal" loading="eager">
+    <div class="card muscle-map-card">
+      <div class="card-row" style="align-items:flex-start;">
+        <div>
+          <h2 class="muscle-map-title">Mapa muscular</h2>
+          <p class="muscle-map-subtitle">Vista detallada por músculo y porción</p>
+        </div>
+      </div>
+      ${renderBodyHeatmapSvg(groups, subzones)}
+      <div class="muscle-volume-legend">
+        ${MUSCLE_GROUPS.filter(group => group.value).map(group => {
+          const stats = groups.find(item => normalizeMuscleGroupValue(item.muscle_group) === group.value) || {};
+          return `
+          <span class="pill" data-action="select-heatmap-muscle" data-muscle="${escapeHtml(group.value)}">
+            <span class="legend-dot" style="background:${heatmapColor(stats.intensity)};"></span>
+            ${escapeHtml(group.label)}
+          </span>
+        `;}).join('')}
+      </div>
     </div>
   `;
 }
@@ -5673,7 +5692,8 @@ function heatmapColor(intensity) {
 
 function heatmapOpacity(statsBySubzone, subzone) {
   const i = Math.max(0, Math.min(Number(statsBySubzone[subzone] ? statsBySubzone[subzone].intensity : 0), 1));
-  return Math.round((0.66 + i * 0.28) * 100) / 100;
+  if (i <= 0) return 0.01;
+  return Math.round((0.08 + i * 0.22) * 100) / 100;
 }
 
 function bodySilhouettePath(cx) {
@@ -5882,22 +5902,10 @@ function renderBodyHeatmapSvg(groups, subzones) {
         <clipPath id="body-clip-back" clipPathUnits="userSpaceOnUse"><path d="${backPath}"></path></clipPath>
       </defs>
 
-      <text x="120" y="20" text-anchor="middle" fill="#8f9aa3" font-size="11" font-weight="500" letter-spacing="1.5">FRENTE</text>
-      <text x="360" y="20" text-anchor="middle" fill="#8f9aa3" font-size="11" font-weight="500" letter-spacing="1.5">DORSO</text>
-
-      <path class="body-silhouette-fill" d="${frontPath}"></path>
-      <path class="body-silhouette-fill" d="${backPath}"></path>
+      <image class="body-reference-image" href="assets/muscle-map.png" x="-224" y="-64" width="927" height="695" preserveAspectRatio="none"></image>
 
       <g clip-path="url(#body-clip-front)">${frontHeatZones(120, statsBySubzone)}</g>
       <g clip-path="url(#body-clip-back)">${backHeatZones(360, statsBySubzone)}</g>
-
-      <g class="muscle-line">
-        ${frontMuscleLines(120)}
-        ${backMuscleLines(360)}
-      </g>
-
-      <path class="body-silhouette-edge" d="${frontPath}"></path>
-      <path class="body-silhouette-edge" d="${backPath}"></path>
     </svg>
   `;
 }
