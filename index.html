@@ -5863,7 +5863,7 @@ function loadMuscleMapHitmap() {
       muscleMapHitmap.ready = true;
       resolve();
     };
-    img.src = 'assets/muscle-map-hitmap.png?v=2';
+    img.src = 'assets/muscle-map-hitmap.png?v=3';
   });
   return muscleMapHitmap.loading;
 }
@@ -5962,18 +5962,14 @@ function featherIntensityField(field, mask, w, h, r) {
   return out;
 }
 
-// Porciones of a single physical muscle are split apart for the detailed
-// tooltip, but should render as ONE solid color so there is no straight line
-// cutting through a muscle. Everything not listed here keeps its own subzone as
-// the coloring unit, so e.g. the abs stay independent from the rest of "core"
-// and only light up when the abs themselves are trained.
-const MUSCLE_RENDER_UNITS = {
-  pectoral_superior: 'pectoral', pectoral_medio: 'pectoral', pectoral_inferior: 'pectoral',
-  deltoide_anterior: 'deltoide', deltoide_lateral: 'deltoide', deltoide_posterior: 'deltoide',
-  biceps_cabeza_larga: 'biceps', biceps_cabeza_corta: 'biceps', braquial: 'biceps', braquiorradial: 'biceps',
-  triceps_cabeza_larga: 'triceps', triceps_cabeza_lateral: 'triceps', triceps_cabeza_medial: 'triceps',
-  trapecio_superior: 'trapecio', trapecio_medio: 'trapecio', trapecio_inferior: 'trapecio',
-};
+// Each porción (subzone) is colored by its OWN training volume, so you can see
+// the difference between e.g. pectoral superior / medio / inferior or the three
+// deltoid heads. The feather pass below softens the boundaries between adjacent
+// porciones so they read as one muscle shading smoothly, not hard straight cuts.
+// Anything mapped here would be merged into a single coloring unit; we keep it
+// empty so every porción stays independent (abs only light up when abs are
+// trained, etc.).
+const MUSCLE_RENDER_UNITS = {};
 
 function muscleRenderUnit(subzone) {
   return MUSCLE_RENDER_UNITS[subzone] || subzone;
