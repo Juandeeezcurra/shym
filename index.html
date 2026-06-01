@@ -926,6 +926,108 @@
     background: rgba(22, 28, 35, 0.86);
     border-color: rgba(114, 128, 140, 0.22);
   }
+  .muscle-map-reference-wrap {
+    position: relative;
+    width: 100%;
+    border-radius: 18px;
+    overflow: hidden;
+    background: #0a0f14;
+    box-shadow: 0 18px 48px rgba(0,0,0,0.24);
+  }
+  .muscle-map-reference-img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .muscle-map-hotspots {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .reference-map-zone,
+  .reference-map-pill-zone {
+    cursor: pointer;
+    pointer-events: all;
+    outline: none;
+  }
+  .reference-map-zone {
+    fill: rgba(255, 107, 36, var(--zone-opacity, 0.01));
+    stroke: transparent;
+    stroke-width: 3;
+    transition: fill 0.15s ease, stroke 0.15s ease;
+  }
+  .reference-map-zone:hover,
+  .reference-map-zone:focus {
+    fill: rgba(255, 176, 32, 0.24);
+    stroke: rgba(255, 229, 210, 0.58);
+  }
+  .reference-map-zone.is-empty {
+    --zone-opacity: 0.01;
+  }
+  .reference-map-pill-zone {
+    fill: transparent;
+    stroke: transparent;
+  }
+  .reference-map-pill-zone:hover,
+  .reference-map-pill-zone:focus {
+    fill: rgba(255, 255, 255, 0.05);
+    stroke: rgba(255, 119, 43, 0.42);
+  }
+  .muscle-map-tooltip {
+    position: fixed;
+    z-index: 3000;
+    width: min(260px, calc(100vw - 24px));
+    padding: 12px;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
+    background: rgba(10, 13, 17, 0.96);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.36);
+    color: var(--text);
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+  }
+  .muscle-map-tooltip.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .muscle-map-tooltip strong {
+    display: block;
+    font-size: 14px;
+    line-height: 1.2;
+  }
+  .muscle-map-tooltip span {
+    display: block;
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .muscle-map-tooltip .tooltip-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .muscle-map-tooltip .tooltip-metric {
+    padding: 8px;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    background: rgba(255,255,255,0.04);
+  }
+  .muscle-map-tooltip .tooltip-metric b {
+    display: block;
+    font-size: 14px;
+  }
+  .muscle-map-tooltip .tooltip-metric small {
+    display: block;
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 10px;
+    line-height: 1.2;
+  }
   .muscle-distribution-preview {
     display: grid;
     gap: 8px;
@@ -5660,27 +5762,7 @@ function renderMuscleHeatmap(data) {
     return;
   }
 
-  $('#progress-content').innerHTML = `
-    <div class="card muscle-map-card">
-      <div class="card-row" style="align-items:flex-start;">
-        <div>
-          <h2 class="muscle-map-title">Mapa muscular</h2>
-          <p class="muscle-map-subtitle">Vista detallada por músculo y porción</p>
-        </div>
-      </div>
-      ${renderBodyHeatmapSvg(groups, subzones)}
-      <div class="muscle-volume-legend">
-        ${MUSCLE_GROUPS.filter(group => group.value).map(group => {
-          const stats = groups.find(item => normalizeMuscleGroupValue(item.muscle_group) === group.value) || {};
-          return `
-          <span class="pill" data-action="select-heatmap-muscle" data-muscle="${escapeHtml(group.value)}">
-            <span class="legend-dot" style="background:${heatmapColor(stats.intensity)};"></span>
-            ${escapeHtml(group.label)}
-          </span>
-        `;}).join('')}
-      </div>
-    </div>
-  `;
+  $('#progress-content').innerHTML = renderReferenceMuscleMap(groups, subzones);
 }
 
 function heatmapColor(intensity) {
@@ -5694,6 +5776,179 @@ function heatmapOpacity(statsBySubzone, subzone) {
   const i = Math.max(0, Math.min(Number(statsBySubzone[subzone] ? statsBySubzone[subzone].intensity : 0), 1));
   if (i <= 0) return 0.01;
   return Math.round((0.08 + i * 0.22) * 100) / 100;
+}
+
+const REFERENCE_MAP_WIDTH = 1448;
+const REFERENCE_MAP_HEIGHT = 1086;
+
+const REFERENCE_MUSCLE_ZONES = [
+  { subzone: 'deltoide_lateral', ellipse: [421, 356, 37, 55, 24] },
+  { subzone: 'deltoide_lateral', ellipse: [613, 356, 37, 55, -24] },
+  { subzone: 'deltoide_anterior', ellipse: [463, 363, 37, 50, -42] },
+  { subzone: 'deltoide_anterior', ellipse: [570, 363, 37, 50, 42] },
+  { subzone: 'pectoral_superior', d: 'M 445 339 C 474 318 516 322 522 359 C 497 368 466 366 443 351 Z' },
+  { subzone: 'pectoral_superior', d: 'M 524 359 C 531 322 573 318 601 339 L 602 351 C 580 366 549 368 524 359 Z' },
+  { subzone: 'pectoral_medio', ellipse: [488, 393, 58, 48, 8] },
+  { subzone: 'pectoral_medio', ellipse: [546, 393, 58, 48, -8] },
+  { subzone: 'pectoral_inferior', d: 'M 439 422 C 459 438 501 447 524 429 L 522 393 C 492 418 461 415 439 398 Z' },
+  { subzone: 'pectoral_inferior', d: 'M 526 429 C 549 447 591 438 611 422 L 611 398 C 588 415 557 418 527 393 Z' },
+  { subzone: 'serrato', d: 'M 434 408 C 457 423 464 485 447 531 C 428 503 421 441 434 408 Z' },
+  { subzone: 'serrato', d: 'M 599 408 C 586 441 579 503 598 531 C 615 485 608 423 599 408 Z' },
+  { subzone: 'recto_abdominal', d: 'M 477 435 C 493 424 541 424 558 435 C 572 468 574 631 552 704 C 536 722 499 722 482 704 C 461 631 462 468 477 435 Z' },
+  { subzone: 'oblicuos', d: 'M 436 455 C 465 486 478 611 478 688 C 440 664 417 528 436 455 Z' },
+  { subzone: 'oblicuos', d: 'M 598 455 C 570 486 556 611 556 688 C 595 664 617 528 598 455 Z' },
+  { subzone: 'biceps_cabeza_larga', ellipse: [404, 475, 25, 70, 17] },
+  { subzone: 'biceps_cabeza_larga', ellipse: [630, 475, 25, 70, -17] },
+  { subzone: 'biceps_cabeza_corta', ellipse: [433, 479, 22, 64, 13] },
+  { subzone: 'biceps_cabeza_corta', ellipse: [601, 479, 22, 64, -13] },
+  { subzone: 'braquial', ellipse: [392, 596, 22, 78, 16] },
+  { subzone: 'braquial', ellipse: [642, 596, 22, 78, -16] },
+  { subzone: 'braquiorradial', ellipse: [414, 612, 20, 76, 22] },
+  { subzone: 'braquiorradial', ellipse: [620, 612, 20, 76, -22] },
+  { subzone: 'cuadriceps', ellipse: [445, 795, 32, 91, 8] },
+  { subzone: 'cuadriceps', ellipse: [588, 795, 32, 91, -8] },
+  { subzone: 'cuadriceps', ellipse: [492, 808, 28, 87, -8] },
+  { subzone: 'cuadriceps', ellipse: [542, 808, 28, 87, 8] },
+  { subzone: 'aductores', ellipse: [515, 823, 20, 82, -4] },
+  { subzone: 'aductores', ellipse: [519, 823, 20, 82, 4] },
+  { subzone: 'tibial_anterior', ellipse: [435, 978, 18, 78, 4] },
+  { subzone: 'tibial_anterior', ellipse: [599, 978, 18, 78, -4] },
+  { subzone: 'gemelos', ellipse: [464, 976, 18, 72, 5] },
+  { subzone: 'gemelos', ellipse: [570, 976, 18, 72, -5] },
+  { subzone: 'deltoide_posterior', ellipse: [815, 357, 39, 56, -26] },
+  { subzone: 'deltoide_posterior', ellipse: [1040, 357, 39, 56, 26] },
+  { subzone: 'trapecio_superior', d: 'M 928 238 C 948 251 970 286 1003 330 C 970 361 884 361 851 330 C 886 286 907 251 928 238 Z' },
+  { subzone: 'trapecio_medio', d: 'M 850 330 C 887 356 970 356 1005 330 L 987 427 C 950 444 907 444 870 427 Z' },
+  { subzone: 'trapecio_inferior', d: 'M 870 427 C 907 444 950 444 987 427 L 956 558 C 941 584 916 584 900 558 Z' },
+  { subzone: 'romboides', d: 'M 846 365 C 873 348 905 361 915 428 C 879 426 856 405 846 365 Z' },
+  { subzone: 'romboides', d: 'M 1010 365 C 983 348 951 361 941 428 C 977 426 1000 405 1010 365 Z' },
+  { subzone: 'redondo_mayor', ellipse: [858, 419, 37, 47, -30] },
+  { subzone: 'redondo_mayor', ellipse: [998, 419, 37, 47, 30] },
+  { subzone: 'dorsal_ancho', d: 'M 849 429 C 899 457 921 526 899 630 C 861 631 821 561 829 478 C 833 456 839 441 849 429 Z' },
+  { subzone: 'dorsal_ancho', d: 'M 1007 429 C 957 457 935 526 957 630 C 995 631 1035 561 1027 478 C 1023 456 1017 441 1007 429 Z' },
+  { subzone: 'erectores_espinales', d: 'M 918 533 C 926 526 938 526 946 533 L 955 682 C 943 696 921 696 909 682 Z' },
+  { subzone: 'triceps_cabeza_larga', ellipse: [809, 498, 20, 91, 7] },
+  { subzone: 'triceps_cabeza_larga', ellipse: [1047, 498, 20, 91, -7] },
+  { subzone: 'triceps_cabeza_lateral', ellipse: [836, 459, 24, 76, -12] },
+  { subzone: 'triceps_cabeza_lateral', ellipse: [1020, 459, 24, 76, 12] },
+  { subzone: 'triceps_cabeza_medial', ellipse: [793, 594, 19, 84, 5] },
+  { subzone: 'triceps_cabeza_medial', ellipse: [1063, 594, 19, 84, -5] },
+  { subzone: 'gluteo_mayor', ellipse: [886, 728, 48, 53, -10] },
+  { subzone: 'gluteo_mayor', ellipse: [970, 728, 48, 53, 10] },
+  { subzone: 'isquios', ellipse: [861, 846, 22, 88, 3] },
+  { subzone: 'isquios', ellipse: [900, 846, 22, 88, -5] },
+  { subzone: 'isquios', ellipse: [956, 846, 22, 88, 5] },
+  { subzone: 'isquios', ellipse: [995, 846, 22, 88, -3] },
+  { subzone: 'gemelos', ellipse: [855, 977, 20, 74, 2] },
+  { subzone: 'gemelos', ellipse: [884, 977, 20, 74, -2] },
+  { subzone: 'gemelos', ellipse: [972, 977, 20, 74, 2] },
+  { subzone: 'gemelos', ellipse: [1001, 977, 20, 74, -2] },
+];
+
+const REFERENCE_MUSCLE_PILLS = [
+  { muscle_group: 'pecho', x: 111, y: 983, w: 152, h: 61 },
+  { muscle_group: 'espalda', x: 282, y: 983, w: 158, h: 61 },
+  { muscle_group: 'hombros', x: 459, y: 983, w: 171, h: 61 },
+  { muscle_group: 'biceps', x: 650, y: 983, w: 151, h: 61 },
+  { muscle_group: 'triceps', x: 817, y: 983, w: 157, h: 61 },
+  { muscle_group: 'core', x: 994, y: 983, w: 128, h: 61 },
+  { muscle_group: 'piernas', x: 1143, y: 983, w: 160, h: 61 },
+];
+
+function renderReferenceMuscleMap(groups, subzones) {
+  const statsBySubzone = (subzones || []).reduce((acc, item) => {
+    acc[item.subzone] = item;
+    return acc;
+  }, {});
+  const statsByGroup = (groups || []).reduce((acc, item) => {
+    acc[normalizeMuscleGroupValue(item.muscle_group)] = item;
+    return acc;
+  }, {});
+
+  return `
+    <div class="muscle-map-reference-wrap">
+      <img class="muscle-map-reference-img" src="assets/muscle-map.png" alt="Mapa muscular detallado con vista frontal y dorsal" loading="eager">
+      <svg class="muscle-map-hotspots" viewBox="0 0 ${REFERENCE_MAP_WIDTH} ${REFERENCE_MAP_HEIGHT}" role="img" aria-label="Mapa muscular interactivo">
+        <g>${REFERENCE_MUSCLE_ZONES.map(zone => renderReferenceMuscleZone(zone, statsBySubzone)).join('')}</g>
+        <g>${REFERENCE_MUSCLE_PILLS.map(pill => renderReferencePillZone(pill, statsByGroup)).join('')}</g>
+      </svg>
+      <div id="muscle-map-tooltip" class="muscle-map-tooltip" role="tooltip"></div>
+    </div>
+  `;
+}
+
+function renderReferenceMuscleZone(zone, statsBySubzone) {
+  const subzone = zone.subzone;
+  const group = MUSCLE_SUBZONE_TO_GROUP[subzone] || '';
+  const stats = statsBySubzone[subzone] || {};
+  const volume = Number(stats.effective_sets || stats.volume || 0);
+  const direct = Number(stats.direct_sets || 0);
+  const indirect = Number(stats.indirect_sets || 0);
+  const intensity = Math.max(0, Math.min(Number(stats.intensity || 0), 1));
+  const opacity = volume > 0 ? Math.round((0.04 + intensity * 0.16) * 100) / 100 : 0.01;
+  const label = formatMuscleSubzone(subzone);
+  const groupLabel = formatMuscleGroup(group);
+  const aria = `${label}. ${formatEffectiveSets(volume)} series efectivas en los últimos 30 días.`;
+  const attrs = [
+    `class="reference-map-zone${volume > 0 ? ' has-volume' : ' is-empty'}"`,
+    `data-action="select-heatmap-muscle"`,
+    `data-zone-type="subzone"`,
+    `data-muscle="${escapeHtml(group)}"`,
+    `data-subzone="${escapeHtml(subzone)}"`,
+    `data-muscle-label="${escapeHtml(label)}"`,
+    `data-group-label="${escapeHtml(groupLabel)}"`,
+    `data-effective-sets="${escapeHtml(formatEffectiveSets(volume))}"`,
+    `data-direct-sets="${escapeHtml(formatEffectiveSets(direct))}"`,
+    `data-indirect-sets="${escapeHtml(formatEffectiveSets(indirect))}"`,
+    `data-session-count="${escapeHtml(stats.session_count || 0)}"`,
+    `data-exercise-count="${escapeHtml(stats.exercise_count || 0)}"`,
+    `style="--zone-opacity:${opacity};"`,
+    `tabindex="0"`,
+    `role="button"`,
+    `aria-label="${escapeHtml(aria)}"`,
+  ].join(' ');
+  return renderReferenceShape(zone, attrs, `${label}: ${formatEffectiveSets(volume)} series efectivas`);
+}
+
+function renderReferencePillZone(pill, statsByGroup) {
+  const group = pill.muscle_group;
+  const stats = statsByGroup[group] || {};
+  const volume = Number(stats.effective_sets || stats.volume || 0);
+  const direct = Number(stats.direct_sets || 0);
+  const indirect = Number(stats.indirect_sets || 0);
+  const label = formatMuscleGroup(group);
+  return `
+    <rect class="reference-map-pill-zone"
+      x="${pill.x}" y="${pill.y}" width="${pill.w}" height="${pill.h}" rx="28"
+      data-action="select-heatmap-muscle"
+      data-zone-type="group"
+      data-muscle="${escapeHtml(group)}"
+      data-muscle-label="${escapeHtml(label)}"
+      data-group-label="Grupo muscular"
+      data-effective-sets="${escapeHtml(formatEffectiveSets(volume))}"
+      data-direct-sets="${escapeHtml(formatEffectiveSets(direct))}"
+      data-indirect-sets="${escapeHtml(formatEffectiveSets(indirect))}"
+      data-session-count="${escapeHtml(stats.session_count || 0)}"
+      data-exercise-count="${escapeHtml(stats.exercise_count || 0)}"
+      tabindex="0"
+      role="button"
+      aria-label="${escapeHtml(label + '. ' + formatEffectiveSets(volume) + ' series efectivas en los últimos 30 días.')}">
+      <title>${escapeHtml(label)}: ${escapeHtml(formatEffectiveSets(volume))} series efectivas</title>
+    </rect>
+  `;
+}
+
+function renderReferenceShape(zone, attrs, title) {
+  if (zone.ellipse) {
+    const e = zone.ellipse;
+    const transform = e[4] ? ` transform="rotate(${e[4]} ${e[0]} ${e[1]})"` : '';
+    return `<ellipse ${attrs} cx="${e[0]}" cy="${e[1]}" rx="${e[2]}" ry="${e[3]}"${transform}><title>${escapeHtml(title)}</title></ellipse>`;
+  }
+  if (zone.rect) {
+    const r = zone.rect;
+    return `<rect ${attrs} x="${r[0]}" y="${r[1]}" width="${r[2]}" height="${r[3]}" rx="${r[4] || 0}"><title>${escapeHtml(title)}</title></rect>`;
+  }
+  return `<path ${attrs} d="${zone.d}"><title>${escapeHtml(title)}</title></path>`;
 }
 
 function bodySilhouettePath(cx) {
@@ -6738,6 +6993,89 @@ function statusDotClass(status) {
 // ============================================================
 // EVENT WIRING (delegación)
 // ============================================================
+function getMuscleMapTooltipTarget(target) {
+  return target && target.closest
+    ? target.closest('.reference-map-zone, .reference-map-pill-zone')
+    : null;
+}
+
+function renderMuscleMapTooltip(target) {
+  const effective = target.dataset.effectiveSets || '0';
+  const direct = target.dataset.directSets || '0';
+  const indirect = target.dataset.indirectSets || '0';
+  const sessions = Number(target.dataset.sessionCount || 0);
+  const exercises = Number(target.dataset.exerciseCount || 0);
+  return `
+    <strong>${escapeHtml(target.dataset.muscleLabel || '')}</strong>
+    <span>${escapeHtml(target.dataset.groupLabel || '')} · últimos 30 días</span>
+    <div class="tooltip-grid">
+      <div class="tooltip-metric">
+        <b>${escapeHtml(effective)}</b>
+        <small>series efectivas</small>
+      </div>
+      <div class="tooltip-metric">
+        <b>${escapeHtml(direct)} / ${escapeHtml(indirect)}</b>
+        <small>directas / indirectas</small>
+      </div>
+      <div class="tooltip-metric">
+        <b>${sessions}</b>
+        <small>sesiones</small>
+      </div>
+      <div class="tooltip-metric">
+        <b>${exercises}</b>
+        <small>ejercicios</small>
+      </div>
+    </div>
+  `;
+}
+
+function positionMuscleMapTooltip(tooltip, x, y) {
+  const pad = 12;
+  tooltip.style.left = '0px';
+  tooltip.style.top = '0px';
+  const width = tooltip.offsetWidth || 240;
+  const height = tooltip.offsetHeight || 150;
+  let left = x + 14;
+  let top = y + 14;
+  if (left + width + pad > window.innerWidth) left = x - width - 14;
+  if (top + height + pad > window.innerHeight) top = y - height - 14;
+  tooltip.style.left = Math.max(pad, left) + 'px';
+  tooltip.style.top = Math.max(pad, top) + 'px';
+}
+
+function showMuscleMapTooltip(target, x, y) {
+  const tooltip = document.getElementById('muscle-map-tooltip');
+  if (!tooltip || !target) return;
+  tooltip.innerHTML = renderMuscleMapTooltip(target);
+  tooltip.classList.add('visible');
+  positionMuscleMapTooltip(tooltip, x, y);
+}
+
+function hideMuscleMapTooltip() {
+  const tooltip = document.getElementById('muscle-map-tooltip');
+  if (tooltip) tooltip.classList.remove('visible');
+}
+
+document.addEventListener('pointermove', (e) => {
+  const target = getMuscleMapTooltipTarget(e.target);
+  if (!target) {
+    hideMuscleMapTooltip();
+    return;
+  }
+  showMuscleMapTooltip(target, e.clientX, e.clientY);
+});
+
+document.addEventListener('focusin', (e) => {
+  const target = getMuscleMapTooltipTarget(e.target);
+  if (!target) return;
+  const rect = target.getBoundingClientRect();
+  showMuscleMapTooltip(target, rect.left + rect.width / 2, rect.top + rect.height / 2);
+});
+
+document.addEventListener('focusout', (e) => {
+  if (getMuscleMapTooltipTarget(e.target)) hideMuscleMapTooltip();
+});
+
 document.addEventListener('click', (e) => {
   const t = e.target.closest('[data-action], [data-go]');
   if (!t) return;
