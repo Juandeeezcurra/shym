@@ -696,18 +696,20 @@
     white-space: nowrap;
     border: 0;
   }
+  .activity-body {
+    max-width: 320px;
+    margin: 14px auto 0;
+  }
   .activity-grid {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 6px;
-    max-width: 320px;
   }
   .activity-weekdays {
     display: grid;
     grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 6px;
     margin-bottom: 6px;
-    max-width: 320px;
   }
   .activity-weekdays span {
     text-align: center;
@@ -5848,7 +5850,7 @@ function renderActivityCalendar(activity) {
       </div>
       <span class="pill accent">${totalSessions} sesión${totalSessions === 1 ? '' : 'es'}</span>
     </div>
-    <div style="margin-top:14px;">
+    <div class="activity-body">
       <div class="activity-weekdays">
         ${weekdayLabels.map(l => `<span>${l}</span>`).join('')}
       </div>
@@ -5877,16 +5879,16 @@ function renderActivityCalendar(activity) {
           `;
         }).join('')}
       </div>
-    </div>
-    <div class="activity-legend">
-      <p class="muted-sm">${trainedDaysInWindow} día${trainedDaysInWindow === 1 ? '' : 's'} con entrenamiento</p>
-      <div style="display:flex;gap:4px;align-items:center;">
-        <span class="muted-sm">Menos</span>
-        <span class="activity-cell level-0" style="width:12px;height:12px;aspect-ratio:auto;"></span>
-        <span class="activity-cell level-1" style="width:12px;height:12px;aspect-ratio:auto;"></span>
-        <span class="activity-cell level-2" style="width:12px;height:12px;aspect-ratio:auto;"></span>
-        <span class="activity-cell level-3" style="width:12px;height:12px;aspect-ratio:auto;"></span>
-        <span class="muted-sm">Más</span>
+      <div class="activity-legend">
+        <p class="muted-sm">${trainedDaysInWindow} día${trainedDaysInWindow === 1 ? '' : 's'} con entrenamiento</p>
+        <div style="display:flex;gap:4px;align-items:center;">
+          <span class="muted-sm">Menos</span>
+          <span class="activity-cell level-0" style="width:12px;height:12px;aspect-ratio:auto;"></span>
+          <span class="activity-cell level-1" style="width:12px;height:12px;aspect-ratio:auto;"></span>
+          <span class="activity-cell level-2" style="width:12px;height:12px;aspect-ratio:auto;"></span>
+          <span class="activity-cell level-3" style="width:12px;height:12px;aspect-ratio:auto;"></span>
+          <span class="muted-sm">Más</span>
+        </div>
       </div>
     </div>
   `;
