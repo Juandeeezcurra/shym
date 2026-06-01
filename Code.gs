@@ -1033,29 +1033,44 @@ function getLastSessionForDay(params) {
   const exercises = readAll_(SHEETS.EXERCISES)
     .filter(e => e.day_id === day_id)
     .sort((a, b) => Number(a.exercise_order || 0) - Number(b.exercise_order || 0));
-  const rexIds = exercises.map(e => e.routine_exercise_id);
+
+  const nameByRexId = {};
+  readAll_(SHEETS.EXERCISES).forEach(e => {
+    if (e.routine_exercise_id && e.exercise_name) {
+      nameByRexId[e.routine_exercise_id] = e.exercise_name;
+    }
+  });
 
   const sessions = readAll_(SHEETS.SESSIONS)
-    .filter(s => s.day_id === day_id && normalizeDate_(s.date) < beforeDate)
+    .filter(s => normalizeDate_(s.date) < beforeDate)
     .sort((a, b) => {
       const dateCmp = normalizeDate_(b.date).localeCompare(normalizeDate_(a.date));
       if (dateCmp !== 0) return dateCmp;
       return (b.created_at || '').toString().localeCompare((a.created_at || '').toString());
     });
 
-  const setsBySessionAndExercise = {};
+  const sessionIndex = {};
+  sessions.forEach(s => { sessionIndex[s.session_id] = true; });
+
+  const setsBySessionAndName = {};
   readAll_(SHEETS.SETS).forEach(set => {
-    if (rexIds.indexOf(set.routine_exercise_id) < 0) return;
-    const key = set.session_id + '|' + set.routine_exercise_id;
-    if (!setsBySessionAndExercise[key]) setsBySessionAndExercise[key] = [];
-    setsBySessionAndExercise[key].push(set);
+    if (!sessionIndex[set.session_id]) return;
+    const rawName = set.exercise_name || nameByRexId[set.routine_exercise_id] || '';
+    const nameKey = normalizeExerciseNameKey_(rawName);
+    if (!nameKey) return;
+    const key = set.session_id + '|' + nameKey;
+    if (!setsBySessionAndName[key]) setsBySessionAndName[key] = [];
+    setsBySessionAndName[key].push(set);
   });
+
   const result = {};
 
-  rexIds.forEach(rexId => {
+  exercises.forEach(ex => {
+    const nameKey = normalizeExerciseNameKey_(ex.exercise_name);
+    if (!nameKey) return;
     for (let i = 0; i < sessions.length; i++) {
       const session = sessions[i];
-      const sessionSets = (setsBySessionAndExercise[session.session_id + '|' + rexId] || [])
+      const sessionSets = (setsBySessionAndName[session.session_id + '|' + nameKey] || [])
         .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0))
         .map(set => ({
           set_number: Number(set.set_number || 0),
@@ -1065,7 +1080,7 @@ function getLastSessionForDay(params) {
           note: set.note || '',
         }));
       if (sessionSets.length > 0) {
-        result[rexId] = {
+        result[ex.routine_exercise_id] = {
           session_id: session.session_id,
           date: normalizeDate_(session.date),
           sets: sessionSets,
@@ -1357,7 +1372,7 @@ function buildSessionSummary_(session, exercises, routine, day) {
   const allSessions = readAll_(SHEETS.SESSIONS);
   const allSets = readAll_(SHEETS.SETS);
   const exerciseSummaries = exercises.map(ex => {
-    const previousSets = getPreviousSetsForExercise_(ex.routine_exercise_id, session.day_id, normalizeDate_(session.date));
+    const previousSets = getPreviousSetsForExercise_(ex.exercise_name, normalizeDate_(session.date), session.session_id);
     const currentMetrics = calcSetMetrics_(ex.sets);
     const previousMetrics = calcSetMetrics_(previousSets);
     const historicalPrs = getHistoricalPrsForExercise_(ex.exercise_name, session, allSessions, allSets);
@@ -1401,19 +1416,35 @@ function buildSessionSummary_(session, exercises, routine, day) {
   };
 }
 
-function getPreviousSetsForExercise_(rexId, dayId, beforeDate) {
+function getPreviousSetsForExercise_(exerciseName, beforeDate, excludeSessionId) {
+  const nameKey = normalizeExerciseNameKey_(exerciseName);
+  if (!nameKey) return [];
+
   const sessions = readAll_(SHEETS.SESSIONS)
-    .filter(s => s.day_id === dayId && normalizeDate_(s.date) < beforeDate)
+    .filter(s => s.session_id !== excludeSessionId && normalizeDate_(s.date) < beforeDate)
     .sort((a, b) => {
       const dateCmp = normalizeDate_(b.date).localeCompare(normalizeDate_(a.date));
       if (dateCmp !== 0) return dateCmp;
       return (b.created_at || '').toString().localeCompare((a.created_at || '').toString());
     });
-  const sets = readAll_(SHEETS.SETS);
+  if (!sessions.length) return [];
 
+  const nameByRexId = {};
+  readAll_(SHEETS.EXERCISES).forEach(e => {
+    if (e.routine_exercise_id && e.exercise_name) {
+      nameByRexId[e.routine_exercise_id] = e.exercise_name;
+    }
+  });
+
+  const sets = readAll_(SHEETS.SETS);
   for (let i = 0; i < sessions.length; i++) {
+    const sessionId = sessions[i].session_id;
     const found = sets
-      .filter(set => set.session_id === sessions[i].session_id && set.routine_exercise_id === rexId)
+      .filter(set => set.session_id === sessionId)
+      .filter(set => {
+        const rawName = set.exercise_name || nameByRexId[set.routine_exercise_id] || '';
+        return normalizeExerciseNameKey_(rawName) === nameKey;
+      })
       .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0))
       .map(set => ({
         set_number: Number(set.set_number || 0),
