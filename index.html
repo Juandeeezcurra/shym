@@ -595,7 +595,10 @@
   }
 
   /* Bottom nav */
-  .nav-brand { display: none; }
+  .nav-brand {
+    display: none;
+    font-family: inherit;
+  }
 
   .bottom-nav {
     position: fixed;
@@ -1576,10 +1579,10 @@
       top: 0;
       bottom: 0;
       left: 0;
-      width: 240px;
+      width: 204px;
       height: 100vh;
       max-width: none;
-      padding: 22px 14px;
+      padding: 18px 10px;
       background: #0e1216;
       border: 0;
       border-right: 1px solid var(--border);
@@ -1596,8 +1599,8 @@
     .nav-brand {
       display: flex;
       align-items: center;
-      justify-content: center;
-      padding: 8px 8px 20px;
+      justify-content: flex-start;
+      padding: 14px 8px 22px 16px;
       margin-bottom: 10px;
       border-bottom: 1px solid var(--border);
       background: transparent;
@@ -1607,15 +1610,34 @@
       cursor: pointer;
       width: 100%;
     }
-    .nav-brand:hover { opacity: 0.85; }
+    .nav-brand:hover { opacity: 0.9; }
+    .nav-brand:focus-visible {
+      outline: 2px solid rgba(255, 90, 42, 0.65);
+      outline-offset: 4px;
+      border-radius: 8px;
+    }
     .nav-brand-text {
-      font-size: 30px;
+      display: inline-block;
+      position: relative;
+      font-family: Impact, "Arial Black", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      font-size: 38px;
       font-weight: 900;
-      letter-spacing: -0.02em;
+      letter-spacing: 0;
+      line-height: 0.88;
+      text-transform: uppercase;
       color: var(--accent);
-      font-style: italic;
-      line-height: 1;
-      text-shadow: 0 0 14px rgba(255, 90, 42, 0.35);
+      background: none;
+      font-style: normal;
+      -webkit-text-stroke: 1px rgba(255, 255, 255, 0.08);
+      text-shadow: 0 2px 0 rgba(0, 0, 0, 0.32), 0 0 16px rgba(255, 90, 42, 0.24);
+      transform: skewX(-10deg) scaleX(1.08);
+      transform-origin: center;
+      transition: transform 0.12s ease, filter 0.12s ease;
+    }
+    .nav-brand:hover .nav-brand-text,
+    .nav-brand:focus-visible .nav-brand-text {
+      filter: drop-shadow(0 0 10px rgba(255, 90, 42, 0.28));
+      transform: skewX(-10deg) scaleX(1.08) translateX(2px);
     }
 
     .nav-btn,
@@ -1623,7 +1645,7 @@
       width: 100%;
       height: 44px;
       margin: 0;
-      padding: 0 14px;
+      padding: 0 12px;
       display: grid;
       grid-template-columns: 22px 1fr;
       align-items: center;
@@ -1668,7 +1690,7 @@
     .app {
       max-width: none;
       margin: 0;
-      padding: 40px 56px 64px 296px;
+      padding: 40px 48px 64px 252px;
     }
 
     h1 { font-size: 32px; letter-spacing: -0.035em; }
@@ -2142,8 +2164,8 @@
 </div>
 
 <nav class="bottom-nav">
-  <button class="nav-brand" data-go="home" aria-label="Inicio">
-    <span class="nav-brand-text">Shym</span>
+  <button class="nav-brand" type="button" data-go="home" aria-label="Ir al inicio" title="Inicio">
+    <span class="nav-brand-text">SHYM</span>
   </button>
   <button class="nav-btn nav-cta" data-action="go-train" data-nav="train" aria-label="Empezar entrenamiento" title="Entrenar">
     <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -2690,9 +2712,12 @@ function renderNutritionCard_(el, data) {
           <div class="metric-large">${data.weight != null && data.weight !== '' ? escapeHtml(String(data.weight)) + ' kg' : '—'}</div>
           <div class="metric-label">Peso en ayunas</div>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
           <span class="nutrition-trained ${data.trained ? 'yes' : ''}">${data.trained ? '✓ Entrenó' : 'Sin entrenar'}</span>
-          <button class="ghost-btn" style="padding:6px 12px;font-size:12px;" data-action="edit-nutrition">Editar</button>
+          <div style="display:flex;gap:6px;">
+            <button class="ghost-btn" style="padding:6px 10px;font-size:12px;" data-action="add-meal">+ Comida</button>
+            <button class="ghost-btn" style="padding:6px 10px;font-size:12px;" data-action="edit-nutrition">Editar</button>
+          </div>
         </div>
       </div>
       <div class="nutrition-macros">
@@ -2893,7 +2918,7 @@ function openNutritionModal_(date, data) {
       </div>
       <div class="nutrition-form-field" style="margin-bottom:12px;">
         <label class="field-label">Pasos o actividad (opcional)</label>
-        <input id="nu-steps" type="text" inputmode="numeric" placeholder="ej. 8500 o 'caminata 30min'" value="${v('steps')}" />
+        <input id="nu-steps" type="text" placeholder="ej. 8500 o 'caminata 30min'" value="${v('steps')}" />
       </div>
       <div class="nutrition-form-field">
         <label class="field-label">Notas (hambre, energía, digestión…)</label>
@@ -2968,6 +2993,124 @@ async function handleEditNutrition(dateOverride) {
   openNutritionModal_(date, data || {});
 }
 
+function openAddMealModal_(date, currentData) {
+  currentData = currentData || {};
+  const sumLine = [];
+  if (currentData.kcal != null && currentData.kcal !== '') sumLine.push(`${currentData.kcal} kcal`);
+  if (currentData.protein != null && currentData.protein !== '') sumLine.push(`${currentData.protein}P`);
+  if (currentData.fat != null && currentData.fat !== '') sumLine.push(`${currentData.fat}G`);
+  if (currentData.carbs != null && currentData.carbs !== '') sumLine.push(`${currentData.carbs}C`);
+  const totalHint = sumLine.length
+    ? `<p class="muted" style="font-size:13px;margin-top:0;margin-bottom:14px;">Total actual: ${sumLine.join(' · ')}. Los valores se suman.</p>`
+    : `<p class="muted" style="font-size:13px;margin-top:0;margin-bottom:14px;">Cargá los macros de esta comida. Se suman al total del día.</p>`;
+
+  modal.open({
+    title: `+ Sumar comida · ${formatDateLong(date)}`,
+    bodyHtml: `
+      ${totalHint}
+      <div class="nutrition-form-field" style="margin-bottom:12px;">
+        <label class="field-label">Calorías (kcal)</label>
+        <input id="meal-kcal" type="text" inputmode="numeric" placeholder="ej. 500" value="" />
+      </div>
+      <div class="nutrition-form-row three" style="margin-bottom:12px;">
+        <div class="nutrition-form-field">
+          <label class="field-label">Proteína (g)</label>
+          <input id="meal-protein" type="text" inputmode="numeric" value="" />
+        </div>
+        <div class="nutrition-form-field">
+          <label class="field-label">Grasas (g)</label>
+          <input id="meal-fat" type="text" inputmode="numeric" value="" />
+        </div>
+        <div class="nutrition-form-field">
+          <label class="field-label">Carbos (g)</label>
+          <input id="meal-carbs" type="text" inputmode="numeric" value="" />
+        </div>
+      </div>
+      <div class="nutrition-form-field">
+        <label class="field-label">Nota (opcional)</label>
+        <input id="meal-note" type="text" placeholder="ej. desayuno, almuerzo, snack…" value="" />
+      </div>
+    `,
+    actions: [
+      { label: 'Sumar', kind: 'primary', onClick: async () => {
+        const root = $('#modal-root');
+        const numOrZero = (id) => {
+          const raw = ($('#' + id, root).value || '').replace(',', '.').trim();
+          if (!raw) return 0;
+          const n = Number(raw);
+          return Number.isFinite(n) ? n : 0;
+        };
+        const addKcal = numOrZero('meal-kcal');
+        const addProtein = numOrZero('meal-protein');
+        const addFat = numOrZero('meal-fat');
+        const addCarbs = numOrZero('meal-carbs');
+        const noteRaw = ($('#meal-note', root).value || '').trim();
+
+        if (!addKcal && !addProtein && !addFat && !addCarbs && !noteRaw) {
+          toast('Cargá al menos un macro o una nota', 'error');
+          return;
+        }
+
+        const existingNum = (v) => {
+          if (v == null || v === '') return 0;
+          const n = Number(v);
+          return Number.isFinite(n) ? n : 0;
+        };
+        const round1 = (n) => Math.round(n * 10) / 10;
+
+        const mergedNotes = [
+          (currentData.notes || '').trim(),
+          noteRaw ? `+ ${noteRaw}` : '',
+        ].filter(Boolean).join(' · ');
+
+        const next = {
+          date,
+          weight: currentData.weight != null && currentData.weight !== '' ? Number(currentData.weight) : null,
+          water: currentData.water != null && currentData.water !== '' ? Number(currentData.water) : null,
+          kcal: round1(existingNum(currentData.kcal) + addKcal) || null,
+          protein: round1(existingNum(currentData.protein) + addProtein) || null,
+          fat: round1(existingNum(currentData.fat) + addFat) || null,
+          carbs: round1(existingNum(currentData.carbs) + addCarbs) || null,
+          steps: (currentData.steps != null && currentData.steps !== '') ? String(currentData.steps) : null,
+          notes: mergedNotes || null,
+          trained: !!currentData.trained,
+        };
+
+        modal.close();
+        try {
+          await withLoader(gas.saveNutritionForDate(next));
+          setApiCache('getNutritionForDate', [{ date }], next);
+          [7, 14, 30].forEach(d => {
+            delete state.apiCache[apiCacheKey('getNutritionHistory', [{ days: d }])];
+            delete state.apiCache[apiCacheKey('getNutritionHistory', [{ days: d, end_date: todayInputValue() }])];
+          });
+          if (state.currentScreen === 'nutrition') {
+            renderNutritionDay(date);
+            renderNutritionHistoryChart();
+          }
+          renderHomeNutrition();
+          toast('Comida sumada', 'success');
+        } catch (err) {
+          toast(err.message || 'Error al guardar', 'error');
+        }
+      }},
+      { label: 'Cancelar', onClick: () => modal.close() },
+    ],
+  });
+}
+
+async function handleAddMeal(dateOverride) {
+  const date = dateOverride || todayInputValue();
+  let data = null;
+  try {
+    const cached = getApiCache('getNutritionForDate', [{ date }], API_CACHE_TTL.getNutritionForDate);
+    data = cached !== null && cached !== undefined
+      ? cached
+      : await withLoader(cachedGas('getNutritionForDate', [{ date }]));
+  } catch { data = null; }
+  openAddMealModal_(date, data || {});
+}
+
 // ============================================================
 // NUTRITION SCREEN
 // ============================================================
@@ -3022,9 +3165,12 @@ async function renderNutritionDay(date) {
           <div class="metric-large">${data.weight != null && data.weight !== '' ? escapeHtml(String(data.weight)) + ' kg' : '—'}</div>
           <div class="metric-label">Peso en ayunas</div>
         </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px;">
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
           <span class="nutrition-trained ${data.trained ? 'yes' : ''}">${data.trained ? '✓ Entrenó' : 'Sin entrenar'}</span>
-          <button class="ghost-btn" style="padding:6px 12px;font-size:12px;" data-action="edit-nutrition-date" data-date="${escapeHtml(date)}">Editar</button>
+          <div style="display:flex;gap:6px;">
+            <button class="ghost-btn" style="padding:6px 10px;font-size:12px;" data-action="add-meal-date" data-date="${escapeHtml(date)}">+ Comida</button>
+            <button class="ghost-btn" style="padding:6px 10px;font-size:12px;" data-action="edit-nutrition-date" data-date="${escapeHtml(date)}">Editar</button>
+          </div>
         </div>
       </div>
       <div class="nutrition-macros">
@@ -6104,6 +6250,8 @@ document.addEventListener('click', (e) => {
     case 'delete-session': handleDeleteSession(); break;
     case 'edit-nutrition': handleEditNutrition(); break;
     case 'edit-nutrition-date': handleEditNutrition(t.dataset.date); break;
+    case 'add-meal': handleAddMeal(); break;
+    case 'add-meal-date': handleAddMeal(t.dataset.date); break;
     case 'edit-macro-goals': openMacroGoalsModal_(); break;
     case 'nutrition-prev-day': {
       if (!state.nutritionCurrentDate) state.nutritionCurrentDate = todayInputValue();
