@@ -1571,9 +1571,7 @@ function getLastSessionForDay(params) {
     const r = set.reps === '' ? null : Number(set.reps);
     if (w == null || !(w > 0)) return;
     const current = prByName[nameKey];
-    const beats = !current
-      || w > current.weight
-      || (w === current.weight && (r || 0) > (current.reps || 0));
+    const beats = !current || w > current.weight;
     if (beats) {
       prByName[nameKey] = {
         weight: w,
@@ -1592,6 +1590,7 @@ function getLastSessionForDay(params) {
     let lastEntry = null;
     for (let i = 0; i < sessions.length; i++) {
       const session = sessions[i];
+      if (session.day_id !== day_id) continue;
       const sessionSets = (setsBySessionAndName[session.session_id + '|' + nameKey] || [])
         .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0))
         .map(set => ({

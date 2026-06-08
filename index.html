@@ -1852,8 +1852,8 @@
     .nav-brand {
       display: flex;
       align-items: center;
-      justify-content: flex-start;
-      padding: 14px 8px 22px 16px;
+      justify-content: center;
+      padding: 14px 12px 22px;
       margin-bottom: 10px;
       border-bottom: 1px solid var(--border);
       background: transparent;
@@ -1869,28 +1869,20 @@
       outline-offset: 4px;
       border-radius: 8px;
     }
-    .nav-brand-text {
-      display: inline-block;
-      position: relative;
-      font-family: Impact, "Arial Black", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
-      font-size: 38px;
-      font-weight: 900;
-      letter-spacing: 0;
-      line-height: 0.88;
-      text-transform: uppercase;
-      color: var(--accent);
-      background: none;
-      font-style: normal;
-      -webkit-text-stroke: 1px rgba(255, 255, 255, 0.08);
-      text-shadow: 0 2px 0 rgba(0, 0, 0, 0.32), 0 0 16px rgba(255, 90, 42, 0.24);
-      transform: skewX(-10deg) scaleX(1.08);
+    .nav-brand-logo {
+      display: block;
+      height: 34px;
+      width: auto;
+      max-width: 100%;
+      object-fit: contain;
+      filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.32)) drop-shadow(0 0 16px rgba(255, 90, 42, 0.24));
       transform-origin: center;
       transition: transform 0.12s ease, filter 0.12s ease;
     }
-    .nav-brand:hover .nav-brand-text,
-    .nav-brand:focus-visible .nav-brand-text {
-      filter: drop-shadow(0 0 10px rgba(255, 90, 42, 0.28));
-      transform: skewX(-10deg) scaleX(1.08) translateX(2px);
+    .nav-brand:hover .nav-brand-logo,
+    .nav-brand:focus-visible .nav-brand-logo {
+      filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.32)) drop-shadow(0 0 12px rgba(255, 90, 42, 0.34));
+      transform: translateX(2px);
     }
 
     .nav-btn,
@@ -2421,7 +2413,7 @@
 
 <nav class="bottom-nav">
   <button class="nav-brand" type="button" data-go="home" aria-label="Ir al inicio" title="Inicio">
-    <span class="nav-brand-text">SHYM</span>
+    <img class="nav-brand-logo" src="logo%20png.png" alt="Shym" />
   </button>
   <button class="nav-btn nav-cta" data-action="go-train" data-nav="train" aria-label="Empezar entrenamiento" title="Entrenar">
     <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -5135,11 +5127,8 @@ function renderTrainExercises(exercises) {
     const prPill = pr && pr.weight != null
       ? `<span class="pill pr" title="PR${pr.date ? ' · ' + pr.date : ''}"><span class="pr-star">★</span>${units.toDisplay(pr.weight)} ${units.label()}${pr.reps ? ' × ' + pr.reps : ''}</span>`
       : '';
-    const suggestedPill = ex.suggested_weight != null && ex.suggested_weight !== ''
-      ? `<span class="pill accent">${units.toDisplay(ex.suggested_weight)} ${units.label()}</span>`
-      : '';
-    const rightPills = (prPill || suggestedPill)
-      ? `<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0;">${prPill}${suggestedPill}</div>`
+    const rightPills = prPill
+      ? `<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0;">${prPill}</div>`
       : '';
     const setRows = Array.from({ length: Number(ex.target_sets || 1) }, (_, i) => renderSetRow(ex, i + 1)).join('');
     return `
