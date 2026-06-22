@@ -2715,6 +2715,83 @@ function getProgressExerciseData(params) {
   };
 }
 
+function getProgressSummary() {
+  const exerciseMeta = buildExerciseMuscleMeta_(readAll_(SHEETS.EXERCISES));
+  const exerciseMap = {};
+  readAll_(SHEETS.EXERCISES).forEach(ex => {
+    const name = (ex.exercise_name || '').toString().trim();
+    if (!name) return;
+    if (!exerciseMap[name]) exerciseMap[name] = resolveExerciseMuscleGroup_(ex, exerciseMeta);
+  });
+
+  const sessions = readAll_(SHEETS.SESSIONS);
+  const sessionsById = indexBy_(sessions, 'session_id');
+  const sets = readAll_(SHEETS.SETS);
+
+  const byExercise = {};
+  sets.forEach(set => {
+    const name = (set.exercise_name || '').toString().trim();
+    if (!name) return;
+    const session = sessionsById[set.session_id];
+    if (!session) return;
+    if (!byExercise[name]) byExercise[name] = {};
+    const sid = session.session_id;
+    if (!byExercise[name][sid]) {
+      byExercise[name][sid] = { session_id: sid, date: normalizeDate_(session.date), created_at: session.created_at || '', sets: [] };
+    }
+    byExercise[name][sid].sets.push({
+      weight: set.weight === '' ? null : Number(set.weight),
+      reps: set.reps === '' ? null : Number(set.reps),
+    });
+  });
+
+  const bestOf = (setsArr) => {
+    let best = null;
+    (setsArr || []).forEach(s => {
+      if (s.weight == null) return;
+      if (!best || s.weight > best.weight || (s.weight === best.weight && Number(s.reps || 0) > best.reps)) {
+        best = { weight: s.weight, reps: Number(s.reps || 0) };
+      }
+    });
+    return best;
+  };
+
+  const exercises = Object.keys(exerciseMap).filter(Boolean).map(name => {
+    const sessionsMap = byExercise[name] || {};
+    const chrono = Object.keys(sessionsMap).map(k => sessionsMap[k]).sort((a, b) => {
+      const c = a.date.localeCompare(b.date);
+      return c !== 0 ? c : a.created_at.localeCompare(b.created_at);
+    });
+    const chronoBest = chrono.map(s => bestOf(s.sets)).filter(Boolean);
+
+    let last = null;
+    let prev = null;
+    let stallCount = 0;
+    if (chronoBest.length) {
+      let runMax = -Infinity;
+      let lastUpIdx = -1;
+      chronoBest.forEach((b, idx) => {
+        if (b.weight > runMax) { runMax = b.weight; lastUpIdx = idx; }
+      });
+      last = chronoBest[chronoBest.length - 1];
+      if (chronoBest.length > 1) prev = chronoBest[chronoBest.length - 2];
+      stallCount = (chronoBest.length - 1) - lastUpIdx;
+    }
+
+    return {
+      name,
+      muscle_group: exerciseMap[name] || '',
+      sessions_count: chrono.length,
+      last_date: chrono.length ? chrono[chrono.length - 1].date : null,
+      last,
+      prev,
+      stall_count: stallCount,
+    };
+  }).sort((a, b) => a.name.localeCompare(b.name));
+
+  return { exercises };
+}
+
 function listExerciseHistory(params) {
   params = params || {};
   const exerciseName = (params.exercise_name || '').toString().trim();
