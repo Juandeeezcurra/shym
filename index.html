@@ -660,18 +660,19 @@
   .bottom-nav {
     position: fixed;
     left: 50%;
-    bottom: max(14px, env(safe-area-inset-bottom));
+    bottom: max(12px, env(safe-area-inset-bottom));
     transform: translateX(-50%);
-    width: calc(100% - 28px);
-    max-width: 432px;
-    background: rgba(17, 21, 25, 0.92);
+    width: calc(100% - 32px);
+    max-width: 408px;
+    min-height: 66px;
+    background: rgba(14, 18, 22, 0.96);
     border: 1px solid var(--border);
     backdrop-filter: blur(16px);
     border-radius: 999px;
-    padding: 10px 9px;
+    padding: 7px 12px;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 6px;
+    gap: 10px;
     z-index: 20;
   }
   .nav-btn {
@@ -683,34 +684,42 @@
     font-weight: 700;
     cursor: pointer;
     min-width: 0;
-    width: 52px;
-    height: 52px;
+    width: 46px;
+    height: 46px;
     display: grid;
     place-items: center;
     margin: 0 auto;
   }
-  .nav-btn.active { background: var(--accent); color: #101010; }
+  .nav-btn.active {
+    background: rgba(255, 90, 42, 0.14);
+    color: var(--accent);
+    box-shadow: inset 0 0 0 1px rgba(255, 90, 42, 0.18);
+  }
   .nav-cta {
     display: grid;
     place-items: center;
-    width: 72px;
-    height: 72px;
-    margin: -30px auto -10px;
+    width: 62px;
+    height: 62px;
+    margin: -16px auto -5px;
     padding: 0;
     background: var(--accent);
     color: #101010;
-    border: 4px solid rgba(7, 9, 11, 0.92);
-    box-shadow: 0 14px 34px rgba(255, 90, 42, 0.32);
+    border: 3px solid #0e1216;
+    box-shadow: 0 10px 24px rgba(255, 90, 42, 0.25);
   }
-  .nav-cta.active { background: var(--accent); color: #101010; }
+  .nav-cta.active {
+    background: var(--accent);
+    color: #101010;
+    box-shadow: 0 10px 24px rgba(255, 90, 42, 0.25);
+  }
   .nav-icon {
     display: block;
-    width: 27px;
-    height: 27px;
+    width: 24px;
+    height: 24px;
   }
   .nav-cta .nav-icon {
-    width: 36px;
-    height: 36px;
+    width: 29px;
+    height: 29px;
   }
   .nav-label {
     position: absolute;
@@ -891,6 +900,7 @@
     border-radius: inherit;
     background: var(--accent);
   }
+  .goal-progress-list { display: grid; gap: 12px; margin-top: 10px; }
   /* Empty state */
   .empty-state {
     text-align: center;
@@ -1565,7 +1575,7 @@
   }
   .ex-grid-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
   .ex-grid-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .ex-grid { display: inline-block; min-width: 100%; }
+  .ex-grid { display: block; width: max-content; min-width: 0; margin: 0 auto; }
   .ex-grid-row { display: flex; gap: 4px; margin-bottom: 4px; }
   .ex-grid-cell { flex: 0 0 62px; min-height: 34px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; border-radius: 8px; }
   .ex-grid-row:not(.ex-grid-head) .ex-grid-cell:not(.ex-grid-rowlabel):not(.ex-grid-empty) { border: 1px solid rgba(255,255,255,0.04); }
@@ -2164,7 +2174,7 @@
 
   <!-- ============ PROGRESS ============ -->
   <section id="screen-progress" class="screen">
-    <div class="header-row">
+    <div class="header-row" id="progress-header">
       <div>
         <h1 class="home-title-link" data-go="home" title="Ir al inicio">Progreso</h1>
       </div>
@@ -5298,6 +5308,7 @@ async function loadProgress(navToken) {
 
 function renderProgressViews() {
   const inDetail = !!state.progressDetailExercise;
+  $('#progress-header').style.display = inDetail ? 'none' : 'flex';
   $('#progress-summary-view').style.display = inDetail ? 'none' : 'block';
   $('#progress-detail-view').style.display = inDetail ? 'block' : 'none';
 }
@@ -5476,7 +5487,7 @@ function renderBestSetChart(sessions, metric) {
 }
 
 function renderSetBySessionGrid(sessions) {
-  const cols = sessions.slice().reverse(); // oldest -> newest
+  const cols = sessions.slice(0, 4).reverse(); // four latest, oldest -> newest
   if (!cols.length) return '';
   let maxSets = 0;
   const colMaps = cols.map(s => {
@@ -5693,8 +5704,6 @@ function renderExerciseHistory(history) {
     </div>
   `;
 
-  const sc = $('.ex-grid-scroll');
-  if (sc) sc.scrollLeft = sc.scrollWidth;
 }
 
 function renderExerciseGoalCard(exerciseName, goal, latestMax, latestE1rm) {
@@ -5722,13 +5731,11 @@ function renderExerciseGoalCard(exerciseName, goal, latestMax, latestE1rm) {
   }
   return `
     <div class="card">
-      <div class="card-row" style="align-items:flex-start;">
-        <div style="flex:1;min-width:0;">
-          <h3>Meta</h3>
-          <div style="display:grid;gap:12px;margin-top:10px;">${rows.join('')}</div>
-        </div>
+      <div class="card-row">
+        <h3>Meta</h3>
         <button class="ghost-btn" data-action="edit-exercise-goal" data-exercise-name="${escapeHtml(exerciseName)}">Editar</button>
       </div>
+      <div class="goal-progress-list">${rows.join('')}</div>
     </div>
   `;
 }
