@@ -669,26 +669,6 @@
   }
 
   /* Bottom nav */
-  .nav-brand {
-    display: grid;
-    place-items: center;
-    width: 44px;
-    height: 44px;
-    margin: 0 auto;
-    padding: 0;
-    border: 0;
-    border-radius: 999px;
-    background: transparent;
-    font-family: inherit;
-    cursor: pointer;
-  }
-  .nav-brand-logo {
-    display: block;
-    height: 24px;
-    width: auto;
-    object-fit: contain;
-  }
-
   .bottom-nav {
     position: fixed;
     left: 50%;
@@ -702,14 +682,10 @@
     border-radius: 999px;
     padding: 8px 9px;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
     z-index: 20;
   }
-  .bottom-nav > .nav-brand                    { order: 0; }
-  .bottom-nav > .nav-cta                       { order: 1; }
-  .bottom-nav > .nav-btn[data-go="progress"]  { order: 2; }
-  .bottom-nav > .nav-btn[data-go="nutrition"] { order: 3; }
   .nav-btn {
     border: 0;
     background: transparent;
@@ -1768,44 +1744,6 @@
       transform: none;
       z-index: 30;
     }
-    .bottom-nav > * { order: 0; }
-
-    .nav-brand {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 14px 12px 22px;
-      margin-bottom: 10px;
-      border-bottom: 1px solid var(--border);
-      background: transparent;
-      border-top: 0;
-      border-left: 0;
-      border-right: 0;
-      cursor: pointer;
-      width: 100%;
-    }
-    .nav-brand:hover { opacity: 0.9; }
-    .nav-brand:focus-visible {
-      outline: 2px solid rgba(255, 90, 42, 0.65);
-      outline-offset: 4px;
-      border-radius: 8px;
-    }
-    .nav-brand-logo {
-      display: block;
-      height: 34px;
-      width: auto;
-      max-width: 100%;
-      object-fit: contain;
-      filter: drop-shadow(0 0 16px rgba(255, 90, 42, 0.24));
-      transform-origin: center;
-      transition: transform 0.12s ease, filter 0.12s ease;
-    }
-    .nav-brand:hover .nav-brand-logo,
-    .nav-brand:focus-visible .nav-brand-logo {
-      filter: drop-shadow(0 0 12px rgba(255, 90, 42, 0.34));
-      transform: translateX(2px);
-    }
-
     .nav-btn,
     .nav-cta {
       width: 100%;
@@ -2314,21 +2252,18 @@
 </div>
 
 <nav class="bottom-nav">
-  <button class="nav-brand" type="button" data-go="home" aria-label="Ir al inicio" title="Inicio">
-    <img class="nav-brand-logo" src="assets/shym-dumbbell.png" alt="Shym" />
-  </button>
-  <button class="nav-btn nav-cta" data-action="go-train" data-nav="train" aria-label="Empezar entrenamiento" title="Entrenar">
-    <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M6 8v8M18 8v8M3.5 10v4M20.5 10v4M6 12h12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
-    </svg>
-    <span class="nav-label">Entrenar</span>
-  </button>
   <button class="nav-btn" data-go="nutrition" aria-label="Nutrición" title="Nutrición">
     <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 2C8 2 5 6 5 10c0 5 4 8 7 10 3-2 7-5 7-10 0-4-3-8-7-8Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
       <path d="M12 7v6M9 10h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
     </svg>
     <span class="nav-label">Nutrición</span>
+  </button>
+  <button class="nav-btn nav-cta" data-action="go-train" data-nav="train" aria-label="Empezar entrenamiento" title="Entrenar">
+    <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 8v8M18 8v8M3.5 10v4M20.5 10v4M6 12h12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+    </svg>
+    <span class="nav-label">Entrenar</span>
   </button>
   <button class="nav-btn" data-go="progress" aria-label="Progreso" title="Progreso">
     <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -5555,7 +5490,7 @@ function renderBestSetChart(sessions, metric) {
   };
   const valLabel = (v) => metric === 'reps' ? (Math.round(v) + ' reps') : (units.toDisplay(v) + ' ' + units.label());
   return `
-    <svg class="progress-exercise-chart" viewBox="0 0 300 150" role="img" aria-label="Evolución de la mejor serie">
+    <svg class="progress-exercise-chart" viewBox="0 0 300 150" preserveAspectRatio="none" role="img" aria-label="Evolución de la mejor serie">
       <path d="M${area}" fill="var(--accent-soft)"></path>
       <polyline points="${polyline}" fill="none" stroke="var(--accent)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
       ${coords.map((c, i) => `<circle cx="${c.x}" cy="${c.y}" r="4" fill="var(--accent)" data-action="open-session" data-session-id="${escapeHtml(rows[i].p.session_id)}" style="cursor:pointer;"></circle>`).join('')}
