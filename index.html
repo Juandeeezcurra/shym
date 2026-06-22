@@ -595,8 +595,8 @@
   }
   .input-grid {
     display: grid;
-    grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr);
-    gap: 6px;
+    grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
     align-items: center;
     margin-top: 8px;
   }
@@ -605,38 +605,23 @@
     font-weight: 800;
     text-align: center;
   }
+  .train-set-head {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
   .set-field-group {
-    display: flex;
-    align-items: center;
-    gap: 4px;
+    min-width: 0;
   }
   .set-field-group input {
-    min-width: 0;
-    flex: 1 1 auto;
+    width: 100%;
     text-align: center;
-    padding-left: 4px;
-    padding-right: 4px;
-  }
-  .stepper-btn {
-    flex: 0 0 auto;
-    width: 34px;
-    height: 42px;
-    border-radius: 11px;
-    border: 1px solid var(--border);
-    background: #11151a;
-    color: var(--text);
-    font-weight: 800;
-    font-size: 18px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    touch-action: manipulation;
-    user-select: none;
-    -webkit-user-select: none;
-  }
-  .stepper-btn:active {
-    background: #181d24;
+    min-height: 46px;
+    padding: 10px 8px;
   }
   .floating-save {
     position: sticky;
@@ -2767,7 +2752,6 @@ function isCurrentNav(navToken, screenId) {
 }
 
 function shouldIgnoreRapidTap(target) {
-  if (target.dataset.action === 'step-set-field') return false;
   const key = [
     target.dataset.go || target.dataset.action || target.tagName,
     target.dataset.sessionId || '',
@@ -4994,6 +4978,7 @@ function renderTrainExercises(exercises) {
         ${ex.technique_note ? `<p class="muted-sm" style="margin-top:8px;">${escapeHtml(ex.technique_note)}</p>` : ''}
         ${lastChips}
         <p class="muted">Hoy</p>
+        <div class="input-grid train-set-head"><span></span><span>Peso (${units.label()})</span><span>Reps</span></div>
         <div data-set-list>${setRows}</div>
         <button class="ghost-btn full" data-action="add-train-set" data-rex-id="${escapeHtml(ex.routine_exercise_id)}" style="margin-top:10px;">+ serie</button>
       </div>
@@ -5022,14 +5007,10 @@ function renderSetRow(ex, setNumber) {
     <div class="input-grid" data-set-row data-rex-id="${escapeHtml(ex.routine_exercise_id)}" data-set-number="${setNumber}">
       <div class="set-number">${setNumber}</div>
       <div class="set-field-group">
-        <button type="button" class="stepper-btn" data-action="step-set-field" data-field="weight" data-dir="-1" onpointerdown="return handleStepperPointer(event, this)" onclick="return handleStepperClick(event, this)">−</button>
-        <input type="number" step="${units.toDisplay(2.5)}" inputmode="decimal" data-field="weight" placeholder="${units.label()}" />
-        <button type="button" class="stepper-btn" data-action="step-set-field" data-field="weight" data-dir="1" onpointerdown="return handleStepperPointer(event, this)" onclick="return handleStepperClick(event, this)">+</button>
+        <input type="number" step="${units.toDisplay(2.5)}" inputmode="decimal" data-field="weight" placeholder="0" aria-label="Peso en ${units.label()}" />
       </div>
       <div class="set-field-group">
-        <button type="button" class="stepper-btn" data-action="step-set-field" data-field="reps" data-dir="-1" onpointerdown="return handleStepperPointer(event, this)" onclick="return handleStepperClick(event, this)">−</button>
-        <input type="number" step="1" inputmode="numeric" data-field="reps" placeholder="reps" />
-        <button type="button" class="stepper-btn" data-action="step-set-field" data-field="reps" data-dir="1" onpointerdown="return handleStepperPointer(event, this)" onclick="return handleStepperClick(event, this)">+</button>
+        <input type="number" step="1" inputmode="numeric" data-field="reps" placeholder="0" aria-label="Repeticiones" />
       </div>
     </div>
   `;
@@ -5041,37 +5022,6 @@ function formatSetChip(set) {
   if (weight > 0) return `${units.toDisplay(weight)} ${units.label()} × ${reps == null ? '-' : reps}`;
   if (reps != null) return `${reps} rep${reps === 1 ? '' : 's'}`;
   return 'Sin datos';
-}
-
-function stepSetField(button) {
-  const row = button && button.closest('[data-set-row]');
-  const field = button && button.dataset.field;
-  const input = row && $(`[data-field="${field}"]`, row);
-  if (!input) return;
-  const step = field === 'weight' ? units.toDisplay(2.5) : 1;
-  const dir = Number(button.dataset.dir || 1);
-  const current = input.value === '' ? 0 : Number(input.value);
-  const base = Number.isFinite(current) ? current : 0;
-  const next = Math.max(0, Math.round((base + dir * step) * 100) / 100);
-  input.value = field === 'weight' ? next : Math.round(next);
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-  input.dispatchEvent(new Event('change', { bubbles: true }));
-}
-
-function handleStepperPointer(event, button) {
-  button.dataset.pointerHandledAt = String(Date.now());
-  event.preventDefault();
-  event.stopPropagation();
-  stepSetField(button);
-  return false;
-}
-
-function handleStepperClick(event, button) {
-  event.preventDefault();
-  event.stopPropagation();
-  const pointerAt = Number(button.dataset.pointerHandledAt || 0);
-  if (Date.now() - pointerAt >= 700) stepSetField(button);
-  return false;
 }
 
 function draftKey(day_id, date) {
@@ -6267,7 +6217,6 @@ document.addEventListener('click', (e) => {
     }
     case 'change-train-day': goTo('train-pick'); break;
     case 'add-train-set': addTrainSet(t.dataset.rexId); break;
-    case 'step-set-field': stepSetField(t); break;
     case 'save-session': runLockedAction('save-session', () => handleSaveSession(t)); break;
     case 'summary-home': goTo('home'); break;
     case 'summary-train-again': goTo('train-pick'); break;
