@@ -1945,10 +1945,6 @@
 
     <div id="home-bw-card" class="home-bw" style="display:none;"></div>
 
-    <div id="home-week-card" class="home-week">
-      <div class="skeleton" style="height:140px;"></div>
-    </div>
-
     <div id="home-today-card" class="home-today">
       <div class="skeleton" style="height:160px;"></div>
     </div>
@@ -2344,7 +2340,6 @@ const state = {
   historyActivity: null,
   historySelectedDate: null,
   progressDetailExercise: null,
-  homeExerciseTargets: null,
   progressExercises: [],
   exerciseMetric: 'weight',
   lastExerciseHistory: null,
@@ -3389,35 +3384,19 @@ async function loadHomeStats(navToken) {
 
 async function loadHomeProgressInsights(navToken) {
   const cached = getApiCache('getProgressSummary', [], API_CACHE_TTL.getProgressSummary);
-  if (cached) renderHomeInsightsAndTargets_(cached);
+  if (cached) renderHomeInsights_(cached);
   try {
     const data = await cachedGas('getProgressSummary', [], { force: !cached });
     if (navToken && !isCurrentNav(navToken, 'home')) return;
-    renderHomeInsightsAndTargets_(data);
+    renderHomeInsights_(data);
   } catch (err) {
     if (navToken && !isCurrentNav(navToken, 'home')) return;
   }
 }
 
-function renderHomeInsightsAndTargets_(data) {
+function renderHomeInsights_(data) {
   const exercises = (data && data.exercises) || [];
-  const byName = {};
-  exercises.forEach(ex => { byName[ex.name] = ex; });
-  state.homeExerciseTargets = byName;
-  applyHomeTodayTargets_();
   renderHomeInsightsCard_(exercises);
-}
-
-function applyHomeTodayTargets_() {
-  const byName = state.homeExerciseTargets;
-  if (!byName) return;
-  $$('[data-home-target-for]').forEach(el => {
-    const ex = byName[el.dataset.homeTargetFor];
-    if (ex && ex.last && ex.last.weight != null) {
-      el.textContent = `objetivo ${units.toDisplay(ex.last.weight)} ${units.label()} × ${ex.last.reps}`;
-      el.style.display = '';
-    }
-  });
 }
 
 function renderHomeInsightsCard_(exercises) {
@@ -3454,10 +3433,8 @@ function renderHomeInsightsCard_(exercises) {
 function renderHomeStats(stats) {
   renderHomeBodyweightCard_(stats.bodyweight_history);
   renderHomeTodayCard_(stats);
-  renderHomeWeekCard_(stats);
   renderHomePrCard_(stats.recent_pr);
   renderHomeLastSession_(stats.last_session);
-  applyHomeTodayTargets_();
 }
 
 function renderHomeBodyweightCard_(history) {
@@ -3582,33 +3559,7 @@ function renderHomeTodayCard_(stats) {
     ? `<div class="home-today-eyebrow done"><span class="dot"></span> Entrenado hoy</div>`
     : `<div class="home-today-eyebrow"><span class="dot"></span> ${scheduled ? 'Hoy toca' : 'Próximo entreno'}</div>`;
   const title = day ? day.day_name : routine.routine_name;
-  const subtitleBits = [routine.routine_name];
-  if (day && !scheduled && !trained) subtitleBits.push('no programado para hoy');
-  const subtitle = subtitleBits.filter(Boolean).join(' · ');
-
-  let exercisesHtml = '';
-  if (day && day.exercises && day.exercises.length) {
-    const visible = day.exercises.slice(0, 6);
-    const remaining = day.exercises.length - visible.length;
-    exercisesHtml = `
-      <div class="home-today-exercises">
-        ${visible.map(ex => {
-          const reps = ex.target_reps_min && ex.target_reps_max
-            ? (ex.target_reps_min === ex.target_reps_max ? ex.target_reps_min : `${ex.target_reps_min}–${ex.target_reps_max}`)
-            : '';
-          const meta = ex.target_sets && reps ? `${ex.target_sets}×${reps}` : (ex.target_sets ? `${ex.target_sets} ser.` : '');
-          return `
-            <div class="home-today-ex">
-              <span class="home-today-ex-name">${escapeHtml(ex.exercise_name || '')}</span>
-              <span class="home-today-ex-target" data-home-target-for="${escapeHtml(ex.exercise_name || '')}" style="display:none;"></span>
-              ${meta ? `<span class="home-today-ex-meta">${escapeHtml(meta)}</span>` : ''}
-            </div>
-          `;
-        }).join('')}
-      </div>
-      ${remaining > 0 ? `<div class="muted" style="font-size:11px;margin-top:-6px;margin-bottom:14px;">+ ${remaining} más</div>` : ''}
-    `;
-  }
+  const subtitle = routine.routine_name || '';
 
   const ctaBtn = trained
     ? `<button class="home-today-btn secondary" data-action="go-train">Entrenar otra vez</button>`
@@ -3618,68 +3569,8 @@ function renderHomeTodayCard_(stats) {
     ${eyebrow}
     <div class="home-today-title">${escapeHtml(title || 'Hoy')}</div>
     <div class="home-today-sub">${escapeHtml(subtitle)}</div>
-    ${exercisesHtml}
     <div class="home-today-actions">${ctaBtn}</div>
   `;
-}
-
-function renderHomeWeekCard_(stats) {
-  const el = $('#home-week-card');
-  if (!el) return;
-  const week = stats.week_activity || [];
-  if (!week.length) { el.innerHTML = ''; return; }
-  const letters = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-  const cells = week.map((d, i) => {
-    const trained = d.session_count > 0;
-    const dayCls = [
-      d.is_today ? 'is-today' : '',
-      d.is_future ? 'is-future' : '',
-    ].filter(Boolean).join(' ');
-    const dayNum = d.date.slice(8, 10);
-    return `
-      <div class="home-week-day ${dayCls}">
-        <div class="home-week-day-letter">${letters[i]}</div>
-        <div class="home-week-cell ${trained ? 'intensity-4' : ''}">${trained ? '●' : dayNum}</div>
-      </div>
-    `;
-  }).join('');
-
-  const todayIdx = week.findIndex(d => d.is_today);
-  let streak = 0;
-  if (todayIdx >= 0) {
-    let i = todayIdx;
-    if (week[i].session_count === 0) i--;
-    for (; i >= 0; i--) {
-      if (week[i].session_count > 0) streak++;
-      else break;
-    }
-  }
-  const trainedDays = week.filter(d => !d.is_future && d.session_count > 0).length;
-  const totalDaysSoFar = week.filter(d => !d.is_future).length;
-  const summary = stats.week_summary || { start: '', end: '' };
-
-  el.innerHTML = `
-    <div class="home-week-head">
-      <div class="home-week-title">Constancia</div>
-      <div class="home-week-sub">${escapeHtml(formatWeekRange_(summary.start, summary.end))}</div>
-    </div>
-    <div class="home-week-grid">${cells}</div>
-    <div class="home-week-footer">
-      <span>🔥 Racha: <strong>${streak} ${streak === 1 ? 'día' : 'días'}</strong></span>
-      <span>Esta semana: <strong>${trainedDays}/${totalDaysSoFar}</strong></span>
-    </div>
-  `;
-}
-
-function formatWeekRange_(startIso, endIso) {
-  if (!startIso || !endIso) return '';
-  const s = parseIsoDateLocalClient(startIso);
-  const e = parseIsoDateLocalClient(endIso);
-  const months = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-  if (s.getMonth() === e.getMonth()) {
-    return `${s.getDate()} – ${e.getDate()} ${months[e.getMonth()]}`;
-  }
-  return `${s.getDate()} ${months[s.getMonth()]} – ${e.getDate()} ${months[e.getMonth()]}`;
 }
 
 function renderHomeLastSession_(last) {
