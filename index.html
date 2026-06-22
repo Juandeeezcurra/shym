@@ -577,18 +577,21 @@
   }
   .stepper-btn {
     flex: 0 0 auto;
-    width: 24px;
-    height: 32px;
-    border-radius: 8px;
+    width: 34px;
+    height: 42px;
+    border-radius: 11px;
     border: 1px solid var(--border);
     background: #11151a;
     color: var(--text);
     font-weight: 800;
-    font-size: 15px;
+    font-size: 18px;
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 0;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
   }
   .stepper-btn:active {
     background: #181d24;
@@ -4948,6 +4951,7 @@ function renderTrainExercises(exercises) {
       </div>
     `;
   }).join('');
+  bindSetSteppers(el);
 }
 
 function renderSetRow(ex, setNumber) {
@@ -4974,6 +4978,40 @@ function formatSetChip(set) {
   if (weight > 0) return `${units.toDisplay(weight)} ${units.label()} × ${reps == null ? '-' : reps}`;
   if (reps != null) return `${reps} rep${reps === 1 ? '' : 's'}`;
   return 'Sin datos';
+}
+
+function stepSetField(button) {
+  const row = button && button.closest('[data-set-row]');
+  const field = button && button.dataset.field;
+  const input = row && $(`[data-field="${field}"]`, row);
+  if (!input) return;
+  const step = field === 'weight' ? units.toDisplay(2.5) : 1;
+  const dir = Number(button.dataset.dir || 1);
+  const current = input.value === '' ? 0 : Number(input.value);
+  const base = Number.isFinite(current) ? current : 0;
+  const next = Math.max(0, Math.round((base + dir * step) * 100) / 100);
+  input.value = field === 'weight' ? next : Math.round(next);
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function bindSetSteppers(root) {
+  $$('[data-action="step-set-field"]', root).forEach(button => {
+    if (button.dataset.stepperBound === 'true') return;
+    button.dataset.stepperBound = 'true';
+    let lastTouchAt = 0;
+    button.addEventListener('touchend', event => {
+      lastTouchAt = Date.now();
+      event.preventDefault();
+      event.stopPropagation();
+      stepSetField(button);
+    }, { passive: false });
+    button.addEventListener('click', event => {
+      event.stopPropagation();
+      if (Date.now() - lastTouchAt < 700) return;
+      stepSetField(button);
+    });
+  });
 }
 
 function draftKey(day_id, date) {
@@ -5101,6 +5139,7 @@ function addTrainSet(rexId, persist) {
   if (!ex || !list) return;
   const next = $$(`[data-set-row][data-rex-id="${rexId}"]`).length + 1;
   list.insertAdjacentHTML('beforeend', renderSetRow(ex, next));
+  bindSetSteppers(list);
   if (persist !== false && state.screenParams.day_id && state.screenParams.date) {
     saveSessionDraft(state.screenParams.day_id, state.screenParams.date);
   }
@@ -6178,20 +6217,7 @@ document.addEventListener('click', (e) => {
     }
     case 'change-train-day': goTo('train-pick'); break;
     case 'add-train-set': addTrainSet(t.dataset.rexId); break;
-    case 'step-set-field': {
-      const row = t.closest('[data-set-row]');
-      const input = row && $(`[data-field="${t.dataset.field}"]`, row);
-      if (input) {
-        const step = t.dataset.field === 'weight' ? units.toDisplay(2.5) : 1;
-        const dir = Number(t.dataset.dir || 1);
-        const base = input.value !== '' ? Number(input.value) : 0;
-        let next = Math.round((base + dir * step) * 100) / 100;
-        if (next < 0) next = 0;
-        input.value = t.dataset.field === 'weight' ? next : Math.round(next);
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-      break;
-    }
+    case 'step-set-field': stepSetField(t); break;
     case 'save-session': runLockedAction('save-session', () => handleSaveSession(t)); break;
     case 'summary-home': goTo('home'); break;
     case 'summary-train-again': goTo('train-pick'); break;
