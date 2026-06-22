@@ -492,7 +492,18 @@
   }
   #tp-date {
     display: block;
+    width: 100%;
+    min-width: 100%;
+    text-align: left;
     color-scheme: dark;
+  }
+  #tp-date::-webkit-date-and-time-value {
+    min-height: 1.2em;
+    text-align: left;
+  }
+  #tp-date::-webkit-calendar-picker-indicator {
+    opacity: 0.7;
+    cursor: pointer;
   }
   #tp-days .day-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -503,7 +514,7 @@
     width: 100%;
     min-width: 0;
     min-height: 0;
-    padding: 16px 46px 16px 16px;
+    padding: 18px 48px 18px 18px;
     background: var(--card);
     border-radius: 18px;
     transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
@@ -524,7 +535,11 @@
     background: #171c21;
   }
   #tp-days .day-preview-list { margin-top: 10px; }
+  #tp-days .day-card h3 { font-size: 19px; line-height: 1.2; }
+  #tp-days .day-card > .muted-sm { font-size: 13px; margin-top: 3px; }
   #tp-days .day-preview-list li {
+    font-size: 13px;
+    line-height: 1.4;
     white-space: normal;
     overflow: visible;
     text-overflow: clip;
@@ -1619,16 +1634,16 @@
     line-height: 1;
     white-space: nowrap;
   }
-  .ex-grid-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; }
-  .ex-grid-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-  .ex-grid { display: block; width: max-content; min-width: 0; margin: 0 auto; }
-  .ex-grid-row { display: flex; gap: 4px; margin-bottom: 4px; }
-  .ex-grid-cell { flex: 0 0 62px; min-height: 34px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; border-radius: 8px; }
+  .ex-grid-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; text-align: center; }
+  .ex-grid-scroll { width: 100%; overflow: hidden; }
+  .ex-grid { display: block; width: 100%; min-width: 0; margin: 0; }
+  .ex-grid-row { display: grid; grid-template-columns: 30px repeat(4, minmax(0, 1fr)); gap: 4px; margin-bottom: 4px; }
+  .ex-grid-cell { min-width: 0; min-height: 34px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; border-radius: 8px; }
   .ex-grid-row:not(.ex-grid-head) .ex-grid-cell:not(.ex-grid-rowlabel):not(.ex-grid-empty) { border: 1px solid rgba(255,255,255,0.04); }
-  .ex-grid-rowlabel { flex: 0 0 32px; position: sticky; left: 0; background: var(--card); color: var(--muted); font-weight: 700; z-index: 1; }
+  .ex-grid-rowlabel { position: static; background: var(--card); color: var(--muted); font-weight: 700; }
   .ex-grid-head .ex-grid-cell { min-height: 20px; color: var(--muted-2); font-size: 10px; font-weight: 600; }
   .ex-grid-empty { color: var(--muted-2); }
-  .ex-grid-legend { font-size: 10px; color: var(--muted-2); margin-top: 8px; }
+  .ex-grid-legend { font-size: 10px; color: var(--muted-2); margin-top: 8px; text-align: center; }
 
   /* ---- Nutrition screen ---- */
   .nutrition-screen-header { margin-bottom: 18px; }
@@ -4847,13 +4862,16 @@ function renderTrainDays(days) {
     <div class="day-grid">
       ${days.map(d => {
         const exs = d.exercises || [];
+        const preview = exs.slice(0, 3);
+        const remaining = exs.length - preview.length;
         return `
         <div class="day-card" data-action="start-train-day" data-day-id="${escapeHtml(d.day_id)}">
           <h3 style="margin-bottom:4px;">${escapeHtml(d.day_name)}</h3>
           <p class="muted-sm">${exs.length} ejercicio${exs.length === 1 ? '' : 's'}</p>
           ${exs.length ? `
             <ul class="day-preview-list">
-              ${exs.map(ex => `<li>${escapeHtml(ex.exercise_name || '')}</li>`).join('')}
+              ${preview.map(ex => `<li>${escapeHtml(ex.exercise_name || '')}</li>`).join('')}
+              ${remaining > 0 ? `<li class="day-preview-more">+${remaining} más</li>` : ''}
             </ul>
           ` : `<p class="muted-sm" style="margin-top:6px;font-style:italic;opacity:.7;">Sin ejercicios</p>`}
           <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;">${renderWeekDayChips(d.week_days)}</div>
@@ -5450,7 +5468,7 @@ function renderSetBySessionGrid(sessions) {
   return `
     <div class="ex-grid-title">Serie a serie</div>
     <div class="ex-grid-scroll"><div class="ex-grid">${head}${body}</div></div>
-    <div class="ex-grid-legend">celda más oscura = más peso · deslizá para ver más atrás</div>
+    <div class="ex-grid-legend">celda más oscura = más peso</div>
   `;
 }
 
