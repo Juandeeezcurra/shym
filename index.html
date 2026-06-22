@@ -469,13 +469,65 @@
     min-width: 0;
     overflow: hidden;
   }
+  .train-pick-controls {
+    display: grid;
+    gap: 14px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    margin-bottom: 20px;
+  }
+  .train-pick-field { min-width: 0; }
+  .train-pick-field input,
+  .train-pick-field select {
+    min-height: 52px;
+    background-color: #0b0e11;
+    border-radius: 14px;
+    padding-left: 14px;
+    font-weight: 650;
+  }
   #screen-train-pick > .header-row {
     align-items: flex-start;
   }
   #tp-date {
     display: block;
-    appearance: none;
-    -webkit-appearance: none;
+    color-scheme: dark;
+  }
+  #tp-days .day-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  #tp-days .day-card {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    min-height: 0;
+    padding: 16px 46px 16px 16px;
+    background: var(--card);
+    border-radius: 18px;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.12s ease;
+  }
+  #tp-days .day-card::after {
+    content: '›';
+    position: absolute;
+    top: 50%;
+    right: 17px;
+    transform: translateY(-50%);
+    color: var(--muted-2);
+    font-size: 28px;
+    line-height: 1;
+  }
+  #tp-days .day-card:active {
+    transform: scale(0.99);
+    border-color: rgba(255, 90, 42, 0.45);
+    background: #171c21;
+  }
+  #tp-days .day-preview-list { margin-top: 10px; }
+  #tp-days .day-preview-list li {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
   }
   .exercise-card {
     background: var(--card);
@@ -713,9 +765,9 @@
     box-shadow: none;
   }
   .nav-cta.active {
-    background: var(--accent);
-    color: #101010;
-    box-shadow: 0 8px 20px rgba(255, 90, 42, 0.2);
+    background: rgba(255, 90, 42, 0.12);
+    color: var(--accent);
+    box-shadow: none;
   }
   .nav-icon {
     display: block;
@@ -1857,6 +1909,10 @@
     .train-pick-card {
       border-radius: 18px;
     }
+    .train-pick-controls {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      border-radius: 18px;
+    }
     .section { margin-top: 28px; }
 
     .routine-grid {
@@ -2065,14 +2121,15 @@
       </div>
     </div>
 
-    <div class="train-pick-card">
-      <label class="field-label">Fecha</label>
-      <input id="tp-date" type="date" />
-    </div>
-
-    <div class="train-pick-card">
-      <label class="field-label">Rutina</label>
-      <select id="tp-routine"></select>
+    <div class="train-pick-controls">
+      <div class="train-pick-field">
+        <label class="field-label" for="tp-date">Fecha</label>
+        <input id="tp-date" type="date" />
+      </div>
+      <div class="train-pick-field">
+        <label class="field-label" for="tp-routine">Rutina</label>
+        <select id="tp-routine"></select>
+      </div>
     </div>
 
     <div class="section">
