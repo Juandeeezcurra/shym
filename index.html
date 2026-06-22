@@ -660,77 +660,87 @@
   .bottom-nav {
     position: fixed;
     left: 50%;
-    bottom: max(12px, env(safe-area-inset-bottom));
+    bottom: max(10px, env(safe-area-inset-bottom));
     transform: translateX(-50%);
-    width: calc(100% - 32px);
-    max-width: 408px;
-    min-height: 66px;
-    background: rgba(14, 18, 22, 0.96);
-    border: 1px solid var(--border);
-    backdrop-filter: blur(16px);
-    border-radius: 999px;
-    padding: 7px 12px;
+    width: calc(100% - 24px);
+    max-width: 436px;
+    min-height: 74px;
+    background: rgba(14, 18, 22, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.09);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.48);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    backdrop-filter: blur(22px) saturate(140%);
+    border-radius: 24px;
+    padding: 6px;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
     z-index: 20;
   }
   .nav-btn {
     border: 0;
     background: transparent;
     color: var(--muted);
-    padding: 0;
-    border-radius: 999px;
+    padding: 7px 4px 6px;
+    border-radius: 17px;
     font-weight: 700;
     cursor: pointer;
     min-width: 0;
-    width: 46px;
-    height: 46px;
-    display: grid;
-    place-items: center;
-    margin: 0 auto;
+    width: 100%;
+    height: 60px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin: 0;
+    transition: color 0.16s ease, background 0.16s ease, transform 0.12s ease;
   }
+  .nav-btn:active { transform: scale(0.96); }
   .nav-btn.active {
-    background: rgba(255, 90, 42, 0.14);
+    background: rgba(255, 90, 42, 0.12);
     color: var(--accent);
-    box-shadow: inset 0 0 0 1px rgba(255, 90, 42, 0.18);
   }
   .nav-cta {
-    display: grid;
-    place-items: center;
-    width: 62px;
-    height: 62px;
-    margin: -16px auto -5px;
-    padding: 0;
-    background: var(--accent);
-    color: #101010;
-    border: 3px solid #0e1216;
-    box-shadow: 0 10px 24px rgba(255, 90, 42, 0.25);
+    display: flex;
+    width: 100%;
+    height: 60px;
+    margin: 0;
+    padding: 7px 4px 6px;
+    background: transparent;
+    color: var(--accent);
+    border: 0;
+    box-shadow: none;
   }
   .nav-cta.active {
     background: var(--accent);
     color: #101010;
-    box-shadow: 0 10px 24px rgba(255, 90, 42, 0.25);
+    box-shadow: 0 8px 20px rgba(255, 90, 42, 0.2);
   }
   .nav-icon {
     display: block;
+    width: 23px;
+    height: 23px;
+    flex: 0 0 auto;
+  }
+  .nav-cta .nav-icon {
     width: 24px;
     height: 24px;
   }
-  .nav-cta .nav-icon {
-    width: 29px;
-    height: 29px;
-  }
   .nav-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
+    position: static;
+    width: auto;
+    height: auto;
     padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
+    margin: 0;
+    overflow: visible;
+    clip: auto;
     white-space: nowrap;
     border: 0;
+    font-size: 10px;
+    font-weight: 750;
+    line-height: 1;
+    letter-spacing: 0.01em;
   }
   .activity-body {
     margin-top: 16px;
@@ -2239,12 +2249,12 @@
 </div>
 
 <nav class="bottom-nav">
-  <button class="nav-btn" data-go="nutrition" aria-label="Nutrición" title="Nutrición">
+  <button class="nav-btn" data-go="home" aria-label="Inicio" title="Inicio">
     <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 3C8.2 3 5 6.4 5 10.5c0 4.7 3.7 7.8 7 10 3.3-2.2 7-5.3 7-10C19 6.4 15.8 3 12 3Z" fill="none" stroke="currentColor" stroke-width="2.35" stroke-linejoin="round"/>
-      <path d="M12 7.5v6M9 10.5h6" fill="none" stroke="currentColor" stroke-width="2.35" stroke-linecap="round"/>
+      <path d="M3.5 10.5 12 3.8l8.5 6.7" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M5.8 9.2v10.2h12.4V9.2M9.5 19.4v-6.2h5v6.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
-    <span class="nav-label">Nutrición</span>
+    <span class="nav-label">Inicio</span>
   </button>
   <button class="nav-btn nav-cta" data-action="go-train" data-nav="train" aria-label="Empezar entrenamiento" title="Entrenar">
     <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -2258,6 +2268,13 @@
       <path d="M7.5 15.5l3.4-4 3.1 2.3 5-6.3" fill="none" stroke="currentColor" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
     <span class="nav-label">Progreso</span>
+  </button>
+  <button class="nav-btn" data-go="nutrition" aria-label="Nutrición" title="Nutrición">
+    <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M7 3v7.2M4.5 3v5.2A2 2 0 0 0 6.5 10h1A2 2 0 0 0 9.5 8.2V3M7 10.2V21" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M15.2 21V4.8c0-1 .8-1.8 1.8-1.8v10h2.5" fill="none" stroke="currentColor" stroke-width="2.15" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span class="nav-label">Nutrición</span>
   </button>
 </nav>
 
