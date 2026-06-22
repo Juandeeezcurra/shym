@@ -623,6 +623,11 @@
     min-height: 46px;
     padding: 10px 8px;
   }
+  [data-set-row] input::placeholder {
+    color: #69737c;
+    opacity: 1;
+  }
+  #train-exercises .exercise-card > .card-row { margin-bottom: 12px; }
   .floating-save {
     position: sticky;
     bottom: 90px;
@@ -4958,26 +4963,19 @@ function renderTrainExercises(exercises) {
   el.innerHTML = exercises.map(ex => {
     const last = state.lastSetsByExercise[ex.routine_exercise_id];
     const hasLastSets = last && last.sets && last.sets.length;
-    const lastChips = hasLastSets
-      ? `
-        <p class="muted" style="margin-top:14px;">Última vez · ${formatDateLong(last.date)}</p>
-        <div class="last-set-row">
-          ${last.sets.map(s => `<span class="set-chip">${formatSetChip(s)}</span>`).join('')}
-        </div>
-      `
-      : `<p class="muted" style="margin-top:14px;margin-bottom:14px;">Sin datos previos</p>`;
-    const setRows = Array.from({ length: Number(ex.target_sets || 1) }, (_, i) => renderSetRow(ex, i + 1)).join('');
+    const previousSets = hasLastSets ? last.sets : [];
+    const setRows = Array.from(
+      { length: Number(ex.target_sets || 1) },
+      (_, i) => renderSetRow(ex, i + 1, previousSets[i])
+    ).join('');
     return `
       <div class="exercise-card" data-train-exercise="${escapeHtml(ex.routine_exercise_id)}">
         <div class="card-row" style="align-items:flex-start;">
           <div style="flex:1;min-width:0;">
             <h3 style="word-break:break-word;">${escapeHtml(ex.exercise_name)}</h3>
-            <p class="muted">${ex.target_sets} series · ${ex.target_reps_min}-${ex.target_reps_max} reps</p>
           </div>
         </div>
         ${ex.technique_note ? `<p class="muted-sm" style="margin-top:8px;">${escapeHtml(ex.technique_note)}</p>` : ''}
-        ${lastChips}
-        <p class="muted">Hoy</p>
         <div class="input-grid train-set-head"><span></span><span>Peso (${units.label()})</span><span>Reps</span></div>
         <div data-set-list>${setRows}</div>
         <button class="ghost-btn full" data-action="add-train-set" data-rex-id="${escapeHtml(ex.routine_exercise_id)}" style="margin-top:10px;">+ serie</button>
@@ -5002,26 +5000,22 @@ function updateTrainDateDisplay() {
   }).replace('.', '');
 }
 
-function renderSetRow(ex, setNumber) {
+function renderSetRow(ex, setNumber, previousSet) {
+  const previousWeight = previousSet && previousSet.weight != null
+    ? units.toDisplay(previousSet.weight)
+    : 0;
+  const previousReps = previousSet && previousSet.reps != null ? previousSet.reps : 0;
   return `
     <div class="input-grid" data-set-row data-rex-id="${escapeHtml(ex.routine_exercise_id)}" data-set-number="${setNumber}">
       <div class="set-number">${setNumber}</div>
       <div class="set-field-group">
-        <input type="number" step="${units.toDisplay(2.5)}" inputmode="decimal" data-field="weight" placeholder="0" aria-label="Peso en ${units.label()}" />
+        <input type="number" step="${units.toDisplay(2.5)}" inputmode="decimal" data-field="weight" placeholder="${escapeHtml(previousWeight)}" aria-label="Peso en ${units.label()}" />
       </div>
       <div class="set-field-group">
-        <input type="number" step="1" inputmode="numeric" data-field="reps" placeholder="0" aria-label="Repeticiones" />
+        <input type="number" step="1" inputmode="numeric" data-field="reps" placeholder="${escapeHtml(previousReps)}" aria-label="Repeticiones" />
       </div>
     </div>
   `;
-}
-
-function formatSetChip(set) {
-  const weight = set.weight == null ? null : Number(set.weight);
-  const reps = set.reps == null ? null : Number(set.reps);
-  if (weight > 0) return `${units.toDisplay(weight)} ${units.label()} × ${reps == null ? '-' : reps}`;
-  if (reps != null) return `${reps} rep${reps === 1 ? '' : 's'}`;
-  return 'Sin datos';
 }
 
 function draftKey(day_id, date) {
