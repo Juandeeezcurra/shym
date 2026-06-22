@@ -553,7 +553,7 @@
   }
   .input-grid {
     display: grid;
-    grid-template-columns: 22px 1fr 1fr 60px;
+    grid-template-columns: 22px minmax(0, 1fr) minmax(0, 1fr);
     gap: 6px;
     align-items: center;
     margin-top: 8px;
@@ -593,25 +593,6 @@
   .stepper-btn:active {
     background: #181d24;
   }
-  .set-goal {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2px;
-    cursor: pointer;
-  }
-  .set-goal-label {
-    font-size: 10px;
-    color: var(--muted);
-    white-space: nowrap;
-    text-align: center;
-  }
-  .set-goal-mark {
-    font-size: 14px;
-    min-height: 16px;
-  }
-  .set-goal-mark.met { color: var(--good); }
-  .set-goal-mark.beat { color: var(--accent); }
   .floating-save {
     position: sticky;
     bottom: 90px;
@@ -2735,6 +2716,7 @@ function isCurrentNav(navToken, screenId) {
 }
 
 function shouldIgnoreRapidTap(target) {
+  if (target.dataset.action === 'step-set-field') return false;
   const key = [
     target.dataset.go || target.dataset.action || target.tagName,
     target.dataset.sessionId || '',
@@ -4945,15 +4927,7 @@ function renderTrainExercises(exercises) {
         </div>
       `
       : `<p class="muted" style="margin-top:14px;margin-bottom:14px;">Sin datos previos</p>`;
-    const pr = last && last.pr;
-    const prPill = pr && pr.weight != null
-      ? `<span class="pill pr" title="PR${pr.date ? ' · ' + pr.date : ''}"><span class="pr-star">★</span>${units.toDisplay(pr.weight)} ${units.label()}${pr.reps ? ' × ' + pr.reps : ''}</span>`
-      : '';
-    const rightPills = prPill
-      ? `<div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;flex-shrink:0;">${prPill}</div>`
-      : '';
-    const lastSetsArr = hasLastSets ? last.sets : [];
-    const setRows = Array.from({ length: Number(ex.target_sets || 1) }, (_, i) => renderSetRow(ex, i + 1, lastSetsArr[i])).join('');
+    const setRows = Array.from({ length: Number(ex.target_sets || 1) }, (_, i) => renderSetRow(ex, i + 1)).join('');
     return `
       <div class="exercise-card" data-train-exercise="${escapeHtml(ex.routine_exercise_id)}">
         <div class="card-row" style="align-items:flex-start;">
@@ -4961,7 +4935,6 @@ function renderTrainExercises(exercises) {
             <h3 style="word-break:break-word;">${escapeHtml(ex.exercise_name)}</h3>
             <p class="muted">${ex.target_sets} series · ${ex.target_reps_min}-${ex.target_reps_max} reps</p>
           </div>
-          ${rightPills}
         </div>
         ${ex.technique_note ? `<p class="muted-sm" style="margin-top:8px;">${escapeHtml(ex.technique_note)}</p>` : ''}
         ${lastChips}
@@ -4977,39 +4950,30 @@ function renderTrainExercises(exercises) {
   }).join('');
 }
 
-function renderSetRow(ex, setNumber, lastSet) {
-  const hasTarget = lastSet && lastSet.weight != null;
-  const targetWeight = hasTarget ? units.toDisplay(lastSet.weight) : null;
-  const targetReps = hasTarget ? lastSet.reps : null;
-  const suggested = ex.suggested_weight != null && ex.suggested_weight !== '' ? units.toDisplay(ex.suggested_weight) : null;
-  const weightPlaceholder = targetWeight != null ? String(targetWeight) : (suggested != null ? String(suggested) : units.label());
-  const repsPlaceholder = targetReps != null ? String(targetReps) : 'reps';
-  const targetLabel = hasTarget ? `${targetWeight} × ${targetReps != null ? targetReps : '-'}` : '–';
+function renderSetRow(ex, setNumber) {
   return `
-    <div class="input-grid" data-set-row data-rex-id="${escapeHtml(ex.routine_exercise_id)}" data-set-number="${setNumber}" data-target-weight="${targetWeight != null ? targetWeight : ''}" data-target-reps="${targetReps != null ? targetReps : ''}">
+    <div class="input-grid" data-set-row data-rex-id="${escapeHtml(ex.routine_exercise_id)}" data-set-number="${setNumber}">
       <div class="set-number">${setNumber}</div>
       <div class="set-field-group">
         <button type="button" class="stepper-btn" data-action="step-set-field" data-field="weight" data-dir="-1">−</button>
-        <input type="number" step="0.5" inputmode="decimal" data-field="weight" placeholder="${escapeHtml(weightPlaceholder)}" />
+        <input type="number" step="${units.toDisplay(2.5)}" inputmode="decimal" data-field="weight" placeholder="${units.label()}" />
         <button type="button" class="stepper-btn" data-action="step-set-field" data-field="weight" data-dir="1">+</button>
       </div>
       <div class="set-field-group">
         <button type="button" class="stepper-btn" data-action="step-set-field" data-field="reps" data-dir="-1">−</button>
-        <input type="number" step="1" inputmode="numeric" data-field="reps" placeholder="${escapeHtml(repsPlaceholder)}" />
+        <input type="number" step="1" inputmode="numeric" data-field="reps" placeholder="reps" />
         <button type="button" class="stepper-btn" data-action="step-set-field" data-field="reps" data-dir="1">+</button>
-      </div>
-      <div class="set-goal" ${hasTarget ? 'data-action="copy-prev-set"' : ''} title="${hasTarget ? 'Tocar para copiar la serie anterior' : ''}">
-        <span class="set-goal-label">${escapeHtml(targetLabel)}</span>
-        <span class="set-goal-mark" data-set-goal-mark></span>
       </div>
     </div>
   `;
 }
 
 function formatSetChip(set) {
-  const weight = set.weight == null ? '-' : `${units.toDisplay(set.weight)}`;
-  const reps = set.reps == null ? '-' : set.reps;
-  return `${weight} ${units.label()} × ${reps}`;
+  const weight = set.weight == null ? null : Number(set.weight);
+  const reps = set.reps == null ? null : Number(set.reps);
+  if (weight > 0) return `${units.toDisplay(weight)} ${units.label()} × ${reps == null ? '-' : reps}`;
+  if (reps != null) return `${reps} rep${reps === 1 ? '' : 's'}`;
+  return 'Sin datos';
 }
 
 function draftKey(day_id, date) {
@@ -5113,7 +5077,6 @@ function restoreTrainDraft(draft) {
         ? units.toDisplay(set.weight_kg)
         : (set.weight || '');
       $('[data-field="reps"]', row).value = set.reps || '';
-      updateSetGoalMark(row);
     });
     const note = $(`[data-train-note="${rexId}"]`);
     if (note) note.value = exDraft.note || '';
@@ -5129,48 +5092,6 @@ function bindTrainAutosave(day_id, date) {
   };
 }
 
-function updateSetGoalMark(row) {
-  const markEl = $('[data-set-goal-mark]', row);
-  if (!markEl) return;
-  markEl.textContent = '';
-  markEl.className = 'set-goal-mark';
-  const targetWeight = row.dataset.targetWeight !== '' ? Number(row.dataset.targetWeight) : null;
-  if (targetWeight == null) return;
-  const weightVal = ($('[data-field="weight"]', row).value || '').trim();
-  if (weightVal === '') return;
-  const w = Number(weightVal);
-  if (isNaN(w)) return;
-  const targetReps = row.dataset.targetReps !== '' ? Number(row.dataset.targetReps) : null;
-  const repsVal = ($('[data-field="reps"]', row).value || '').trim();
-  const r = repsVal === '' ? null : Number(repsVal);
-  if (w > targetWeight) {
-    markEl.textContent = '🔥';
-    markEl.className = 'set-goal-mark beat';
-    return;
-  }
-  if (w === targetWeight) {
-    if (targetReps == null || r == null) {
-      markEl.textContent = '✓';
-      markEl.className = 'set-goal-mark met';
-      return;
-    }
-    if (r > targetReps) {
-      markEl.textContent = '🔥';
-      markEl.className = 'set-goal-mark beat';
-    } else if (r === targetReps) {
-      markEl.textContent = '✓';
-      markEl.className = 'set-goal-mark met';
-    }
-  }
-}
-
-document.addEventListener('input', (e) => {
-  const field = e.target.closest('[data-set-row] [data-field="weight"], [data-set-row] [data-field="reps"]');
-  if (!field) return;
-  const row = field.closest('[data-set-row]');
-  if (row) updateSetGoalMark(row);
-});
-
 function addTrainSet(rexId, persist) {
   const day = state.currentDay;
   if (!day) return;
@@ -5179,8 +5100,7 @@ function addTrainSet(rexId, persist) {
   const list = card && $('[data-set-list]', card);
   if (!ex || !list) return;
   const next = $$(`[data-set-row][data-rex-id="${rexId}"]`).length + 1;
-  const lastSets = (state.lastSetsByExercise[rexId] && state.lastSetsByExercise[rexId].sets) || [];
-  list.insertAdjacentHTML('beforeend', renderSetRow(ex, next, lastSets[next - 1]));
+  list.insertAdjacentHTML('beforeend', renderSetRow(ex, next));
   if (persist !== false && state.screenParams.day_id && state.screenParams.date) {
     saveSessionDraft(state.screenParams.day_id, state.screenParams.date);
   }
@@ -6262,24 +6182,13 @@ document.addEventListener('click', (e) => {
       const row = t.closest('[data-set-row]');
       const input = row && $(`[data-field="${t.dataset.field}"]`, row);
       if (input) {
-        const step = t.dataset.field === 'weight' ? 2.5 : 1;
+        const step = t.dataset.field === 'weight' ? units.toDisplay(2.5) : 1;
         const dir = Number(t.dataset.dir || 1);
-        const base = input.value !== '' ? Number(input.value) : (input.placeholder && !isNaN(Number(input.placeholder)) ? Number(input.placeholder) : 0);
+        const base = input.value !== '' ? Number(input.value) : 0;
         let next = Math.round((base + dir * step) * 100) / 100;
         if (next < 0) next = 0;
         input.value = t.dataset.field === 'weight' ? next : Math.round(next);
         input.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-      break;
-    }
-    case 'copy-prev-set': {
-      const row = t.closest('[data-set-row]');
-      if (row) {
-        const tw = row.dataset.targetWeight;
-        const tr = row.dataset.targetReps;
-        if (tw !== '') $('[data-field="weight"]', row).value = tw;
-        if (tr !== '') $('[data-field="reps"]', row).value = tr;
-        $('[data-field="weight"]', row).dispatchEvent(new Event('input', { bubbles: true }));
       }
       break;
     }
