@@ -60,6 +60,7 @@ const READ_API_CACHE_SECONDS_ = {
   getLastSessionForDay: 120,
   getSession: 120,
   getHomeStats: 60,
+  getWeekActivity: 60,
   getHistoryData: 60,
   listRecentSessions: 60,
   listSessionDates: 60,
@@ -67,8 +68,6 @@ const READ_API_CACHE_SECONDS_ = {
   listAllExerciseNames: 300,
   getProgressExerciseData: 60,
   getProgressSummary: 60,
-  getNutritionForDate: 30,
-  getNutritionHistory: 60,
   listExerciseHistory: 60,
   listMuscleGroupHistory: 60,
   getVolumeByMuscle: 60,
@@ -96,7 +95,6 @@ const WRITE_API_ = {
   deleteSession: true,
   setExerciseGoal: true,
   migrateHistoricalSnapshots: true,
-  saveNutritionForDate: true,
 };
 
 // ============================================================
@@ -199,6 +197,7 @@ function getApi_() {
     editSession,
     deleteSession,
     getHomeStats,
+    getWeekActivity,
     getHistoryData,
     listRecentSessions,
     listSessionDates,
@@ -213,9 +212,6 @@ function getApi_() {
     getExerciseGoal,
     setExerciseGoal,
     migrateHistoricalSnapshots,
-    getNutritionForDate,
-    saveNutritionForDate,
-    getNutritionHistory,
   };
 }
 
@@ -2172,7 +2168,6 @@ function getHomeStats() {
   }
 
   const previousWeekSummary = getPreviousWeekSummary_(sessions, sets, today);
-  const bodyweightHistory = getRecentBodyweight_(14);
   const recentPr = getMostRecentPr_(sessions, sets);
 
   return {
@@ -2201,27 +2196,46 @@ function getHomeStats() {
       total_volume: weekVolume,
     },
     previous_week_summary: previousWeekSummary,
-    bodyweight_history: bodyweightHistory,
     recent_pr: recentPr,
     today_day: todayDay,
   };
 }
 
-function getRecentBodyweight_(days) {
+function getWeekActivity(params) {
+  params = params || {};
+  const requestedOffset = Number(params.offset || 0);
+  const offset = isNaN(requestedOffset) ? 0 : Math.min(0, Math.round(requestedOffset));
   const today = todayIso_();
-  const start = addDaysIso_(today, -(days - 1));
-  const rows = readAll_(SHEETS.NUTRITION) || [];
+  const weekStart = addDaysIso_(getWeekRange_(today).start, offset * 7);
+  const weekRange = getWeekRange_(weekStart);
+
+  const sessions = readAll_(SHEETS.SESSIONS);
+  const sets = readAll_(SHEETS.SETS);
+  const routines = readAll_(SHEETS.ROUTINES);
+  const days = readAll_(SHEETS.DAYS);
+  const setsBySession = groupBy_(sets, 'session_id');
+  const routinesById = indexBy_(routines, 'routine_id');
+  const daysById = indexBy_(days, 'day_id');
+
   const out = [];
-  rows.forEach(r => {
-    if (!r || !r.date) return;
-    const d = normalizeDate_(r.date);
-    if (!d || d < start || d > today) return;
-    const w = numOrNull_(r.weight);
-    if (w == null) return;
-    out.push({ date: d, weight: w });
-  });
-  out.sort((a, b) => a.date.localeCompare(b.date));
-  return out;
+  for (let i = 0; i < 7; i++) {
+    const iso = addDaysIso_(weekRange.start, i);
+    const daySessions = sessions.filter(s => normalizeDate_(s.date) === iso);
+    out.push({
+      date: iso,
+      weekday: getIsoWeekday_(iso),
+      is_today: iso === today,
+      is_future: iso > today,
+      sessions: daySessions.map(session => buildSessionListItem_(
+        session,
+        setsBySession[session.session_id] || [],
+        routinesById[session.routine_id] || {},
+        daysById[session.day_id] || {}
+      )),
+    });
+  }
+
+  return { start: weekRange.start, end: weekRange.end, offset, days: out };
 }
 
 function getMostRecentPr_(sessions, sets) {
@@ -2718,12 +2732,20 @@ function getProgressExerciseData(params) {
 }
 
 function getProgressSummary() {
-  const exerciseMeta = buildExerciseMuscleMeta_(readAll_(SHEETS.EXERCISES));
+  const dayExercises = readAll_(SHEETS.EXERCISES);
+  const exerciseMeta = buildExerciseMuscleMeta_(dayExercises);
   const exerciseMap = {};
-  readAll_(SHEETS.EXERCISES).forEach(ex => {
+  const nameById = {};
+  dayExercises.forEach(ex => {
     const name = (ex.exercise_name || '').toString().trim();
     if (!name) return;
     if (!exerciseMap[name]) exerciseMap[name] = resolveExerciseMuscleGroup_(ex, exerciseMeta);
+    if (ex.routine_exercise_id) nameById[ex.routine_exercise_id] = name;
+  });
+  const nameByNormalizedKey = {};
+  Object.keys(exerciseMap).forEach(name => {
+    const key = normalizeExerciseNameKey_(name);
+    if (key && !nameByNormalizedKey[key]) nameByNormalizedKey[key] = name;
   });
 
   const sessions = readAll_(SHEETS.SESSIONS);
@@ -2732,10 +2754,13 @@ function getProgressSummary() {
 
   const byExercise = {};
   sets.forEach(set => {
-    const name = (set.exercise_name || '').toString().trim();
-    if (!name) return;
     const session = sessionsById[set.session_id];
     if (!session) return;
+    const setName = (set.exercise_name || '').toString().trim();
+    const name = (set.routine_exercise_id && nameById[set.routine_exercise_id])
+      || nameByNormalizedKey[normalizeExerciseNameKey_(setName)]
+      || null;
+    if (!name) return;
     if (!byExercise[name]) byExercise[name] = {};
     const sid = session.session_id;
     if (!byExercise[name][sid]) {
@@ -2800,9 +2825,17 @@ function listExerciseHistory(params) {
   const limit = Math.max(1, Math.min(Number(params.limit || 8), 30));
   if (!exerciseName) throw new Error('exercise_name requerido.');
 
+  const exerciseNameKey = normalizeExerciseNameKey_(exerciseName);
+  const matchingIds = {};
+  readAll_(SHEETS.EXERCISES).forEach(ex => {
+    if (!ex.routine_exercise_id) return;
+    if ((ex.exercise_name || '').toString().trim() === exerciseName) matchingIds[ex.routine_exercise_id] = true;
+  });
+
   const sessions = readAll_(SHEETS.SESSIONS);
   const sets = readAll_(SHEETS.SETS)
-    .filter(set => (set.exercise_name || '').toString().trim() === exerciseName);
+    .filter(set => (set.routine_exercise_id && matchingIds[set.routine_exercise_id])
+      || normalizeExerciseNameKey_(set.exercise_name) === exerciseNameKey);
   const routines = readAll_(SHEETS.ROUTINES);
   const days = readAll_(SHEETS.DAYS);
   const sessionsById = indexBy_(sessions, 'session_id');
@@ -3551,82 +3584,3 @@ function getMuscleModelMeta_() {
   };
 }
 
-// ============================================================
-// NUTRITION API
-// ============================================================
-
-function numOrNull_(val) {
-  if (val === '' || val === null || val === undefined) return null;
-  const n = Number(val);
-  return Number.isFinite(n) ? n : null;
-}
-
-function nutritionRowToObj_(row, date) {
-  return {
-    date: date || (row.date ? normalizeDate_(row.date) : ''),
-    weight: numOrNull_(row.weight),
-    water: numOrNull_(row.water),
-    kcal: numOrNull_(row.kcal),
-    protein: numOrNull_(row.protein),
-    fat: numOrNull_(row.fat),
-    carbs: numOrNull_(row.carbs),
-    steps: row.steps != null && row.steps !== '' ? String(row.steps) : null,
-    notes: row.notes ? String(row.notes) : null,
-    trained: isTrue_(row.trained),
-  };
-}
-
-function getNutritionForDate(params) {
-  params = params || {};
-  const date = normalizeDate_(params.date);
-  if (!date) throw new Error('date requerido');
-  const rows = readAll_(SHEETS.NUTRITION);
-  const row = rows.find(r => r.date && normalizeDate_(r.date) === date);
-  return row ? nutritionRowToObj_(row, date) : null;
-}
-
-function saveNutritionForDate(params) {
-  params = params || {};
-  const date = normalizeDate_(params.date);
-  if (!date) throw new Error('date requerido');
-  const rows = readAll_(SHEETS.NUTRITION);
-  const existing = rows.find(r => r.date && normalizeDate_(r.date) === date);
-  const headers = HEADERS[SHEETS.NUTRITION];
-  const toVal = (v) => (v == null ? '' : v);
-  const rowData = headers.map(h => h === 'date' ? date : toVal(params[h]));
-  if (existing) {
-    const sheet = getSheet_(SHEETS.NUTRITION);
-    const allRows = sheet.getDataRange().getValues();
-    for (let i = 1; i < allRows.length; i++) {
-      const cell = allRows[i][0];
-      if (cell && normalizeDate_(cell) === date) {
-        sheet.getRange(i + 1, 1, 1, headers.length).setValues([rowData]);
-        break;
-      }
-    }
-  } else {
-    getSheet_(SHEETS.NUTRITION).appendRow(rowData);
-  }
-  READ_CACHE_[SHEETS.NUTRITION] = null;
-  return { ok: true, date };
-}
-
-function getNutritionHistory(params) {
-  params = params || {};
-  const days = Math.max(1, Math.min(Number(params.days || 14), 90));
-  const endDate = normalizeDate_(params.end_date || todayIso_());
-  const rows = readAll_(SHEETS.NUTRITION);
-  const byDate = {};
-  rows.forEach(r => {
-    if (!r.date) return;
-    const d = normalizeDate_(r.date);
-    if (d) byDate[d] = r;
-  });
-  const result = [];
-  for (let i = days - 1; i >= 0; i--) {
-    const d = addDaysIso_(endDate, -i);
-    const row = byDate[d];
-    result.push(row ? nutritionRowToObj_(row, d) : { date: d, weight: null, water: null, kcal: null, protein: null, fat: null, carbs: null, steps: null, notes: null, trained: false });
-  }
-  return result;
-}
