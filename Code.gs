@@ -51,28 +51,31 @@ const HEADERS = {
 
 let READ_CACHE_ = {};
 
+// Toda escritura pasa por la app y bumpea api_cache_version, así que estos
+// TTLs pueden ser largos sin riesgo de servir datos viejos tras un cambio.
+// Solo getHomeStats/getWeekActivity dependen de "hoy" → TTL más corto.
 const READ_API_CACHE_SECONDS_ = {
   ping: 20,
-  listRoutines: 120,
-  getRoutine: 300,
-  getActiveRoutine: 120,
-  getTrainPickData: 120,
-  getLastSessionForDay: 120,
-  getSession: 120,
-  getHomeStats: 60,
-  getWeekActivity: 60,
-  getHistoryData: 60,
-  listRecentSessions: 60,
-  listSessionDates: 60,
-  listBodyweightHistory: 60,
-  listAllExerciseNames: 300,
-  getProgressExerciseData: 60,
-  getProgressSummary: 60,
-  listExerciseHistory: 60,
-  listMuscleGroupHistory: 60,
-  getVolumeByMuscle: 60,
-  getMuscleHeatmap: 60,
-  getExerciseGoal: 60,
+  listRoutines: 3600,
+  getRoutine: 3600,
+  getActiveRoutine: 3600,
+  getTrainPickData: 3600,
+  getLastSessionForDay: 3600,
+  getSession: 3600,
+  getHomeStats: 600,
+  getWeekActivity: 900,
+  getHistoryData: 1800,
+  listRecentSessions: 1800,
+  listSessionDates: 1800,
+  listBodyweightHistory: 1800,
+  listAllExerciseNames: 3600,
+  getProgressExerciseData: 1800,
+  getProgressSummary: 1800,
+  listExerciseHistory: 1800,
+  listMuscleGroupHistory: 1800,
+  getVolumeByMuscle: 1800,
+  getMuscleHeatmap: 1800,
+  getExerciseGoal: 1800,
 };
 
 const WRITE_API_ = {
@@ -117,25 +120,43 @@ function doPost(e) {
       : {};
     const fn = (body.fn || '').toString();
     const args = Array.isArray(body.args) ? body.args : [];
-    const api = getApi_();
-    if (!api[fn]) throw new Error('Funcion API no permitida: ' + fn);
-    if (READ_API_CACHE_SECONDS_[fn]) {
-      const cacheKey = apiCacheKey_(fn, args);
-      const cached = CacheService.getScriptCache().get(cacheKey);
-      if (cached) return json_({ ok: true, result: JSON.parse(cached), cached: true });
-      const result = api[fn].apply(null, args);
-      putApiCache_(cacheKey, result, READ_API_CACHE_SECONDS_[fn]);
-      return json_({ ok: true, result });
+    if (fn === 'batch') {
+      const calls = Array.isArray(args[0]) ? args[0] : [];
+      if (calls.length > 12) throw new Error('batch: máximo 12 llamadas.');
+      const results = calls.map(call => {
+        try {
+          const subFn = ((call && call.fn) || '').toString();
+          const subArgs = Array.isArray(call && call.args) ? call.args : [];
+          return { ok: true, result: runApiCall_(subFn, subArgs) };
+        } catch (err) {
+          return { ok: false, error: err && err.message ? err.message : String(err) };
+        }
+      });
+      return json_({ ok: true, result: results });
     }
-    const result = api[fn].apply(null, args);
-    if (WRITE_API_[fn]) bumpApiCacheVersion_();
-    return json_({ ok: true, result });
+    return json_({ ok: true, result: runApiCall_(fn, args) });
   } catch (err) {
     return json_({
       ok: false,
       error: err && err.message ? err.message : String(err),
     });
   }
+}
+
+function runApiCall_(fn, args) {
+  const api = getApi_();
+  if (!api[fn]) throw new Error('Funcion API no permitida: ' + fn);
+  if (READ_API_CACHE_SECONDS_[fn]) {
+    const cacheKey = apiCacheKey_(fn, args);
+    const cached = CacheService.getScriptCache().get(cacheKey);
+    if (cached) return JSON.parse(cached);
+    const result = api[fn].apply(null, args);
+    putApiCache_(cacheKey, result, READ_API_CACHE_SECONDS_[fn]);
+    return result;
+  }
+  const result = api[fn].apply(null, args);
+  if (WRITE_API_[fn]) bumpApiCacheVersion_();
+  return result;
 }
 
 function apiCacheKey_(fn, args) {
@@ -1515,7 +1536,7 @@ function getTrainPickData(params) {
   return {
     routines,
     selected_routine_id: selected.routine_id,
-    routine: null,
+    routine: getRoutine(selected.routine_id),
   };
 }
 
@@ -1555,6 +1576,7 @@ function getLastSessionForDay(params) {
   });
 
   const setsBySessionAndName = {};
+  const namesBySession = {};
   const prByName = {};
   readAll_(SHEETS.SETS).forEach(set => {
     if (!sessionIndex[set.session_id]) return;
@@ -1564,6 +1586,8 @@ function getLastSessionForDay(params) {
     const key = set.session_id + '|' + nameKey;
     if (!setsBySessionAndName[key]) setsBySessionAndName[key] = [];
     setsBySessionAndName[key].push(set);
+    if (!namesBySession[set.session_id]) namesBySession[set.session_id] = {};
+    namesBySession[set.session_id][nameKey] = true;
 
     const w = set.weight === '' ? null : Number(set.weight);
     const r = set.reps === '' ? null : Number(set.reps);
@@ -1579,16 +1603,14 @@ function getLastSessionForDay(params) {
     }
   });
 
-  const result = {};
-
-  exercises.forEach(ex => {
-    const nameKey = normalizeExerciseNameKey_(ex.exercise_name);
-    if (!nameKey) return;
-    const pr = prByName[nameKey] || null;
-    let lastEntry = null;
-    for (let i = 0; i < sessions.length; i++) {
-      const session = sessions[i];
-      if (session.day_id !== day_id) continue;
+  // Última sesión por NOMBRE de ejercicio (sin importar el día de rutina):
+  // dominadas del Pull 1 y del Pull 2 se tratan como el mismo ejercicio.
+  const byName = {};
+  sessions.forEach(session => {
+    const names = namesBySession[session.session_id];
+    if (!names) return;
+    Object.keys(names).forEach(nameKey => {
+      if (byName[nameKey]) return;
       const sessionSets = (setsBySessionAndName[session.session_id + '|' + nameKey] || [])
         .sort((a, b) => Number(a.set_number || 0) - Number(b.set_number || 0))
         .map(set => ({
@@ -1598,21 +1620,26 @@ function getLastSessionForDay(params) {
           rir: set.rir === '' ? null : Number(set.rir),
           note: set.note || '',
         }));
-      if (sessionSets.length > 0) {
-        lastEntry = {
-          session_id: session.session_id,
-          date: normalizeDate_(session.date),
-          sets: sessionSets,
-        };
-        break;
-      }
-    }
-    if (lastEntry || pr) {
-      result[ex.routine_exercise_id] = Object.assign({}, lastEntry || { sets: [] }, { pr });
-    }
+      if (!sessionSets.length) return;
+      byName[nameKey] = {
+        session_id: session.session_id,
+        date: normalizeDate_(session.date),
+        sets: sessionSets,
+        pr: prByName[nameKey] || null,
+      };
+    });
   });
 
-  return result;
+  const result = {};
+  exercises.forEach(ex => {
+    const nameKey = normalizeExerciseNameKey_(ex.exercise_name);
+    if (!nameKey) return;
+    const entry = byName[nameKey];
+    if (entry) result[ex.routine_exercise_id] = entry;
+    else if (prByName[nameKey]) result[ex.routine_exercise_id] = { sets: [], pr: prByName[nameKey] };
+  });
+
+  return { exercises: result, by_name: byName };
 }
 
 // ============================================================
@@ -2757,9 +2784,23 @@ function getProgressSummary() {
     const session = sessionsById[set.session_id];
     if (!session) return;
     const setName = (set.exercise_name || '').toString().trim();
-    const name = (set.routine_exercise_id && nameById[set.routine_exercise_id])
+    let name = (set.routine_exercise_id && nameById[set.routine_exercise_id])
       || nameByNormalizedKey[normalizeExerciseNameKey_(setName)]
       || null;
+    // Ejercicios hechos en sesión pero que no están en ninguna rutina
+    // (agregados/cambiados durante el entrenamiento) también cuentan.
+    if (!name && setName) {
+      const key = normalizeExerciseNameKey_(setName);
+      if (key) {
+        name = setName;
+        nameByNormalizedKey[key] = setName;
+        if (!exerciseMap[setName]) {
+          exerciseMap[setName] = safeNormalizeMuscleGroup_(set.muscle_group)
+            || dominantMuscleGroupFromDistribution_(parseMuscleDistribution_(set.muscle_distribution))
+            || '';
+        }
+      }
+    }
     if (!name) return;
     if (!byExercise[name]) byExercise[name] = {};
     const sid = session.session_id;

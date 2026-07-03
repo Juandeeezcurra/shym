@@ -497,6 +497,116 @@
     opacity: 1;
   }
   #train-exercises .exercise-card > .card-row { margin-bottom: 12px; }
+  /* Grilla de series en Entrenar: 4ta columna para quitar serie */
+  .input-grid.train-grid {
+    grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr) 34px;
+    gap: 8px;
+  }
+  .set-remove-btn {
+    width: 34px;
+    height: 34px;
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    font-size: 15px;
+    font-weight: 700;
+    border-radius: 50%;
+    display: inline-grid;
+    place-items: center;
+    cursor: pointer;
+    justify-self: center;
+  }
+  .set-remove-btn:active { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+  .train-ex-name {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .train-ex-name .train-stats-ico {
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+    color: var(--accent);
+    opacity: 0.85;
+  }
+  .train-swap-note { margin-top: 3px; font-size: 12px; color: var(--muted); }
+  .train-tip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    max-width: 100%;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+  .train-tip.up { border-color: rgba(74, 222, 128, 0.4); color: var(--good); }
+  .train-tip.reps { border-color: rgba(255, 159, 28, 0.45); color: var(--accent); }
+  .train-tip.warn { border-color: rgba(255, 176, 32, 0.45); color: var(--warn); }
+  .train-tip.block {
+    display: flex;
+    border-radius: 14px;
+    padding: 10px 12px;
+    margin: 0 0 12px;
+    white-space: normal;
+  }
+  /* Hoja de stats del ejercicio (modal) */
+  .train-stats-pr {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+  }
+  .train-stats-pr .medal { font-size: 22px; }
+  .train-stats-pr .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 700; }
+  .train-stats-pr .value { font-size: 17px; font-weight: 800; }
+  .train-stats-row {
+    display: grid;
+    grid-template-columns: 52px 74px minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: center;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+  .train-stats-row:last-child { border-bottom: none; }
+  .train-stats-row .date { color: var(--muted); font-size: 12px; }
+  .train-stats-row .best { font-weight: 800; }
+  .train-stats-row .sets { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .train-stats-row .delta { font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .train-stats-row .delta.up { color: var(--good); }
+  .train-stats-row .delta.reps { color: var(--accent); }
+  .train-stats-row .delta.down, .train-stats-row .delta.warn { color: var(--warn); }
+  .train-stats-row .delta.flat { color: var(--muted); }
+  /* Editor de distribución muscular */
+  .dist-editor { display: grid; gap: 6px; margin-top: 8px; }
+  .dist-editor-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 78px 30px;
+    gap: 8px;
+    align-items: center;
+  }
+  .dist-editor-row .dist-label { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dist-editor-row .dist-group { color: var(--muted); font-size: 11px; display: block; }
+  .dist-editor-row input { text-align: center; min-height: 40px; padding: 8px 6px; }
+  .dist-editor-row .dist-remove {
+    width: 30px; height: 30px;
+    border: none; background: transparent;
+    color: var(--muted); font-size: 14px; font-weight: 700;
+    border-radius: 50%; cursor: pointer;
+  }
+  .dist-editor-row .dist-remove:active { background: rgba(255,255,255,0.08); color: var(--text); }
+  .dist-total-warn { color: var(--warn) !important; }
   .floating-save {
     position: sticky;
     bottom: 90px;
@@ -910,6 +1020,8 @@
   .modal-card {
     width: 100%;
     max-width: 460px;
+    max-height: 88vh;
+    overflow-y: auto;
     background: var(--card);
     border: 1px solid var(--border);
     border-top-left-radius: 28px;
@@ -1059,6 +1171,39 @@
   .home-insights-row .value { color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .home-insights-row.up .label { color: var(--good); }
   .home-insights-row.warn .label { color: var(--warn); }
+  /* Objetivos de hoy (home) */
+  .home-goal-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    gap: 10px;
+    align-items: center;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .home-goal-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .home-goal-name {
+    font-size: 14px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .home-goal-last { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+  .home-goal-chip {
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 4px 9px;
+    white-space: nowrap;
+    color: var(--muted);
+  }
+  .home-goal-chip.up { color: var(--good); border-color: rgba(74, 222, 128, 0.4); }
+  .home-goal-chip.reps { color: var(--accent); border-color: rgba(255, 159, 28, 0.45); }
+  .home-goal-chip.warn { color: var(--warn); border-color: rgba(255, 176, 32, 0.45); }
 
   /* ---- Week card delta enhancement ---- */
   .home-week-delta {
@@ -1985,7 +2130,11 @@ const state = {
   currentRoutine: null,
   currentDay: null,
   trainDraft: null,
+  trainExercises: [],
+  trainDataLoaded: false,
   lastSetsByExercise: {},
+  lastSetsByName: {},
+  trainProgressByName: {},
   lastSummary: null,
   currentSession: null,
   sessionReturnScreen: 'home',
@@ -2008,22 +2157,25 @@ const state = {
   lastTap: { key: '', at: 0 },
 };
 
+// Todas las escrituras invalidan estos caches (invalidateRoutineCaches /
+// invalidateSessionCaches), así que los TTLs pueden ser largos: navegar
+// entre pantallas no debería esperar a la red.
 const API_CACHE_TTL = {
-  getHomeStats: 60000,
-  getWeekActivity: 60000,
-  listRoutines: 120000,
-  getRoutine: 300000,
-  getTrainPickData: 120000,
-  getLastSessionForDay: 120000,
-  getSession: 120000,
-  getHistoryData: 60000,
-  listBodyweightHistory: 60000,
-  listAllExerciseNames: 300000,
-  getProgressSummary: 60000,
-  listExerciseHistory: 60000,
-  getExerciseGoal: 60000,
+  getHomeStats: 300000,
+  getWeekActivity: 300000,
+  listRoutines: 1800000,
+  getRoutine: 1800000,
+  getTrainPickData: 600000,
+  getLastSessionForDay: 600000,
+  getSession: 600000,
+  getHistoryData: 300000,
+  listBodyweightHistory: 300000,
+  listAllExerciseNames: 1800000,
+  getProgressSummary: 300000,
+  listExerciseHistory: 300000,
+  getExerciseGoal: 300000,
 };
-const API_CACHE_STORAGE_KEY = 'gymtracker:api-cache:v3';
+const API_CACHE_STORAGE_KEY = 'gymtracker:api-cache:v4';
 
 function apiCacheKey(fnName, args) {
   return `${fnName}:${JSON.stringify(args || [])}`;
@@ -2074,6 +2226,44 @@ async function cachedGas(fnName, args, options) {
   return setApiCache(fnName, args, await gas[fnName](...args));
 }
 
+// Resuelve varias lecturas en UN solo POST al backend (fn "batch").
+// Lo cacheado se sirve local; solo lo que falta viaja por red.
+async function cachedGasBatch(specs) {
+  specs = specs || [];
+  const values = new Array(specs.length).fill(null);
+  const missing = [];
+  specs.forEach((spec, i) => {
+    if (!spec.force) {
+      const cached = getApiCache(spec.fn, spec.args || [], spec.ttl);
+      if (cached !== null) { values[i] = cached; return; }
+    }
+    missing.push(i);
+  });
+  if (!missing.length) return values;
+  if (missing.length === 1) {
+    const i = missing[0];
+    values[i] = await cachedGas(specs[i].fn, specs[i].args || [], { force: true });
+    return values;
+  }
+  try {
+    const calls = missing.map(i => ({ fn: specs[i].fn, args: specs[i].args || [] }));
+    const results = await gas.batch(calls);
+    if (!Array.isArray(results)) throw new Error('batch: respuesta inválida.');
+    missing.forEach((specIdx, j) => {
+      const r = results[j];
+      if (!r || !r.ok) throw new Error((r && r.error) || 'Error del backend.');
+      values[specIdx] = setApiCache(specs[specIdx].fn, specs[specIdx].args || [], r.result);
+    });
+    return values;
+  } catch (err) {
+    // Backend sin batch desplegado (u otro error): caer a llamadas individuales.
+    await Promise.all(missing.map(async i => {
+      values[i] = await cachedGas(specs[i].fn, specs[i].args || [], { force: true });
+    }));
+    return values;
+  }
+}
+
 function invalidateApiCache(prefixes) {
   const list = Array.isArray(prefixes) ? prefixes : [prefixes];
   let changed = false;
@@ -2094,6 +2284,7 @@ function invalidateRoutineCaches() {
 function invalidateSessionCaches() {
   invalidateApiCache([
     'getHomeStats',
+    'getWeekActivity',
     'getLastSessionForDay',
     'getSession',
     'getHistoryData',
@@ -2335,6 +2526,8 @@ function shouldIgnoreRapidTap(target) {
     target.dataset.sessionId || '',
     target.dataset.dayId || '',
     target.dataset.rexId || '',
+    target.dataset.setNumber || '',
+    target.dataset.exerciseName || '',
     target.dataset.view || '',
     target.dataset.filter || '',
     target.dataset.muscle || '',
@@ -2378,72 +2571,102 @@ registerScreen('setup', {
 registerScreen('home', {
   onEnter(params, navToken) {
     $('#home-date').textContent = formatDateLong(todayInputValue());
-    loadHomeStats(navToken);
-    loadHomeWeek(navToken);
+    loadHome(navToken);
   }
 });
 
-async function loadHomeStats(navToken) {
+async function loadHome(navToken) {
   if (!backend.url) return;
-  const cached = getApiCache('getHomeStats', [], API_CACHE_TTL.getHomeStats);
-  if (cached) {
-    renderHomeStats(cached);
+  const offset = state.homeWeekOffset || 0;
+  const weekArgs = [{ offset }];
+
+  // Pinta lo cacheado al instante; la red solo refresca lo que falte.
+  const cachedStats = getApiCache('getHomeStats', []);
+  const cachedSummary = getApiCache('getProgressSummary', []);
+  const cachedWeek = getApiCache('getWeekActivity', weekArgs);
+  if (cachedStats) renderHomeStats(cachedStats);
+  if (cachedStats && cachedSummary) renderHomeGoalsCard_(cachedStats, cachedSummary);
+  if (cachedWeek) {
+    renderHomeWeekCard_(cachedWeek);
+  } else {
+    const el = $('#home-week-card');
+    if (el) el.innerHTML = `<div class="skeleton" style="height:140px;"></div>`;
   }
+
   try {
-    const stats = await cachedGas('getHomeStats', [], { force: !cached });
+    const [stats, summary, week] = await cachedGasBatch([
+      { fn: 'getHomeStats', args: [] },
+      { fn: 'getProgressSummary', args: [] },
+      { fn: 'getWeekActivity', args: weekArgs },
+    ]);
     if (navToken && !isCurrentNav(navToken, 'home')) return;
     renderHomeStats(stats);
-  } catch (err) {
-    if (navToken && !isCurrentNav(navToken, 'home')) return;
-  }
-  loadHomeProgressInsights(navToken);
-}
-
-async function loadHomeProgressInsights(navToken) {
-  const cached = getApiCache('getProgressSummary', [], API_CACHE_TTL.getProgressSummary);
-  if (cached) renderHomeInsights_(cached);
-  try {
-    const data = await cachedGas('getProgressSummary', [], { force: !cached });
-    if (navToken && !isCurrentNav(navToken, 'home')) return;
-    renderHomeInsights_(data);
+    renderHomeGoalsCard_(stats, summary);
+    if ((state.homeWeekOffset || 0) === offset) renderHomeWeekCard_(week);
+    prefetchTrainData_(stats);
   } catch (err) {
     if (navToken && !isCurrentNav(navToken, 'home')) return;
   }
 }
 
-function renderHomeInsights_(data) {
-  const exercises = (data && data.exercises) || [];
-  renderHomeInsightsCard_(exercises);
+// Precarga en segundo plano lo que hace falta para empezar a entrenar:
+// el picker de rutinas (con la rutina activa adentro) y las últimas series
+// del día que toca hoy. Tocar "Entrenar" queda instantáneo.
+function prefetchTrainData_(stats) {
+  clearTimeout(prefetchTrainData_._t);
+  prefetchTrainData_._t = setTimeout(async () => {
+    try {
+      const specs = [{ fn: 'getTrainPickData', args: [{ routine_id: '' }] }];
+      const day = stats && stats.today_day;
+      if (day && day.day_id) {
+        specs.push({ fn: 'getLastSessionForDay', args: [{ day_id: day.day_id, date: todayInputValue() }] });
+      }
+      const [pick] = await cachedGasBatch(specs);
+      if (pick && pick.routine && pick.routine.routine_id) {
+        setApiCache('getRoutine', [pick.routine.routine_id], pick.routine);
+      }
+    } catch (_) {}
+  }, 500);
 }
 
-function renderHomeInsightsCard_(exercises) {
+// "Objetivos de hoy": por cada ejercicio del día que toca, la última mejor
+// serie y qué conviene hacer (doble progresión). Reemplaza a "Cómo venís".
+function renderHomeGoalsCard_(stats, summary) {
   const el = $('#home-insights-card');
   if (!el) return;
-  const up = [];
-  const stuck = [];
-  exercises.forEach(ex => {
-    if (!ex.last || !ex.prev) return;
-    const d = bestSetDelta(ex.last, ex.prev);
-    if (d.cls === 'up') up.push(ex.name);
-    else if (ex.stall_count >= 3) stuck.push({ name: ex.name, stall: ex.stall_count });
+  const day = stats && stats.today_day;
+  const exercises = (day && day.exercises) || [];
+  if (!exercises.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+
+  const progressByName = {};
+  ((summary && summary.exercises) || []).forEach(ex => {
+    progressByName[normalizeLookupKey(ex.name)] = ex;
   });
-  if (!up.length && !stuck.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
-  stuck.sort((a, b) => b.stall - a.stall);
+
+  const rows = exercises.map(ex => {
+    const p = progressByName[normalizeLookupKey(ex.exercise_name)];
+    const lastBest = p && p.last ? p.last : null;
+    const tip = computeExerciseTip(ex, lastBest, p ? p.stall_count : 0);
+    const lastLabel = lastBest
+      ? `últ. ${formatKgDisplay(lastBest.weight)}×${lastBest.reps || 0}`
+      : 'primera vez';
+    return `
+      <div class="home-goal-row" data-action="open-exercise-detail" data-exercise-name="${escapeHtml(ex.exercise_name)}">
+        <span class="home-goal-name">${escapeHtml(ex.exercise_name)}</span>
+        <span class="home-goal-last">${escapeHtml(lastLabel)}</span>
+        <span class="home-goal-chip ${tip.cls}">${escapeHtml(tip.short)}</span>
+      </div>
+    `;
+  }).join('');
+
+  const title = stats.trained_today
+    ? `Próximo: ${day.day_name}`
+    : (day.is_scheduled_today ? `Objetivos de hoy · ${day.day_name}` : `Próximo: ${day.day_name}`);
+
   el.style.display = 'flex';
   el.innerHTML = `
-    <div class="home-insights-title">Cómo venís</div>
-    ${up.length ? `
-      <div class="home-insights-row up">
-        <span class="label">↑ Subiendo</span>
-        <span class="value">${escapeHtml(up.slice(0, 3).join(', '))}</span>
-      </div>
-    ` : ''}
-    ${stuck.length ? `
-      <div class="home-insights-row warn">
-        <span class="label">= Trabado</span>
-        <span class="value">${escapeHtml(stuck.slice(0, 3).map(s => `${s.name} (hace ${s.stall})`).join(', '))}</span>
-      </div>
-    ` : ''}
+    <div class="home-insights-title">${escapeHtml(title)}</div>
+    <div style="display:flex;flex-direction:column;">${rows}</div>
   `;
 }
 
@@ -3537,8 +3760,15 @@ async function exerciseModal({ title, initial }) {
             <p class="muted-sm" style="margin-top:6px;">Se usa para el mapa corporal y los gráficos por músculo.</p>
           </div>
           <div>
-            <label class="field-label">Distribución muscular</label>
-            <div id="ex-distribution-preview" class="muscle-distribution-preview"></div>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <label class="field-label" style="margin:0;">Distribución muscular</label>
+              <span class="muted-sm" id="ex-dist-total">—</span>
+            </div>
+            <div id="ex-distribution-editor" class="dist-editor"></div>
+            <select id="ex-dist-add" style="margin-top:8px;">
+              <option value="">+ Agregar parte del músculo…</option>
+            </select>
+            <p class="muted-sm" style="margin-top:6px;">Ajustá el % que se lleva cada parte. Al guardar se normaliza a 100%.</p>
           </div>
           <div>
             <label class="field-label">Nota técnica (opcional)</label>
@@ -3559,7 +3789,8 @@ async function exerciseModal({ title, initial }) {
             const weight = wRaw !== '' ? units.fromInput(Number(wRaw)) : null;
             const muscle = ($('#ex-muscle').value || '').trim();
             const note  = ($('#ex-note').value || '').trim();
-            const muscleDistribution = getExerciseModalDistribution(initial, name, muscle);
+            const muscleDistribution = normalizeDistributionTotal(distState);
+            if (!Object.keys(muscleDistribution).length) { toast('Agregá al menos una parte del músculo con %', 'error'); return; }
             if (!name) { toast('El nombre es obligatorio', 'error'); return; }
             if (isNaN(sets) || sets < 1 || sets > 20) { toast('Series: 1-20', 'error'); return; }
             if (isNaN(rmin) || rmin < 1 || rmin > 100) { toast('Reps mín: 1-100', 'error'); return; }
@@ -3587,23 +3818,88 @@ async function exerciseModal({ title, initial }) {
       const list = $('#exercise-name-suggestions');
       if (list) list.innerHTML = renderExerciseNameOptions(names);
     });
-    const updateDistributionPreview = () => {
-      const preview = $('#ex-distribution-preview');
-      if (!preview) return;
+
+    // --- Editor de distribución muscular ---
+    // distTouched: una vez que el usuario edita a mano, dejamos de pisar
+    // sus valores cuando cambia el nombre o el grupo.
+    let distTouched = !!(initial && (initial.muscleDistribution || initial.muscle_distribution));
+    const updateDistTotal = () => {
+      const totalEl = $('#ex-dist-total');
+      if (!totalEl) return;
+      const total = Object.keys(distState).reduce((sum, k) => sum + (Number(distState[k]) || 0), 0);
+      totalEl.textContent = `${Math.round(total)}%`;
+      totalEl.classList.toggle('dist-total-warn', Math.round(total) !== 100);
+    };
+    const renderDistAddOptions = () => {
+      const select = $('#ex-dist-add');
+      if (!select) return;
+      const groups = Object.keys(MUSCLE_GROUP_DEFS).map(group => {
+        const options = MUSCLE_GROUP_DEFS[group]
+          .filter(item => !(item.value in distState))
+          .map(item => `<option value="${escapeHtml(item.value)}">${escapeHtml(item.label)}</option>`)
+          .join('');
+        return options ? `<optgroup label="${escapeHtml(formatMuscleGroup(group))}">${options}</optgroup>` : '';
+      }).join('');
+      select.innerHTML = `<option value="">+ Agregar parte del músculo…</option>${groups}`;
+    };
+    const renderDistEditor = () => {
+      const editor = $('#ex-distribution-editor');
+      if (!editor) return;
+      const keys = Object.keys(distState)
+        .sort((a, b) => (Number(distState[b]) || 0) - (Number(distState[a]) || 0) || formatMuscleSubzone(a).localeCompare(formatMuscleSubzone(b)));
+      editor.innerHTML = keys.length ? keys.map(subzone => `
+        <div class="dist-editor-row">
+          <span class="dist-label">
+            ${escapeHtml(formatMuscleSubzone(subzone))}
+            <span class="dist-group">${escapeHtml(formatMuscleGroup(MUSCLE_SUBZONE_TO_GROUP[subzone] || ''))}</span>
+          </span>
+          <input type="number" inputmode="numeric" min="0" max="100" step="1" value="${Math.round(Number(distState[subzone]) || 0)}" data-dist-subzone="${escapeHtml(subzone)}" aria-label="% de ${escapeHtml(formatMuscleSubzone(subzone))}" />
+          <button type="button" class="dist-remove" data-dist-remove="${escapeHtml(subzone)}" aria-label="Quitar ${escapeHtml(formatMuscleSubzone(subzone))}">✕</button>
+        </div>
+      `).join('') : `<p class="muted-sm">Elegí un grupo o agregá partes del músculo abajo.</p>`;
+      renderDistAddOptions();
+      updateDistTotal();
+    };
+    let distState = getExerciseModalDistribution(initial, v.exercise_name || '', v.muscle_group || '');
+    const editorEl = $('#ex-distribution-editor');
+    if (editorEl) {
+      editorEl.addEventListener('input', (e) => {
+        const subzone = e.target && e.target.dataset && e.target.dataset.distSubzone;
+        if (!subzone) return;
+        distTouched = true;
+        distState[subzone] = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+        updateDistTotal();
+      });
+      editorEl.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-dist-remove]');
+        if (!btn) return;
+        distTouched = true;
+        delete distState[btn.dataset.distRemove];
+        renderDistEditor();
+      });
+    }
+    const addSelect = $('#ex-dist-add');
+    if (addSelect) {
+      addSelect.addEventListener('change', () => {
+        const subzone = addSelect.value;
+        if (!subzone) return;
+        distTouched = true;
+        distState[subzone] = 10;
+        renderDistEditor();
+      });
+    }
+    const refreshDistDefaults = () => {
+      if (distTouched) return;
       const name = ($('#ex-name') || {}).value || '';
       const muscle = ($('#ex-muscle') || {}).value || '';
-      const distribution = getExerciseModalDistribution(initial, name, muscle);
-      const items = getTopDistributionItems(distribution, 8);
-      preview.innerHTML = items.length ? `
-        <p class="muted-sm">${escapeHtml(formatMuscleGroup(muscle))}</p>
-        ${renderMuscleDistributionChips(distribution, { limit: 8 })}
-      ` : `<p class="muted-sm">Elegí un grupo para generar la distribución.</p>`;
+      distState = getExerciseModalDistribution(initial, name, muscle);
+      renderDistEditor();
     };
     const nameInput = $('#ex-name');
     const muscleSelect = $('#ex-muscle');
-    if (nameInput) nameInput.addEventListener('input', updateDistributionPreview);
-    if (muscleSelect) muscleSelect.addEventListener('change', updateDistributionPreview);
-    updateDistributionPreview();
+    if (nameInput) nameInput.addEventListener('input', refreshDistDefaults);
+    if (muscleSelect) muscleSelect.addEventListener('change', refreshDistDefaults);
+    renderDistEditor();
     setTimeout(() => { const i = $('#ex-name'); if (i) i.focus(); }, 50);
   });
 }
@@ -3821,12 +4117,22 @@ async function startTraining({ routine_id, day_id, date, navToken }) {
     if (!day) throw new Error('Día no encontrado en esta rutina.');
     state.currentDay = day;
     state.lastSetsByExercise = {};
+    state.lastSetsByName = {};
+    state.trainProgressByName = {};
+    state.trainDataLoaded = false;
+
+    // Lista de ejercicios propia de la sesión: se puede agregar, quitar o
+    // cambiar ejercicios sin tocar la rutina.
+    state.trainExercises = (day.exercises || []).map(ex => Object.assign({}, ex));
+    const draft = loadSessionDraft(day_id, date);
+    if (draft && Array.isArray(draft.exercise_list) && draft.exercise_list.length) {
+      state.trainExercises = draft.exercise_list.map(ex => Object.assign({}, ex));
+    }
 
     $('#train-day-name').textContent = day.day_name;
     $('#train-meta').textContent = `${routine.routine_name} · ${formatDateLong(date)}`;
-    renderTrainExercises(day.exercises || []);
+    renderTrainExercises(state.trainExercises);
 
-    const draft = loadSessionDraft(day_id, date);
     if (draft) {
       restoreTrainDraft(draft);
       toast('Continuando sesión', 'success');
@@ -3842,53 +4148,139 @@ async function startTraining({ routine_id, day_id, date, navToken }) {
 
 async function loadLastSetsForTraining(day_id, date, navToken) {
   try {
-    const lastSets = await cachedGas('getLastSessionForDay', [{ day_id, date }]);
+    const [lastSets, summary] = await cachedGasBatch([
+      { fn: 'getLastSessionForDay', args: [{ day_id, date }] },
+      { fn: 'getProgressSummary', args: [] },
+    ]);
     if (navToken && !isCurrentNav(navToken, 'train')) return;
     if (state.screenParams.day_id !== day_id || state.screenParams.date !== date) return;
     const draft = collectTrainDraft();
-    state.lastSetsByExercise = lastSets || {};
-    renderTrainExercises((state.currentDay && state.currentDay.exercises) || []);
+    applyLastSetsResponse_(lastSets);
+    state.trainProgressByName = {};
+    ((summary && summary.exercises) || []).forEach(ex => {
+      state.trainProgressByName[normalizeLookupKey(ex.name)] = ex;
+    });
+    state.trainDataLoaded = true;
+    renderTrainExercises(state.trainExercises);
     restoreTrainDraft(draft);
   } catch (err) {
     if (navToken && !isCurrentNav(navToken, 'train')) return;
   }
 }
 
+// El backend nuevo devuelve { exercises, by_name }; el viejo, un mapa por
+// routine_exercise_id directo. Soportar ambos evita romper si el GAS
+// todavía no fue redesplegado.
+function applyLastSetsResponse_(res) {
+  if (res && res.exercises) {
+    state.lastSetsByExercise = res.exercises || {};
+    state.lastSetsByName = res.by_name || {};
+  } else {
+    state.lastSetsByExercise = res || {};
+    state.lastSetsByName = {};
+  }
+}
+
+function getLastEntryForExercise(ex) {
+  if (!ex) return null;
+  return state.lastSetsByExercise[ex.routine_exercise_id]
+    || state.lastSetsByName[normalizeLookupKey(ex.exercise_name)]
+    || null;
+}
+
+function findTrainExercise_(rexId) {
+  return (state.trainExercises || []).find(e => e.routine_exercise_id === rexId) || null;
+}
+
 function renderTrainExercises(exercises) {
   const el = $('#train-exercises');
-  if (!exercises.length) {
-    el.innerHTML = `
+  const cards = (exercises && exercises.length)
+    ? exercises.map(renderTrainExerciseCard_).join('')
+    : `
       <div class="empty-state">
         <div class="emoji">🏋️</div>
         <h3>Sin ejercicios</h3>
-        <p class="muted">Agregá ejercicios a este día antes de entrenar.</p>
+        <p class="muted">Agregá un ejercicio para empezar a entrenar.</p>
       </div>
     `;
-    return;
-  }
+  el.innerHTML = `
+    ${cards}
+    <button class="ghost-btn full" data-action="add-train-exercise" style="margin-top:4px;">+ Agregar ejercicio</button>
+  `;
+}
 
-  el.innerHTML = exercises.map(ex => {
-    const last = state.lastSetsByExercise[ex.routine_exercise_id];
-    const hasLastSets = last && last.sets && last.sets.length;
-    const previousSets = hasLastSets ? last.sets : [];
-    const setRows = Array.from(
-      { length: Number(ex.target_sets || 1) },
-      (_, i) => renderSetRow(ex, i + 1, previousSets[i])
-    ).join('');
-    return `
-      <div class="exercise-card" data-train-exercise="${escapeHtml(ex.routine_exercise_id)}">
-        <div class="card-row" style="align-items:flex-start;">
-          <div style="flex:1;min-width:0;">
-            <h3 style="word-break:break-word;">${escapeHtml(ex.exercise_name)}</h3>
-          </div>
+function renderTrainExerciseCard_(ex) {
+  const last = getLastEntryForExercise(ex);
+  const previousSets = (last && last.sets && last.sets.length) ? last.sets : [];
+  const setRows = Array.from(
+    { length: Math.max(1, Number(ex.target_sets || 1)) },
+    (_, i) => renderSetRow(ex, i + 1, previousSets[i])
+  ).join('');
+  const tip = computeTrainTip_(ex);
+  const nameAttr = escapeHtml(ex.exercise_name);
+  const rexAttr = escapeHtml(ex.routine_exercise_id);
+  return `
+    <div class="exercise-card" data-train-exercise="${rexAttr}">
+      <div class="card-row" style="align-items:flex-start;">
+        <div style="flex:1;min-width:0;">
+          <h3 class="train-ex-name" data-action="open-train-stats" data-exercise-name="${nameAttr}" style="word-break:break-word;" title="Ver récord e historial">
+            ${nameAttr}
+            <svg class="train-stats-ico" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 4.5v15h16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+              <path d="M7.5 15.5l3.4-4 3.1 2.3 5-6.3" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </h3>
+          ${ex.replaced_name ? `<p class="train-swap-note">Reemplaza a ${escapeHtml(ex.replaced_name)} · solo esta sesión</p>` : ''}
+          ${tip ? `<button type="button" class="train-tip ${tip.cls}" data-action="open-train-stats" data-exercise-name="${nameAttr}">💡 ${escapeHtml(tip.text)}</button>` : ''}
         </div>
-        ${ex.technique_note ? `<p class="muted-sm" style="margin-top:8px;">${escapeHtml(ex.technique_note)}</p>` : ''}
-        <div class="input-grid train-set-head"><span></span><span>Peso (${units.label()})</span><span>Reps</span></div>
-        <div data-set-list>${setRows}</div>
-        <button class="ghost-btn full" data-action="add-train-set" data-rex-id="${escapeHtml(ex.routine_exercise_id)}" style="margin-top:10px;">+ serie</button>
+        <button class="ghost-btn icon-btn" data-action="train-exercise-menu" data-rex-id="${rexAttr}" aria-label="Opciones del ejercicio">⋯</button>
       </div>
-    `;
-  }).join('');
+      ${ex.technique_note ? `<p class="muted-sm" style="margin-top:8px;">${escapeHtml(ex.technique_note)}</p>` : ''}
+      <div class="input-grid train-grid train-set-head"><span></span><span>Peso (${units.label()})</span><span>Reps</span><span></span></div>
+      <div data-set-list>${setRows}</div>
+      <button class="ghost-btn full" data-action="add-train-set" data-rex-id="${rexAttr}" style="margin-top:10px;">+ serie</button>
+    </div>
+  `;
+}
+
+// TIP de doble progresión: el ancla es la mejor serie de la última sesión.
+// reps >= tope → subir peso; reps < mínimo → consolidar; en el medio → +1 rep.
+function computeExerciseTip(ex, lastBest, stallCount) {
+  const rmin = Number(ex.target_reps_min || 8);
+  const rmax = Number(ex.target_reps_max || 12);
+  if (!lastBest || !lastBest.weight) {
+    return { cls: 'flat', short: 'primera vez', text: `Primera vez: buscá un peso que te deje ${rmin}-${rmax} reps.` };
+  }
+  const w = Number(lastBest.weight);
+  const r = Number(lastBest.reps || 0);
+  const stall = Number(stallCount || 0);
+  const unit = units.label();
+  const nextWeight = units.toDisplay(w) + (units.current === 'lb' ? 5 : 2.5);
+  if (r >= rmax) {
+    return { cls: 'up', short: 'subí peso', text: `Tocó subir: probá ${nextWeight} ${unit} (venís de ${formatKgDisplay(w)}×${r}).` };
+  }
+  if (r > 0 && r < rmin) {
+    return { cls: 'warn', short: 'consolidá', text: `Consolidá ${formatKgDisplay(w)} ${unit}: buscá llegar a ${rmin} reps.` };
+  }
+  const target = r + 1;
+  let text = `Mismo peso (${formatKgDisplay(w)} ${unit}): buscá ${target} reps, tope ${rmax}.`;
+  if (stall >= 3) text += ` Hace ${stall} sesiones en ${formatKgDisplay(w)} ${unit}.`;
+  return { cls: stall >= 3 ? 'warn' : 'reps', short: `buscá ${target} reps`, text };
+}
+
+function computeTrainTip_(ex) {
+  if (!state.trainDataLoaded) return null;
+  const lastEntry = getLastEntryForExercise(ex);
+  const progress = state.trainProgressByName[normalizeLookupKey(ex.exercise_name)];
+  // Fallback al resumen de progreso si getLastSessionForDay no trae el ejercicio
+  const lastBest = (lastEntry ? bestSetOf(lastEntry.sets) : null) || (progress && progress.last) || null;
+  return computeExerciseTip(ex, lastBest, progress ? progress.stall_count : 0);
+}
+
+function formatKgDisplay(kg) {
+  const v = units.toDisplay(Number(kg || 0));
+  if (v === '' || v == null) return '0';
+  return (Number(v) % 1 === 0) ? String(v) : Number(v).toFixed(1);
 }
 
 function updateTrainDateDisplay() {
@@ -3913,7 +4305,7 @@ function renderSetRow(ex, setNumber, previousSet) {
     : 0;
   const previousReps = previousSet && previousSet.reps != null ? previousSet.reps : 0;
   return `
-    <div class="input-grid" data-set-row data-rex-id="${escapeHtml(ex.routine_exercise_id)}" data-set-number="${setNumber}">
+    <div class="input-grid train-grid" data-set-row data-rex-id="${escapeHtml(ex.routine_exercise_id)}" data-set-number="${setNumber}">
       <div class="set-number">${setNumber}</div>
       <div class="set-field-group">
         <input type="number" step="${units.toDisplay(2.5)}" inputmode="decimal" data-field="weight" placeholder="${escapeHtml(previousWeight)}" aria-label="Peso en ${units.label()}" />
@@ -3921,6 +4313,7 @@ function renderSetRow(ex, setNumber, previousSet) {
       <div class="set-field-group">
         <input type="number" step="1" inputmode="numeric" data-field="reps" placeholder="${escapeHtml(previousReps)}" aria-label="Repeticiones" />
       </div>
+      <button type="button" class="set-remove-btn" data-action="remove-train-set" data-rex-id="${escapeHtml(ex.routine_exercise_id)}" data-set-number="${setNumber}" aria-label="Quitar serie ${setNumber}">✕</button>
     </div>
   `;
 }
@@ -3944,6 +4337,7 @@ function collectTrainDraft() {
   });
   return {
     unit: units.current,
+    exercise_list: (state.trainExercises || []).map(ex => Object.assign({}, ex)),
     exercises,
     saved_at: new Date().toISOString(),
   };
@@ -3968,7 +4362,7 @@ function buildSavePayload() {
   if (!r || !day) throw new Error('Falta rutina o día.');
 
   const draft = collectTrainDraft();
-  const exercises = (day.exercises || []).map(ex => {
+  const exercises = (state.trainExercises || []).map(ex => {
     const exDraft = draft.exercises[ex.routine_exercise_id] || { sets: [], note: '' };
     return {
       routine_exercise_id: ex.routine_exercise_id,
@@ -4039,17 +4433,321 @@ function bindTrainAutosave(day_id, date) {
 }
 
 function addTrainSet(rexId, persist) {
-  const day = state.currentDay;
-  if (!day) return;
-  const ex = day.exercises.find(e => e.routine_exercise_id === rexId);
+  const ex = findTrainExercise_(rexId);
   const card = $(`[data-train-exercise="${rexId}"]`);
   const list = card && $('[data-set-list]', card);
   if (!ex || !list) return;
+  const last = getLastEntryForExercise(ex);
+  const previousSets = (last && last.sets) || [];
   const next = $$(`[data-set-row][data-rex-id="${rexId}"]`).length + 1;
-  list.insertAdjacentHTML('beforeend', renderSetRow(ex, next));
-  if (persist !== false && state.screenParams.day_id && state.screenParams.date) {
+  list.insertAdjacentHTML('beforeend', renderSetRow(ex, next, previousSets[next - 1]));
+  if (persist !== false) persistTrainDraft_();
+}
+
+function persistTrainDraft_() {
+  if (state.screenParams.day_id && state.screenParams.date) {
     saveSessionDraft(state.screenParams.day_id, state.screenParams.date);
   }
+}
+
+// Quita una serie puntual y renumera las que quedan (la última serie no se
+// elimina: se vacía, para que siempre haya al menos una fila).
+function removeTrainSet(rexId, setNumber) {
+  const rows = $$(`[data-set-row][data-rex-id="${rexId}"]`);
+  if (!rows.length) return;
+  if (rows.length === 1) {
+    $('[data-field="weight"]', rows[0]).value = '';
+    $('[data-field="reps"]', rows[0]).value = '';
+    persistTrainDraft_();
+    return;
+  }
+  const values = rows.map(row => ({
+    weight: $('[data-field="weight"]', row).value,
+    reps: $('[data-field="reps"]', row).value,
+  }));
+  const idx = rows.findIndex(row => Number(row.dataset.setNumber) === Number(setNumber));
+  if (idx < 0) return;
+  values.splice(idx, 1);
+  rebuildTrainSets_(rexId, values);
+  persistTrainDraft_();
+}
+
+function rebuildTrainSets_(rexId, values) {
+  const ex = findTrainExercise_(rexId);
+  const card = $(`[data-train-exercise="${rexId}"]`);
+  const list = card && $('[data-set-list]', card);
+  if (!ex || !list) return;
+  const last = getLastEntryForExercise(ex);
+  const previousSets = (last && last.sets) || [];
+  list.innerHTML = values.map((v, i) => renderSetRow(ex, i + 1, previousSets[i])).join('');
+  const rows = $$(`[data-set-row][data-rex-id="${rexId}"]`);
+  values.forEach((v, i) => {
+    const row = rows[i];
+    if (!row) return;
+    $('[data-field="weight"]', row).value = v.weight || '';
+    $('[data-field="reps"]', row).value = v.reps || '';
+  });
+}
+
+// ---------- Ejercicios flexibles durante la sesión ----------
+
+function handleTrainExerciseMenu(rexId) {
+  const ex = findTrainExercise_(rexId);
+  if (!ex) return;
+  modal.open({
+    title: ex.exercise_name,
+    bodyHtml: `<p class="muted" style="font-size:13px;">Los cambios aplican solo a esta sesión: tu rutina no se modifica.</p>`,
+    actions: [
+      { label: '📊 Récord e historial', onClick: () => { modal.close(); openTrainStats(ex.exercise_name); } },
+      { label: 'Cambiar por otro ejercicio', onClick: () => { modal.close(); handleSwapTrainExercise(rexId); } },
+      { label: 'Quitar de esta sesión', kind: 'danger', onClick: () => { modal.close(); handleRemoveTrainExercise(rexId); } },
+      { label: 'Cancelar', onClick: () => modal.close() },
+    ]
+  });
+}
+
+// Grupo dominante según la distribución por defecto que infiere el nombre.
+function guessMuscleGroupFromName_(name) {
+  const dist = getDefaultMuscleDistribution(name, '');
+  const totals = {};
+  Object.keys(dist).forEach(subzone => {
+    const group = MUSCLE_SUBZONE_TO_GROUP[subzone];
+    if (group) totals[group] = (totals[group] || 0) + Number(dist[subzone] || 0);
+  });
+  return Object.keys(totals).sort((a, b) => totals[b] - totals[a])[0] || '';
+}
+
+// Busca el ejercicio en cualquier día de la rutina actual (para heredar
+// targets y distribución si ya existe).
+function findKnownExercise_(name) {
+  const key = normalizeLookupKey(name);
+  if (!key) return null;
+  let found = null;
+  (((state.currentRoutine || {}).days) || []).forEach(day => {
+    (day.exercises || []).forEach(ex => {
+      if (!found && normalizeLookupKey(ex.exercise_name) === key) found = ex;
+    });
+  });
+  return found;
+}
+
+function buildSessionExercise_(name, muscle, sets, known) {
+  const usedIds = {};
+  (state.trainExercises || []).forEach(e => { usedIds[e.routine_exercise_id] = true; });
+  const canReuseId = known && known.routine_exercise_id && !usedIds[known.routine_exercise_id];
+  return {
+    routine_exercise_id: canReuseId
+      ? known.routine_exercise_id
+      : 'adhoc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    exercise_name: name,
+    muscle_group: muscle,
+    muscleDistribution: known ? getExerciseMuscleDistribution(known) : getDefaultMuscleDistribution(name, muscle),
+    target_sets: sets,
+    target_reps_min: (known && Number(known.target_reps_min)) || 8,
+    target_reps_max: (known && Number(known.target_reps_max)) || 12,
+    technique_note: '',
+  };
+}
+
+async function trainExercisePicker({ title, confirmLabel, defaultSets }) {
+  const suggestions = getLocalExerciseNameSuggestions();
+  return new Promise((resolve) => {
+    modal.open({
+      title,
+      bodyHtml: `
+        <div style="display:grid;gap:12px;">
+          <div>
+            <label class="field-label">Ejercicio</label>
+            <input id="tx-name" type="text" list="train-ex-suggestions" placeholder="Sentadillas" maxlength="100" />
+            <datalist id="train-ex-suggestions">${renderExerciseNameOptions(suggestions)}</datalist>
+            <p class="muted-sm" id="tx-hint" style="margin-top:6px;"></p>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 88px;gap:8px;">
+            <div>
+              <label class="field-label">Grupo muscular</label>
+              <select id="tx-muscle">
+                <option value="">Detectar solo</option>
+                ${MUSCLE_GROUPS.filter(g => g.value).map(g => `<option value="${escapeHtml(g.value)}">${escapeHtml(g.label)}</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label class="field-label">Series</label>
+              <input id="tx-sets" type="number" inputmode="numeric" pattern="[0-9]*" value="${Number(defaultSets || 3)}" min="1" max="20" />
+            </div>
+          </div>
+        </div>
+      `,
+      actions: [
+        {
+          label: confirmLabel || 'Agregar',
+          kind: 'primary',
+          onClick: () => {
+            const name = ($('#tx-name').value || '').trim();
+            if (!name) { toast('Escribí el nombre del ejercicio', 'error'); return; }
+            const sets = parseInt($('#tx-sets').value, 10);
+            if (isNaN(sets) || sets < 1 || sets > 20) { toast('Series: 1-20', 'error'); return; }
+            const known = findKnownExercise_(name);
+            let muscle = ($('#tx-muscle').value || '').trim();
+            if (!muscle) muscle = (known && normalizeMuscleGroupValue(known.muscle_group)) || guessMuscleGroupFromName_(name);
+            if (!muscle) { toast('No reconozco el ejercicio: elegí el grupo muscular', 'error'); return; }
+            modal.close();
+            resolve(buildSessionExercise_(name, muscle, sets, known));
+          }
+        },
+        { label: 'Cancelar', onClick: () => { modal.close(); resolve(null); } },
+      ]
+    });
+    loadExerciseNameSuggestions().then(names => {
+      const list = $('#train-ex-suggestions');
+      if (list) list.innerHTML = renderExerciseNameOptions(names);
+    });
+    const updateHint = () => {
+      const hint = $('#tx-hint');
+      if (!hint) return;
+      const name = ($('#tx-name') || {}).value || '';
+      if (!name.trim()) { hint.textContent = ''; return; }
+      const known = findKnownExercise_(name);
+      const group = ($('#tx-muscle').value || '') || (known && normalizeMuscleGroupValue(known.muscle_group)) || guessMuscleGroupFromName_(name);
+      hint.textContent = known
+        ? `Ya está en tu rutina (${formatMuscleGroup(group)}): hereda series objetivo y distribución.`
+        : (group ? `Detectado: ${formatMuscleGroup(group)}.` : 'No lo reconozco: elegí el grupo muscular.');
+    };
+    const nameInput = $('#tx-name');
+    const muscleSelect = $('#tx-muscle');
+    if (nameInput) nameInput.addEventListener('input', updateHint);
+    if (muscleSelect) muscleSelect.addEventListener('change', updateHint);
+    setTimeout(() => { const i = $('#tx-name'); if (i) i.focus(); }, 50);
+  });
+}
+
+async function handleAddTrainExercise() {
+  const data = await trainExercisePicker({ title: 'Agregar ejercicio', confirmLabel: 'Agregar' });
+  if (!data) return;
+  const draft = collectTrainDraft();
+  state.trainExercises.push(data);
+  renderTrainExercises(state.trainExercises);
+  restoreTrainDraft(draft);
+  persistTrainDraft_();
+  const card = $(`[data-train-exercise="${data.routine_exercise_id}"]`);
+  if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  toast('Ejercicio agregado a la sesión', 'success');
+}
+
+async function handleSwapTrainExercise(rexId) {
+  const ex = findTrainExercise_(rexId);
+  if (!ex) return;
+  const data = await trainExercisePicker({
+    title: `Cambiar ${ex.exercise_name}`,
+    confirmLabel: 'Cambiar',
+    defaultSets: ex.target_sets,
+  });
+  if (!data) return;
+  const idx = state.trainExercises.findIndex(e => e.routine_exercise_id === rexId);
+  if (idx < 0) return;
+  const draft = collectTrainDraft();
+  data.replaced_name = ex.replaced_name || ex.exercise_name;
+  state.trainExercises[idx] = data;
+  // Migrar series ya cargadas al nuevo ejercicio
+  if (draft.exercises[rexId] && data.routine_exercise_id !== rexId) {
+    draft.exercises[data.routine_exercise_id] = draft.exercises[rexId];
+    delete draft.exercises[rexId];
+  }
+  renderTrainExercises(state.trainExercises);
+  restoreTrainDraft(draft);
+  persistTrainDraft_();
+  toast(`${ex.exercise_name} → ${data.exercise_name}`, 'success');
+}
+
+async function handleRemoveTrainExercise(rexId) {
+  const ex = findTrainExercise_(rexId);
+  if (!ex) return;
+  const hasData = $$(`[data-set-row][data-rex-id="${rexId}"]`).some(row =>
+    ($('[data-field="weight"]', row).value || '').trim() !== '' ||
+    ($('[data-field="reps"]', row).value || '').trim() !== ''
+  );
+  if (hasData) {
+    const ok = await confirmModal({
+      title: 'Quitar ejercicio',
+      message: `"${ex.exercise_name}" tiene series cargadas en esta sesión. ¿Quitarlo igual?`,
+      confirmText: 'Quitar',
+      danger: true,
+    });
+    if (!ok) return;
+  }
+  const draft = collectTrainDraft();
+  state.trainExercises = state.trainExercises.filter(e => e.routine_exercise_id !== rexId);
+  renderTrainExercises(state.trainExercises);
+  restoreTrainDraft(draft);
+  persistTrainDraft_();
+  toast('Ejercicio quitado de la sesión', 'success');
+}
+
+// ---------- Hoja de stats del ejercicio (récord + últimas sesiones) ----------
+
+async function openTrainStats(exerciseName) {
+  if (!exerciseName) return;
+  modal.open({
+    title: exerciseName,
+    bodyHtml: `<div id="train-stats-body"><div class="skeleton" style="height:140px;"></div></div>`,
+    actions: [{ label: 'Cerrar', onClick: () => modal.close() }],
+  });
+  try {
+    const history = await cachedGas('listExerciseHistory', [{ exercise_name: exerciseName, limit: 6 }]);
+    const body = $('#train-stats-body');
+    if (!body) return;
+    body.innerHTML = renderTrainStats_(exerciseName, history);
+  } catch (err) {
+    const body = $('#train-stats-body');
+    if (body) body.innerHTML = `<p class="muted">No se pudo cargar el historial: ${escapeHtml(err.message || '')}</p>`;
+  }
+}
+
+function renderTrainStats_(exerciseName, history) {
+  const sessions = (history && history.sessions) || []; // más reciente primero
+  const nameKey = normalizeLookupKey(exerciseName);
+  const ex = (state.trainExercises || []).find(e => normalizeLookupKey(e.exercise_name) === nameKey) || null;
+
+  let pr = null;
+  const entry = ex ? getLastEntryForExercise(ex) : (state.lastSetsByName[nameKey] || null);
+  if (entry && entry.pr) pr = entry.pr;
+  if (!pr) {
+    sessions.forEach(s => {
+      const b = bestSetOf(s.sets);
+      if (b && (!pr || b.weight > pr.weight)) pr = { weight: b.weight, reps: b.reps, date: s.date };
+    });
+  }
+
+  const tip = ex ? computeTrainTip_(ex) : null;
+  const prHtml = pr ? `
+    <div class="train-stats-pr">
+      <span class="medal">🏆</span>
+      <div>
+        <div class="label">Récord</div>
+        <div class="value">${formatKgDisplay(pr.weight)} ${units.label()} × ${pr.reps != null ? pr.reps : '—'}</div>
+        ${pr.date ? `<div class="muted-sm">${escapeHtml(formatDateShort(pr.date))}</div>` : ''}
+      </div>
+    </div>
+  ` : '';
+
+  const rows = sessions.map((s, i) => {
+    const best = bestSetOf(s.sets);
+    const prevBest = sessions[i + 1] ? bestSetOf(sessions[i + 1].sets) : null;
+    const d = best && prevBest ? bestSetDelta(best, prevBest) : null;
+    return `
+      <div class="train-stats-row">
+        <span class="date">${escapeHtml(formatDateShort(s.date))}</span>
+        <span class="best">${best ? `${formatKgDisplay(best.weight)}×${best.reps}` : '—'}</span>
+        <span class="sets muted-sm">${escapeHtml(formatSetsLine(s.sets))}</span>
+        ${d ? `<span class="delta ${d.cls}">${d.arrow} ${escapeHtml(d.label)}</span>` : '<span class="delta"></span>'}
+      </div>
+    `;
+  }).join('');
+
+  return `
+    ${tip ? `<div class="train-tip block ${tip.cls}">💡 ${escapeHtml(tip.text)}</div>` : ''}
+    ${prHtml}
+    <div class="train-stats-list">${rows || '<p class="muted">Todavía no hay sesiones con este ejercicio.</p>'}</div>
+  `;
 }
 
 function renderUnitToggle() {
@@ -4116,7 +4814,7 @@ registerScreen('session-edit', {
 
 registerScreen('progress', {
   async onEnter(params, navToken) {
-    state.progressDetailExercise = null;
+    state.progressDetailExercise = (params && params.exercise) || null;
     state.progressOpenGroups.clear();
     await loadProgress(navToken);
   }
@@ -5062,8 +5760,12 @@ document.addEventListener('click', (e) => {
   switch (action) {
     case 'go-train': goTo('train-pick'); break;
     case 'open-exercise-detail':
-      state.progressDetailExercise = t.dataset.exerciseName || null;
-      loadProgress(state.currentScreen === 'progress' ? state.navSeq : null);
+      if (state.currentScreen === 'progress') {
+        state.progressDetailExercise = t.dataset.exerciseName || null;
+        loadProgress(state.navSeq);
+      } else {
+        goTo('progress', { exercise: t.dataset.exerciseName || '' });
+      }
       break;
     case 'progress-back-to-summary':
       state.progressDetailExercise = null;
@@ -5124,6 +5826,10 @@ document.addEventListener('click', (e) => {
     }
     case 'change-train-day': goTo('train-pick'); break;
     case 'add-train-set': addTrainSet(t.dataset.rexId); break;
+    case 'remove-train-set': removeTrainSet(t.dataset.rexId, t.dataset.setNumber); break;
+    case 'add-train-exercise': handleAddTrainExercise(); break;
+    case 'train-exercise-menu': handleTrainExerciseMenu(t.dataset.rexId); break;
+    case 'open-train-stats': openTrainStats(t.dataset.exerciseName); break;
     case 'save-session': runLockedAction('save-session', () => handleSaveSession(t)); break;
     case 'summary-home': goTo('home'); break;
     case 'summary-train-again': goTo('train-pick'); break;
