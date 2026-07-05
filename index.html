@@ -2420,6 +2420,12 @@ function escapeHtml(s) {
 // ============================================================
 // FORMATTERS / UNITS (toggle kg/lb persistido en localStorage)
 // ============================================================
+// Acepta coma o punto como separador decimal (teclados en español muestran coma).
+function parseDecimalInput(val) {
+  if (val == null || val === '') return NaN;
+  return Number(String(val).trim().replace(',', '.'));
+}
+
 const units = {
   KEY: 'gymtracker:units',
   get current() { return localStorage.getItem(this.KEY) || 'kg'; },
@@ -2433,7 +2439,7 @@ const units = {
   },
   fromInput(val) {
     if (val == null || val === '') return null;
-    const n = Number(val);
+    const n = parseDecimalInput(val);
     if (this.current === 'lb') return Math.round((n / this.KG_TO_LB) * 100) / 100;
     return n;
   },
@@ -3749,7 +3755,7 @@ async function exerciseModal({ title, initial }) {
           </div>
           <div>
             <label class="field-label">Peso sugerido (${units.label()}, opcional)</label>
-            <input id="ex-weight" type="number" step="0.5" value="${escapeHtml(v.suggested_weight != null && v.suggested_weight !== '' ? units.toDisplay(v.suggested_weight) : '')}" placeholder="ej. 70" min="0" />
+            <input id="ex-weight" type="text" inputmode="decimal" value="${escapeHtml(v.suggested_weight != null && v.suggested_weight !== '' ? units.toDisplay(v.suggested_weight) : '')}" placeholder="ej. 70" />
           </div>
           <div>
             <label class="field-label">Grupo muscular principal</label>
@@ -3786,7 +3792,7 @@ async function exerciseModal({ title, initial }) {
             const rmin = parseInt($('#ex-rmin').value, 10);
             const rmax = parseInt($('#ex-rmax').value, 10);
             const wRaw = ($('#ex-weight').value || '').trim();
-            const weight = wRaw !== '' ? units.fromInput(Number(wRaw)) : null;
+            const weight = wRaw !== '' ? units.fromInput(wRaw) : null;
             const muscle = ($('#ex-muscle').value || '').trim();
             const note  = ($('#ex-note').value || '').trim();
             const muscleDistribution = normalizeDistributionTotal(distState);
@@ -4308,7 +4314,7 @@ function renderSetRow(ex, setNumber, previousSet) {
     <div class="input-grid train-grid" data-set-row data-rex-id="${escapeHtml(ex.routine_exercise_id)}" data-set-number="${setNumber}">
       <div class="set-number">${setNumber}</div>
       <div class="set-field-group">
-        <input type="number" step="${units.toDisplay(2.5)}" inputmode="decimal" data-field="weight" placeholder="${escapeHtml(previousWeight)}" aria-label="Peso en ${units.label()}" />
+        <input type="text" inputmode="decimal" data-field="weight" placeholder="${escapeHtml(previousWeight)}" aria-label="Peso en ${units.label()}" />
       </div>
       <div class="set-field-group">
         <input type="number" step="1" inputmode="numeric" data-field="reps" placeholder="${escapeHtml(previousReps)}" aria-label="Repeticiones" />
@@ -4346,7 +4352,7 @@ function collectTrainDraft() {
 function draftKgFromInput(value) {
   const raw = (value == null ? '' : String(value)).trim();
   if (raw === '') return '';
-  const n = Number(raw);
+  const n = parseDecimalInput(raw);
   if (isNaN(n)) return null;
   return units.fromInput(n);
 }
@@ -5126,11 +5132,11 @@ function exerciseGoalModal({ exerciseName, goal }) {
           </div>
           <div>
             <label class="field-label">Peso objetivo (${units.label()})</label>
-            <input id="goal-weight" type="number" step="0.5" min="0" value="${escapeHtml(targetWeight)}" placeholder="ej. 100" />
+            <input id="goal-weight" type="text" inputmode="decimal" value="${escapeHtml(targetWeight)}" placeholder="ej. 100" />
           </div>
           <div>
             <label class="field-label">1RM objetivo (${units.label()})</label>
-            <input id="goal-1rm" type="number" step="0.5" min="0" value="${escapeHtml(target1rm)}" placeholder="ej. 120" />
+            <input id="goal-1rm" type="text" inputmode="decimal" value="${escapeHtml(target1rm)}" placeholder="ej. 120" />
           </div>
           <p class="muted-sm">Dejá ambos campos vacíos para borrar la meta.</p>
         </div>
@@ -5142,8 +5148,8 @@ function exerciseGoalModal({ exerciseName, goal }) {
           onClick: () => {
             const wRaw = ($('#goal-weight').value || '').trim();
             const rRaw = ($('#goal-1rm').value || '').trim();
-            const targetWeightKg = wRaw ? units.fromInput(Number(wRaw)) : '';
-            const target1rmKg = rRaw ? units.fromInput(Number(rRaw)) : '';
+            const targetWeightKg = wRaw ? units.fromInput(wRaw) : '';
+            const target1rmKg = rRaw ? units.fromInput(rRaw) : '';
             if (wRaw && (isNaN(targetWeightKg) || targetWeightKg <= 0)) { toast('Peso objetivo inválido', 'error'); return; }
             if (rRaw && (isNaN(target1rmKg) || target1rmKg <= 0)) { toast('1RM objetivo inválido', 'error'); return; }
             modal.close();
@@ -5563,7 +5569,7 @@ function renderEditSetRow(ex, set, fallbackNumber) {
   return `
     <div class="input-grid" data-edit-set-row data-rex-id="${escapeHtml(ex.routine_exercise_id)}" data-set-number="${escapeHtml(set.set_number || fallbackNumber)}">
       <div class="set-number">${escapeHtml(set.set_number || fallbackNumber)}</div>
-      <input type="number" step="0.5" inputmode="decimal" data-field="weight" placeholder="${units.label()}" value="${set.weight == null ? '' : escapeHtml(units.toDisplay(set.weight))}" />
+      <input type="text" inputmode="decimal" data-field="weight" placeholder="${units.label()}" value="${set.weight == null ? '' : escapeHtml(units.toDisplay(set.weight))}" />
       <input type="number" step="1" inputmode="numeric" data-field="reps" placeholder="reps" value="${set.reps == null ? '' : escapeHtml(set.reps)}" />
     </div>
   `;
