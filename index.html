@@ -1791,11 +1791,32 @@
         <div class="eyebrow">Editor</div>
         <h1 class="home-title-link" data-go="home" title="Ir al inicio">Rutinas</h1>
       </div>
-      <button class="ghost-btn" data-action="new-routine">+ Nueva</button>
+      <div style="display:flex;gap:8px;">
+        <button class="ghost-btn" data-go="exercise-library">Mis ejercicios</button>
+        <button class="ghost-btn" data-action="new-routine">+ Nueva</button>
+      </div>
     </div>
 
     <div id="routines-list" class="routine-grid">
       <!-- skeletons inicial -->
+      <div class="skeleton" style="height: 120px;"></div>
+      <div class="skeleton" style="height: 120px;"></div>
+    </div>
+  </section>
+
+  <!-- ============ EXERCISE LIBRARY ============ -->
+  <section id="screen-exercise-library" class="screen">
+    <div class="header-row">
+      <button class="back-btn" data-action="back-to-routines">←</button>
+      <button class="ghost-btn" data-action="add-library-exercise">+ Crear ejercicio</button>
+    </div>
+
+    <div style="margin-bottom: 18px;">
+      <div class="eyebrow">Rutinas</div>
+      <h1 class="home-title-link" data-go="home" title="Ir al inicio">Mis ejercicios</h1>
+    </div>
+
+    <div id="library-list" class="routine-grid">
       <div class="skeleton" style="height: 120px;"></div>
       <div class="skeleton" style="height: 120px;"></div>
     </div>
@@ -2148,6 +2169,7 @@ const state = {
   exerciseMetric: 'weight',
   lastExerciseHistory: null,
   exerciseNameSuggestions: null,
+  exerciseLibrary: null,
   dayExerciseView: 'order',
   homeWeekOffset: 0,
   apiCache: {},
@@ -2171,6 +2193,7 @@ const API_CACHE_TTL = {
   getHistoryData: 300000,
   listBodyweightHistory: 300000,
   listAllExerciseNames: 1800000,
+  listExerciseLibrary: 1800000,
   getProgressSummary: 300000,
   listExerciseHistory: 300000,
   getExerciseGoal: 300000,
@@ -2279,6 +2302,11 @@ function invalidateApiCache(prefixes) {
 function invalidateRoutineCaches() {
   invalidateApiCache(['listRoutines', 'getRoutine', 'getTrainPickData', 'getHomeStats', 'listAllExerciseNames']);
   state.routines = [];
+}
+
+function invalidateLibraryCaches() {
+  invalidateApiCache(['listExerciseLibrary']);
+  state.exerciseLibrary = null;
 }
 
 function invalidateSessionCaches() {
@@ -2501,6 +2529,7 @@ function goTo(screenId, params) {
     setup: 'home',
     home: 'home',
     routines: 'routines',
+    'exercise-library': 'routines',
     'routine-detail': 'routines',
     'day-detail': 'routines',
     'train-pick': 'train',
@@ -2936,6 +2965,123 @@ function renderRoutines(routines) {
       goTo('routine-detail', { routine_id: id });
     });
   });
+}
+
+// ============================================================
+// BIBLIOTECA DE EJERCICIOS — ejercicios reutilizables, sin rutina
+// ============================================================
+registerScreen('exercise-library', {
+  async onEnter(params, navToken) {
+    await loadExerciseLibrary(navToken);
+  }
+});
+
+async function loadExerciseLibrary(navToken) {
+  const loadToken = nextLoadToken('exercise-library');
+  const listEl = $('#library-list');
+  const cached = getApiCache('listExerciseLibrary', [], API_CACHE_TTL.listExerciseLibrary);
+  if (cached) {
+    state.exerciseLibrary = cached;
+    renderLibraryList(cached);
+    return;
+  }
+  if (state.exerciseLibrary && state.exerciseLibrary.length) {
+    renderLibraryList(state.exerciseLibrary);
+  } else {
+    listEl.innerHTML = `
+      <div class="skeleton" style="height: 120px;"></div>
+      <div class="skeleton" style="height: 120px;"></div>
+    `;
+  }
+  try {
+    const items = await cachedGas('listExerciseLibrary', []);
+    if (!isCurrentLoad('exercise-library', loadToken, 'exercise-library', navToken)) return;
+    state.exerciseLibrary = items;
+    renderLibraryList(items);
+  } catch (err) {
+    if (!isCurrentLoad('exercise-library', loadToken, 'exercise-library', navToken)) return;
+    listEl.innerHTML = `<p class="muted">Error: ${escapeHtml(err.message)}</p>`;
+    toast('No se pudieron cargar tus ejercicios', 'error');
+  }
+}
+
+function renderLibraryList(items) {
+  const listEl = $('#library-list');
+  if (!items.length) {
+    listEl.innerHTML = `
+      <div class="empty-state">
+        <div class="emoji">🏋️</div>
+        <h3>Sin ejercicios guardados</h3>
+        <p class="muted">Tocá <b>+ Crear ejercicio</b> arriba para dejar el primero listo y configurado.</p>
+      </div>
+    `;
+    return;
+  }
+  listEl.innerHTML = items.map(e => `
+    <div class="card" style="margin-bottom:10px;">
+      <div class="card-row" style="align-items:flex-start;">
+        <div style="flex:1;min-width:0;">
+          <h3 style="margin-bottom:4px;word-break:break-word;">${escapeHtml(e.exercise_name)}</h3>
+          <p class="muted" style="font-size:12px;">${e.target_sets} series · ${e.target_reps_min}–${e.target_reps_max} reps${e.suggested_weight != null && e.suggested_weight !== '' ? ' · ' + units.toDisplay(e.suggested_weight) + ' ' + units.label() : ''}</p>
+          ${e.muscle_group ? `<span class="pill" style="margin-top:8px;">${escapeHtml(formatMuscleGroup(e.muscle_group))}</span>` : ''}
+          ${renderMuscleDistributionChips(getExerciseMuscleDistribution(e), { limit: 3 })}
+          ${e.technique_note ? `<p class="muted-sm" style="margin-top:4px;">${escapeHtml(e.technique_note)}</p>` : ''}
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;margin-left:8px;">
+          <button class="ghost-btn" data-action="edit-library-exercise" data-ex-id="${escapeHtml(e.exercise_id)}" style="padding:8px 10px;font-size:13px;">Editar</button>
+          <button class="ghost-btn danger" data-action="delete-library-exercise" data-ex-id="${escapeHtml(e.exercise_id)}" style="padding:8px 10px;font-size:13px;">✕</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function handleAddLibraryExercise(button) {
+  const data = await exerciseModal({ title: 'Nuevo ejercicio' });
+  if (!data) return;
+  try {
+    await withButtonLoading(button, gas.createLibraryExercise(data), 'Guardando');
+    invalidateLibraryCaches();
+    await loadExerciseLibrary();
+    toast('Ejercicio guardado', 'success');
+  } catch (err) {
+    toast(err.message || 'Error al guardar', 'error');
+  }
+}
+
+async function handleEditLibraryExercise(exId, button) {
+  const ex = (state.exerciseLibrary || []).find(e => e.exercise_id === exId);
+  if (!ex) return;
+  const data = await exerciseModal({ title: 'Editar ejercicio', initial: ex });
+  if (!data) return;
+  try {
+    await withButtonLoading(button, gas.updateLibraryExercise(Object.assign({ exercise_id: exId }, data)), 'Guardando');
+    invalidateLibraryCaches();
+    await loadExerciseLibrary();
+    toast('Ejercicio actualizado', 'success');
+  } catch (err) {
+    toast(err.message || 'Error al actualizar', 'error');
+  }
+}
+
+async function handleDeleteLibraryExercise(exId) {
+  const ex = (state.exerciseLibrary || []).find(e => e.exercise_id === exId);
+  if (!ex) return;
+  const ok = await confirmModal({
+    title: 'Borrar ejercicio',
+    message: `¿Borrar "${ex.exercise_name}" de tu biblioteca? Esto no afecta rutinas ni sesiones ya guardadas.`,
+    confirmText: 'Borrar',
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    await gas.deleteLibraryExercise({ exercise_id: exId });
+    invalidateLibraryCaches();
+    await loadExerciseLibrary();
+    toast('Ejercicio borrado', 'success');
+  } catch (err) {
+    toast(err.message || 'Error al borrar', 'error');
+  }
 }
 
 function renderDays(days) {
@@ -3482,6 +3628,16 @@ function getExerciseMuscleDistribution(exercise) {
     exercise && exercise.muscle_group,
     exercise && exercise.exercise_name
   );
+}
+
+// Overlap entre dos distribuciones musculares ya normalizadas (~100% c/u).
+// Da un 0-100% intuitivo: dos ejercicios que trabajan los mismos músculos
+// en la misma proporción coinciden 100%.
+function computeMuscleMatchPercent(distA, distB) {
+  const keys = new Set([...Object.keys(distA || {}), ...Object.keys(distB || {})]);
+  let overlap = 0;
+  keys.forEach(k => { overlap += Math.min(Number((distA || {})[k]) || 0, Number((distB || {})[k]) || 0); });
+  return Math.round(overlap);
 }
 
 function formatMuscleSubzone(value) {
@@ -4555,15 +4711,67 @@ function buildSessionExercise_(name, muscle, sets, known) {
   };
 }
 
-async function trainExercisePicker({ title, confirmLabel, defaultSets }) {
+// Igual que buildSessionExercise_ pero a partir de un ejercicio de la
+// biblioteca (Exercise_Library) en vez de uno "known" de la rutina actual.
+function buildSessionExerciseFromLibrary_(libEx, sets) {
+  return {
+    routine_exercise_id: 'adhoc_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    exercise_name: libEx.exercise_name,
+    muscle_group: normalizeMuscleGroupValue(libEx.muscle_group),
+    muscleDistribution: getExerciseMuscleDistribution(libEx),
+    target_sets: sets || Number(libEx.target_sets) || 3,
+    target_reps_min: Number(libEx.target_reps_min) || 8,
+    target_reps_max: Number(libEx.target_reps_max) || 12,
+    technique_note: libEx.technique_note || '',
+  };
+}
+
+function renderTrainLibraryPicks(items, referenceDistribution) {
+  if (!items || !items.length) {
+    return `<p class="muted-sm">Todavía no tenés ejercicios en <b>Rutinas → Mis ejercicios</b>.</p>`;
+  }
+  const scored = items.map(ex => ({
+    ex,
+    match: referenceDistribution ? computeMuscleMatchPercent(referenceDistribution, getExerciseMuscleDistribution(ex)) : null,
+  }));
+  const groups = groupExercisesByMuscle(items);
+  return groups.map(group => {
+    const rows = group.exercises
+      .map(ex => scored.find(s => s.ex === ex))
+      .sort((a, b) => (b.match || 0) - (a.match || 0) || a.ex.exercise_name.localeCompare(b.ex.exercise_name));
+    return `
+      <div style="margin-bottom:8px;">
+        <div class="muted-sm" style="margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em;">${escapeHtml(formatMuscleGroup(group.value))}</div>
+        ${rows.map(({ ex, match }) => `
+          <div class="card tx-lib-row" data-ex-id="${escapeHtml(ex.exercise_id)}" style="padding:10px 12px;margin-bottom:6px;cursor:pointer;">
+            <div class="card-row">
+              <div style="min-width:0;">
+                <h3 style="margin:0 0 2px;font-size:14px;word-break:break-word;">${escapeHtml(ex.exercise_name)}</h3>
+                <p class="muted-sm">${ex.target_sets} series · ${ex.target_reps_min}–${ex.target_reps_max} reps</p>
+              </div>
+              ${match != null ? `<span class="pill accent" style="flex-shrink:0;">${match}%</span>` : ''}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  }).join('');
+}
+
+async function trainExercisePicker({ title, confirmLabel, defaultSets, referenceDistribution }) {
   const suggestions = getLocalExerciseNameSuggestions();
+  const libraryItems = state.exerciseLibrary || [];
   return new Promise((resolve) => {
     modal.open({
       title,
       bodyHtml: `
         <div style="display:grid;gap:12px;">
           <div>
-            <label class="field-label">Ejercicio</label>
+            <label class="field-label">Tus ejercicios</label>
+            <div id="tx-library-list" style="max-height:260px;overflow-y:auto;">${renderTrainLibraryPicks(libraryItems, referenceDistribution)}</div>
+          </div>
+          <div style="border-top:1px solid var(--border);padding-top:12px;">
+            <label class="field-label">O escribí uno nuevo</label>
             <input id="tx-name" type="text" list="train-ex-suggestions" placeholder="Sentadillas" maxlength="100" />
             <datalist id="train-ex-suggestions">${renderExerciseNameOptions(suggestions)}</datalist>
             <p class="muted-sm" id="tx-hint" style="margin-top:6px;"></p>
@@ -4589,7 +4797,7 @@ async function trainExercisePicker({ title, confirmLabel, defaultSets }) {
           kind: 'primary',
           onClick: () => {
             const name = ($('#tx-name').value || '').trim();
-            if (!name) { toast('Escribí el nombre del ejercicio', 'error'); return; }
+            if (!name) { toast('Escribí el nombre del ejercicio, o tocá uno de arriba', 'error'); return; }
             const sets = parseInt($('#tx-sets').value, 10);
             if (isNaN(sets) || sets < 1 || sets > 20) { toast('Series: 1-20', 'error'); return; }
             const known = findKnownExercise_(name);
@@ -4603,6 +4811,24 @@ async function trainExercisePicker({ title, confirmLabel, defaultSets }) {
         { label: 'Cancelar', onClick: () => { modal.close(); resolve(null); } },
       ]
     });
+    let currentLibraryItems = libraryItems;
+    const bindLibraryRowClicks = () => {
+      $$('#tx-library-list .tx-lib-row').forEach(row => {
+        row.addEventListener('click', () => {
+          const libEx = currentLibraryItems.find(e => e.exercise_id === row.dataset.exId);
+          if (!libEx) return;
+          modal.close();
+          resolve(buildSessionExerciseFromLibrary_(libEx, defaultSets));
+        });
+      });
+    };
+    bindLibraryRowClicks();
+    cachedGas('listExerciseLibrary', []).then(items => {
+      state.exerciseLibrary = items;
+      currentLibraryItems = items;
+      const list = $('#tx-library-list');
+      if (list) { list.innerHTML = renderTrainLibraryPicks(items, referenceDistribution); bindLibraryRowClicks(); }
+    }).catch(() => {});
     loadExerciseNameSuggestions().then(names => {
       const list = $('#train-ex-suggestions');
       if (list) list.innerHTML = renderExerciseNameOptions(names);
@@ -4622,7 +4848,6 @@ async function trainExercisePicker({ title, confirmLabel, defaultSets }) {
     const muscleSelect = $('#tx-muscle');
     if (nameInput) nameInput.addEventListener('input', updateHint);
     if (muscleSelect) muscleSelect.addEventListener('change', updateHint);
-    setTimeout(() => { const i = $('#tx-name'); if (i) i.focus(); }, 50);
   });
 }
 
@@ -4646,6 +4871,7 @@ async function handleSwapTrainExercise(rexId) {
     title: `Cambiar ${ex.exercise_name}`,
     confirmLabel: 'Cambiar',
     defaultSets: ex.target_sets,
+    referenceDistribution: ex.muscleDistribution,
   });
   if (!data) return;
   const idx = state.trainExercises.findIndex(e => e.routine_exercise_id === rexId);
@@ -5818,6 +6044,9 @@ document.addEventListener('click', (e) => {
     case 'add-exercise': handleAddExercise(t); break;
     case 'edit-exercise': handleEditExercise(t.dataset.rexId, t); break;
     case 'delete-exercise': handleDeleteExercise(t.dataset.rexId); break;
+    case 'add-library-exercise': handleAddLibraryExercise(t); break;
+    case 'edit-library-exercise': handleEditLibraryExercise(t.dataset.exId, t); break;
+    case 'delete-library-exercise': handleDeleteLibraryExercise(t.dataset.exId); break;
     case 'reorder-day': handleReorderDay(t.dataset.dayId, t.dataset.direction); break;
     case 'reorder-exercise': handleReorderExercise(t.dataset.rexId, t.dataset.direction); break;
     case 'refresh-train-pick':

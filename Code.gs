@@ -19,6 +19,7 @@ const SHEETS = {
   SETS: 'Session_Sets',
   GOALS: 'Exercise_Goals',
   NUTRITION: 'Nutrition',
+  LIBRARY: 'Exercise_Library',
 };
 
 const HEADERS = {
@@ -47,6 +48,10 @@ const HEADERS = {
   [SHEETS.NUTRITION]: [
     'date', 'weight', 'water', 'kcal', 'protein', 'fat', 'carbs', 'steps', 'notes', 'trained'
   ],
+  [SHEETS.LIBRARY]: [
+    'exercise_id', 'exercise_name', 'target_sets', 'target_reps_min', 'target_reps_max',
+    'suggested_weight', 'technique_note', 'muscle_group', 'muscle_distribution', 'created_at'
+  ],
 };
 
 let READ_CACHE_ = {};
@@ -69,6 +74,7 @@ const READ_API_CACHE_SECONDS_ = {
   listSessionDates: 1800,
   listBodyweightHistory: 1800,
   listAllExerciseNames: 3600,
+  listExerciseLibrary: 3600,
   getProgressExerciseData: 1800,
   getProgressSummary: 1800,
   listExerciseHistory: 1800,
@@ -93,6 +99,9 @@ const WRITE_API_ = {
   updateExercise: true,
   deleteExercise: true,
   reorderExercise: true,
+  createLibraryExercise: true,
+  updateLibraryExercise: true,
+  deleteLibraryExercise: true,
   saveSession: true,
   editSession: true,
   deleteSession: true,
@@ -210,6 +219,10 @@ function getApi_() {
     updateExercise,
     deleteExercise,
     reorderExercise,
+    listExerciseLibrary,
+    createLibraryExercise,
+    updateLibraryExercise,
+    deleteLibraryExercise,
     getActiveRoutine,
     getTrainPickData,
     getLastSessionForDay,
@@ -1497,6 +1510,126 @@ function reorderExercise(params) {
 
   const day = readAll_(SHEETS.DAYS).find(d => d.day_id === ex.day_id);
   return getRoutine(day.routine_id);
+}
+
+// ============================================================
+// BIBLIOTECA DE EJERCICIOS — ejercicios reutilizables, sin rutina
+// ============================================================
+
+function listExerciseLibrary() {
+  return readAll_(SHEETS.LIBRARY)
+    .sort((a, b) => (a.exercise_name || '').localeCompare(b.exercise_name || ''));
+}
+
+function createLibraryExercise(params) {
+  const exercise_name = (params.exercise_name || '').toString().trim();
+  const target_sets   = parseInt(params.target_sets,     10);
+  const rmin          = parseInt(params.target_reps_min, 10);
+  const rmax          = parseInt(params.target_reps_max, 10);
+  const swRaw         = params.suggested_weight;
+  const technique_note = (params.technique_note || '').toString().trim();
+  const muscle_group = normalizeMuscleGroup_(params.muscle_group);
+  const muscle_distribution = serializeMuscleDistribution_(
+    params.muscleDistribution !== undefined ? params.muscleDistribution : params.muscle_distribution,
+    muscle_group,
+    exercise_name
+  );
+
+  if (!exercise_name) throw new Error('El nombre del ejercicio no puede estar vacío.');
+  if (exercise_name.length > 100) throw new Error('Nombre demasiado largo (max 100 caracteres).');
+  if (isNaN(target_sets) || target_sets < 1 || target_sets > 20) throw new Error('target_sets debe ser 1-20.');
+  if (isNaN(rmin) || rmin < 1 || rmin > 100) throw new Error('target_reps_min debe ser 1-100.');
+  if (isNaN(rmax) || rmax < 1 || rmax > 100) throw new Error('target_reps_max debe ser 1-100.');
+  if (rmin > rmax) throw new Error('target_reps_min no puede ser mayor que target_reps_max.');
+  if (!muscle_group) throw new Error('Elegí el grupo muscular principal.');
+
+  let suggested_weight = '';
+  if (swRaw !== undefined && swRaw !== null && swRaw !== '') {
+    const n = Number(swRaw);
+    if (isNaN(n) || n < 0) throw new Error('El peso sugerido debe ser ≥ 0.');
+    suggested_weight = n;
+  }
+
+  return appendRow_(SHEETS.LIBRARY, {
+    exercise_id: genId_('lex'),
+    exercise_name,
+    target_sets,
+    target_reps_min: rmin,
+    target_reps_max: rmax,
+    suggested_weight,
+    technique_note,
+    muscle_group,
+    muscle_distribution,
+    created_at: nowIso_(),
+  });
+}
+
+function updateLibraryExercise(params) {
+  const exercise_id = (params.exercise_id || '').toString().trim();
+  if (!exercise_id) throw new Error('exercise_id requerido.');
+
+  const ex = readAll_(SHEETS.LIBRARY).find(e => e.exercise_id === exercise_id);
+  if (!ex) throw new Error('Ejercicio no encontrado.');
+
+  const partial = {};
+
+  if (params.exercise_name !== undefined) {
+    const name = params.exercise_name.toString().trim();
+    if (!name) throw new Error('El nombre no puede estar vacío.');
+    if (name.length > 100) throw new Error('Nombre demasiado largo (max 100 caracteres).');
+    partial.exercise_name = name;
+  }
+  if (params.target_sets !== undefined) {
+    const ts = parseInt(params.target_sets, 10);
+    if (isNaN(ts) || ts < 1 || ts > 20) throw new Error('target_sets debe ser 1-20.');
+    partial.target_sets = ts;
+  }
+  if (params.target_reps_min !== undefined || params.target_reps_max !== undefined) {
+    const rmin = parseInt(params.target_reps_min !== undefined ? params.target_reps_min : ex.target_reps_min, 10);
+    const rmax = parseInt(params.target_reps_max !== undefined ? params.target_reps_max : ex.target_reps_max, 10);
+    if (isNaN(rmin) || rmin < 1 || rmin > 100) throw new Error('target_reps_min debe ser 1-100.');
+    if (isNaN(rmax) || rmax < 1 || rmax > 100) throw new Error('target_reps_max debe ser 1-100.');
+    if (rmin > rmax) throw new Error('target_reps_min no puede ser mayor que target_reps_max.');
+    partial.target_reps_min = rmin;
+    partial.target_reps_max = rmax;
+  }
+  if (params.suggested_weight !== undefined) {
+    if (params.suggested_weight === '' || params.suggested_weight === null) {
+      partial.suggested_weight = '';
+    } else {
+      const sw = Number(params.suggested_weight);
+      if (isNaN(sw) || sw < 0) throw new Error('El peso sugerido debe ser ≥ 0.');
+      partial.suggested_weight = sw;
+    }
+  }
+  if (params.technique_note !== undefined) {
+    partial.technique_note = params.technique_note.toString().trim();
+  }
+  if (params.muscle_group !== undefined) {
+    const muscleGroup = normalizeMuscleGroup_(params.muscle_group);
+    if (!muscleGroup) throw new Error('Elegí el grupo muscular principal.');
+    partial.muscle_group = muscleGroup;
+  }
+  if (
+    params.muscleDistribution !== undefined ||
+    params.muscle_distribution !== undefined ||
+    partial.exercise_name !== undefined ||
+    partial.muscle_group !== undefined
+  ) {
+    const nextName = partial.exercise_name !== undefined ? partial.exercise_name : ex.exercise_name;
+    const nextGroup = partial.muscle_group !== undefined ? partial.muscle_group : normalizeMuscleGroup_(ex.muscle_group);
+    const rawDistribution = params.muscleDistribution !== undefined ? params.muscleDistribution : params.muscle_distribution;
+    partial.muscle_distribution = serializeMuscleDistribution_(rawDistribution, nextGroup, nextName);
+  }
+
+  return updateRowById_(SHEETS.LIBRARY, 'exercise_id', exercise_id, partial);
+}
+
+function deleteLibraryExercise(params) {
+  const exercise_id = (params.exercise_id || '').toString().trim();
+  if (!exercise_id) throw new Error('exercise_id requerido.');
+  deleteRowById_(SHEETS.LIBRARY, 'exercise_id', exercise_id);
+  return { deleted: true };
 }
 
 // ============================================================
