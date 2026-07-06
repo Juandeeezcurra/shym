@@ -3020,13 +3020,23 @@ function renderLibraryList(items) {
     `;
     return;
   }
-  listEl.innerHTML = items.map(e => `
+  const groups = groupExercisesByMuscle(items);
+  listEl.innerHTML = groups.map(group => `
+    <div class="muscle-group-title" style="grid-column:1/-1;">
+      <h2 style="margin:0;">${escapeHtml(formatMuscleGroup(group.value))}</h2>
+      <span class="pill">${group.exercises.length} ejercicio${group.exercises.length === 1 ? '' : 's'}</span>
+    </div>
+    ${group.exercises.map(e => renderLibraryCard(e)).join('')}
+  `).join('');
+}
+
+function renderLibraryCard(e) {
+  return `
     <div class="card" style="margin-bottom:10px;">
       <div class="card-row" style="align-items:flex-start;">
         <div style="flex:1;min-width:0;">
           <h3 style="margin-bottom:4px;word-break:break-word;">${escapeHtml(e.exercise_name)}</h3>
           <p class="muted" style="font-size:12px;">${e.target_sets} series · ${e.target_reps_min}–${e.target_reps_max} reps${e.suggested_weight != null && e.suggested_weight !== '' ? ' · ' + units.toDisplay(e.suggested_weight) + ' ' + units.label() : ''}</p>
-          ${e.muscle_group ? `<span class="pill" style="margin-top:8px;">${escapeHtml(formatMuscleGroup(e.muscle_group))}</span>` : ''}
           ${renderMuscleDistributionChips(getExerciseMuscleDistribution(e), { limit: 3 })}
           ${e.technique_note ? `<p class="muted-sm" style="margin-top:4px;">${escapeHtml(e.technique_note)}</p>` : ''}
         </div>
@@ -3036,7 +3046,7 @@ function renderLibraryList(items) {
         </div>
       </div>
     </div>
-  `).join('');
+  `;
 }
 
 async function handleAddLibraryExercise(button) {
