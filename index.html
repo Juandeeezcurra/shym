@@ -1808,7 +1808,10 @@
   <section id="screen-exercise-library" class="screen">
     <div class="header-row">
       <button class="back-btn" data-action="back-to-routines">←</button>
-      <button class="ghost-btn" data-action="add-library-exercise">+ Crear ejercicio</button>
+      <div style="display:flex;gap:8px;">
+        <button class="ghost-btn" data-action="import-library-from-routines">Importar de rutinas</button>
+        <button class="ghost-btn" data-action="add-library-exercise">+ Crear ejercicio</button>
+      </div>
     </div>
 
     <div style="margin-bottom: 18px;">
@@ -3012,7 +3015,7 @@ function renderLibraryList(items) {
       <div class="empty-state">
         <div class="emoji">🏋️</div>
         <h3>Sin ejercicios guardados</h3>
-        <p class="muted">Tocá <b>+ Crear ejercicio</b> arriba para dejar el primero listo y configurado.</p>
+        <p class="muted">Tocá <b>+ Crear ejercicio</b> para armar uno nuevo, o <b>Importar de rutinas</b> para traer los que ya tenés configurados en tus rutinas.</p>
       </div>
     `;
     return;
@@ -3061,6 +3064,19 @@ async function handleEditLibraryExercise(exId, button) {
     toast('Ejercicio actualizado', 'success');
   } catch (err) {
     toast(err.message || 'Error al actualizar', 'error');
+  }
+}
+
+async function handleImportLibraryFromRoutines(button) {
+  try {
+    const result = await withButtonLoading(button, gas.importRoutineExercisesToLibrary(), 'Importando');
+    invalidateLibraryCaches();
+    state.exerciseLibrary = result.library;
+    setApiCache('listExerciseLibrary', [], result.library);
+    renderLibraryList(result.library);
+    toast(result.imported ? `${result.imported} ejercicio${result.imported === 1 ? '' : 's'} importado${result.imported === 1 ? '' : 's'}` : 'No había ejercicios nuevos para importar', 'success');
+  } catch (err) {
+    toast(err.message || 'Error al importar', 'error');
   }
 }
 
@@ -6045,6 +6061,7 @@ document.addEventListener('click', (e) => {
     case 'edit-exercise': handleEditExercise(t.dataset.rexId, t); break;
     case 'delete-exercise': handleDeleteExercise(t.dataset.rexId); break;
     case 'add-library-exercise': handleAddLibraryExercise(t); break;
+    case 'import-library-from-routines': handleImportLibraryFromRoutines(t); break;
     case 'edit-library-exercise': handleEditLibraryExercise(t.dataset.exId, t); break;
     case 'delete-library-exercise': handleDeleteLibraryExercise(t.dataset.exId); break;
     case 'reorder-day': handleReorderDay(t.dataset.dayId, t.dataset.direction); break;

@@ -102,6 +102,7 @@ const WRITE_API_ = {
   createLibraryExercise: true,
   updateLibraryExercise: true,
   deleteLibraryExercise: true,
+  importRoutineExercisesToLibrary: true,
   saveSession: true,
   editSession: true,
   deleteSession: true,
@@ -223,6 +224,7 @@ function getApi_() {
     createLibraryExercise,
     updateLibraryExercise,
     deleteLibraryExercise,
+    importRoutineExercisesToLibrary,
     getActiveRoutine,
     getTrainPickData,
     getLastSessionForDay,
@@ -1630,6 +1632,39 @@ function deleteLibraryExercise(params) {
   if (!exercise_id) throw new Error('exercise_id requerido.');
   deleteRowById_(SHEETS.LIBRARY, 'exercise_id', exercise_id);
   return { deleted: true };
+}
+
+// Copia a la biblioteca los ejercicios que ya existen en cualquier rutina
+// (uno por nombre, el primero que encuentra), sin duplicar los que ya
+// estén en la biblioteca. Aditivo: nunca sobrescribe ni borra nada.
+function importRoutineExercisesToLibrary() {
+  const existingNames = {};
+  readAll_(SHEETS.LIBRARY).forEach(e => {
+    const key = (e.exercise_name || '').toString().trim().toLowerCase();
+    if (key) existingNames[key] = true;
+  });
+
+  let imported = 0;
+  readAll_(SHEETS.EXERCISES).forEach(e => {
+    const key = (e.exercise_name || '').toString().trim().toLowerCase();
+    if (!key || existingNames[key]) return;
+    existingNames[key] = true;
+    appendRow_(SHEETS.LIBRARY, {
+      exercise_id: genId_('lex'),
+      exercise_name: e.exercise_name,
+      target_sets: e.target_sets,
+      target_reps_min: e.target_reps_min,
+      target_reps_max: e.target_reps_max,
+      suggested_weight: e.suggested_weight,
+      technique_note: e.technique_note,
+      muscle_group: e.muscle_group,
+      muscle_distribution: e.muscle_distribution,
+      created_at: nowIso_(),
+    });
+    imported++;
+  });
+
+  return { imported, library: listExerciseLibrary() };
 }
 
 // ============================================================
