@@ -56,6 +56,11 @@ const HEADERS = {
 
 let READ_CACHE_ = {};
 
+// Targets del plan de nutrición del usuario. El de calorías se puede ajustar
+// en runtime (Script Properties, key 'nutrition_target_kcal') vía getWeeklyAdjustment.
+const NUTRITION_DEFAULT_KCAL_TARGET_ = 2050;
+const NUTRITION_PROTEIN_TARGET_ = 155;
+
 // Toda escritura pasa por la app y bumpea api_cache_version, así que estos
 // TTLs pueden ser largos sin riesgo de servir datos viejos tras un cambio.
 // Solo getHomeStats/getWeekActivity dependen de "hoy" → TTL más corto.
@@ -82,6 +87,10 @@ const READ_API_CACHE_SECONDS_ = {
   getVolumeByMuscle: 1800,
   getMuscleHeatmap: 1800,
   getExerciseGoal: 1800,
+  getNutritionDay: 300,
+  listNutritionHistory: 1800,
+  getWeeklyAdjustment: 600,
+  getNutritionHomeStats: 600,
 };
 
 const WRITE_API_ = {
@@ -108,6 +117,7 @@ const WRITE_API_ = {
   deleteSession: true,
   setExerciseGoal: true,
   migrateHistoricalSnapshots: true,
+  saveNutritionDay: true,
 };
 
 // ============================================================
@@ -248,6 +258,11 @@ function getApi_() {
     getExerciseGoal,
     setExerciseGoal,
     migrateHistoricalSnapshots,
+    saveNutritionDay,
+    getNutritionDay,
+    listNutritionHistory,
+    getWeeklyAdjustment,
+    getNutritionHomeStats,
   };
 }
 
@@ -2895,6 +2910,259 @@ function buildSessionListItem_(session, sessionSets, routine, day) {
       acc[set.routine_exercise_id || set.exercise_name] = true;
       return acc;
     }, {})).length,
+  };
+}
+
+// ============================================================
+// NUTRITION API
+// ============================================================
+// 'date' (yyyy-MM-dd) es la clave natural de esta sheet. Sheets convierte
+// strings con forma de fecha a objetos Date al escribirlos (por eso
+// normalizeDate_ ya sabe leer ambos formatos), así que el upsert acá NO usa
+// findRowIndex_/updateRowById_ genéricos (comparan con === estricto y nunca
+// matchearían un Date contra el string 'date') — usa su propio lookup que
+// normaliza ambos lados antes de comparar.
+
+function findNutritionRowIndex_(date) {
+  const sh = getSheet_(SHEETS.NUTRITION);
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return -1;
+  const headers = HEADERS[SHEETS.NUTRITION];
+  const dateCol = headers.indexOf('date') + 1;
+  const values = sh.getRange(2, dateCol, lastRow - 1, 1).getValues();
+  for (let i = 0; i < values.length; i++) {
+    if (normalizeDate_(values[i][0]) === date) return i + 2;
+  }
+  return -1;
+}
+
+function writeNutritionRow_(rowIndex, partial) {
+  const sh = getSheet_(SHEETS.NUTRITION);
+  const headers = HEADERS[SHEETS.NUTRITION];
+  const current = sh.getRange(rowIndex, 1, 1, headers.length).getValues()[0];
+  const updated = headers.map((h, i) => partial[h] !== undefined ? partial[h] : current[i]);
+  sh.getRange(rowIndex, 1, 1, headers.length).setValues([updated]);
+  invalidateReadCache_(SHEETS.NUTRITION);
+  const obj = {};
+  headers.forEach((h, i) => { obj[h] = updated[i]; });
+  return obj;
+}
+
+function nutritionNumOrNull_(value) {
+  return (value === '' || value === undefined || value === null) ? null : Number(value);
+}
+
+function parseNutritionRecord_(row) {
+  if (!row) return null;
+  return {
+    date: normalizeDate_(row.date),
+    weight: nutritionNumOrNull_(row.weight),
+    water: nutritionNumOrNull_(row.water),
+    kcal: nutritionNumOrNull_(row.kcal),
+    protein: nutritionNumOrNull_(row.protein),
+    fat: nutritionNumOrNull_(row.fat),
+    carbs: nutritionNumOrNull_(row.carbs),
+    steps: nutritionNumOrNull_(row.steps),
+    notes: row.notes || '',
+    trained: (row.trained === '' || row.trained === undefined || row.trained === null) ? null : isTrue_(row.trained),
+  };
+}
+
+function getNutritionTargetKcal_() {
+  const stored = PropertiesService.getScriptProperties().getProperty('nutrition_target_kcal');
+  const n = Number(stored);
+  return stored && !isNaN(n) && n > 0 ? n : NUTRITION_DEFAULT_KCAL_TARGET_;
+}
+
+function setNutritionTargetKcal_(value) {
+  try {
+    PropertiesService.getScriptProperties().setProperty('nutrition_target_kcal', String(value));
+  } catch (err) {
+    // PropertiesService es oportunista: si falla no bloquea el cálculo del ajuste.
+  }
+}
+
+function nutritionAvg_(nums) {
+  const sum = nums.reduce((a, b) => a + b, 0);
+  return Math.round((sum / nums.length) * 100) / 100;
+}
+
+function saveNutritionDay(params) {
+  params = params || {};
+  const date = normalizeDate_(params.date);
+  const weight = normalizeOptionalNumber_(params.weight, 'weight');
+  validateBodyweight_(weight);
+  const kcal = normalizeOptionalNumber_(params.kcal, 'kcal');
+  if (weight === null && kcal === null) throw new Error('Cargá al menos peso o calorías.');
+
+  const protein = normalizeOptionalNumber_(params.protein, 'protein');
+  const fat = normalizeOptionalNumber_(params.fat, 'fat');
+  const carbs = normalizeOptionalNumber_(params.carbs, 'carbs');
+  const water = normalizeOptionalNumber_(params.water, 'water');
+  const steps = normalizeOptionalInteger_(params.steps, 'steps');
+  const notes = (params.notes || '').toString().trim();
+  const trained = (params.trained === undefined || params.trained === null || params.trained === '')
+    ? ''
+    : !!params.trained;
+
+  const partial = {
+    date,
+    weight: weight === null ? '' : weight,
+    kcal: kcal === null ? '' : kcal,
+    protein: protein === null ? '' : protein,
+    fat: fat === null ? '' : fat,
+    carbs: carbs === null ? '' : carbs,
+    water: water === null ? '' : water,
+    steps: steps === null ? '' : steps,
+    notes,
+    trained,
+  };
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const rowIndex = findNutritionRowIndex_(date);
+    const saved = rowIndex > 0
+      ? writeNutritionRow_(rowIndex, partial)
+      : appendRow_(SHEETS.NUTRITION, partial);
+    return parseNutritionRecord_(saved);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function getNutritionDay(params) {
+  params = params || {};
+  const date = normalizeDate_(params.date);
+  const row = readAll_(SHEETS.NUTRITION).find(r => normalizeDate_(r.date) === date);
+  return row ? parseNutritionRecord_(row) : null;
+}
+
+function listNutritionHistory(params) {
+  params = params || {};
+  const limit = Math.max(1, Number(params.limit) || 60);
+  return readAll_(SHEETS.NUTRITION)
+    .map(parseNutritionRecord_)
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, limit);
+}
+
+function getWeeklyAdjustment() {
+  const rows = readAll_(SHEETS.NUTRITION)
+    .map(parseNutritionRecord_)
+    .filter(r => r.weight !== null)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const byWeek = {};
+  rows.forEach(r => {
+    const weekStart = getWeekRange_(r.date).start;
+    if (!byWeek[weekStart]) byWeek[weekStart] = [];
+    byWeek[weekStart].push(r.weight);
+  });
+
+  const weeksWithEnough = Object.keys(byWeek)
+    .filter(w => byWeek[w].length >= 3)
+    .sort();
+
+  const today = todayIso_();
+  const currentWeekStart = getWeekRange_(today).start;
+  const currentWeekCount = (byWeek[currentWeekStart] || []).length;
+
+  if (currentWeekCount < 3) {
+    return {
+      current_week_avg: currentWeekCount ? nutritionAvg_(byWeek[currentWeekStart]) : null,
+      prev_week_avg: null,
+      delta_kg: null,
+      weeks_of_data: weeksWithEnough.length,
+      verdict: 'sin_datos',
+      message: 'Pesate 3-4 mañanas esta semana para calcular el ajuste.',
+      target_calories: null,
+    };
+  }
+
+  const last2 = weeksWithEnough.slice(-2);
+  const hasPrevWeek = last2.length === 2 && last2[1] === currentWeekStart;
+  if (!hasPrevWeek) {
+    return {
+      current_week_avg: nutritionAvg_(byWeek[currentWeekStart]),
+      prev_week_avg: null,
+      delta_kg: null,
+      weeks_of_data: weeksWithEnough.length,
+      verdict: 'sin_datos',
+      message: 'Necesitás una semana más de datos para comparar el promedio.',
+      target_calories: null,
+    };
+  }
+
+  const prevWeekStart = last2[0];
+  const currentAvg = nutritionAvg_(byWeek[currentWeekStart]);
+  const prevAvg = nutritionAvg_(byWeek[prevWeekStart]);
+  const delta = Math.round((currentAvg - prevAvg) * 100) / 100;
+  const currentTarget = getNutritionTargetKcal_();
+
+  let verdict, message;
+  let targetCalories = null;
+  if (delta > -0.3) {
+    verdict = 'estancado';
+    targetCalories = Math.round(currentTarget - 150);
+    message = 'Estancado — bajá ~150 kcal (nuevo target: ' + targetCalories + ').';
+  } else if (delta < -0.7) {
+    verdict = 'muy_rapido';
+    targetCalories = Math.round(currentTarget + 150);
+    message = 'Muy rápido, sumá ~150 kcal para no perder músculo (nuevo target: ' + targetCalories + ').';
+  } else {
+    verdict = 'bajando_bien';
+    message = 'Vas bien, seguí igual.';
+  }
+
+  if (targetCalories !== null && targetCalories !== currentTarget) {
+    setNutritionTargetKcal_(targetCalories);
+  }
+
+  return {
+    current_week_avg: currentAvg,
+    prev_week_avg: prevAvg,
+    delta_kg: delta,
+    weeks_of_data: weeksWithEnough.length,
+    verdict,
+    message,
+    target_calories: targetCalories,
+  };
+}
+
+function getNutritionHomeStats() {
+  const today = todayIso_();
+  const rows = readAll_(SHEETS.NUTRITION).map(parseNutritionRecord_);
+  const byDate = {};
+  rows.forEach(r => { byDate[r.date] = r; });
+
+  const todayRecord = byDate[today] || null;
+  const todayStats = {
+    logged: !!todayRecord && (todayRecord.weight !== null || todayRecord.kcal !== null),
+    weight: todayRecord ? todayRecord.weight : null,
+    kcal: todayRecord ? todayRecord.kcal : null,
+    protein: todayRecord ? todayRecord.protein : null,
+  };
+
+  const weekStart = getWeekRange_(today).start;
+  const weekWeights = rows
+    .filter(r => r.weight !== null && getWeekRange_(r.date).start === weekStart)
+    .map(r => r.weight);
+  const weekAvgWeight = weekWeights.length ? nutritionAvg_(weekWeights) : null;
+
+  let streakDays = 0;
+  let cursor = today;
+  while (byDate[cursor] && (byDate[cursor].weight !== null || byDate[cursor].kcal !== null)) {
+    streakDays++;
+    cursor = addDaysIso_(cursor, -1);
+  }
+
+  return {
+    today: todayStats,
+    week_avg_weight: weekAvgWeight,
+    streak_days: streakDays,
+    protein_target: NUTRITION_PROTEIN_TARGET_,
+    kcal_target: getNutritionTargetKcal_(),
   };
 }
 
