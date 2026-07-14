@@ -1048,6 +1048,8 @@
     top: 16px;
     left: 50%;
     transform: translateX(-50%) translateY(-120%);
+    opacity: 0;
+    pointer-events: none;
     background: var(--card);
     border: 1px solid var(--border);
     color: var(--text);
@@ -1056,11 +1058,11 @@
     font-size: 14px;
     font-weight: 600;
     z-index: 200;
-    transition: transform 0.25s ease;
+    transition: transform 0.25s ease, opacity 0.25s ease;
     max-width: calc(100% - 28px);
     box-shadow: var(--shadow);
   }
-  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.show { transform: translateX(-50%) translateY(0); opacity: 1; pointer-events: auto; }
   .toast.success { border-color: rgba(73, 226, 120, 0.4); }
   .toast.error { border-color: rgba(255, 107, 107, 0.5); color: var(--bad); }
 
