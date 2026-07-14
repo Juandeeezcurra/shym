@@ -1714,10 +1714,15 @@ function getLastSessionForDay(params) {
   const beforeDate = normalizeDate_(params.date);
   if (!day_id) throw new Error('day_id requerido.');
 
-  const day = readAll_(SHEETS.DAYS).find(d => d.day_id === day_id);
-  if (!day) throw new Error('Día no encontrado.');
+  // Entrenamiento libre: no hay día de rutina, solo interesa el mapa
+  // por nombre de ejercicio (by_name), armado más abajo desde todas las sesiones.
+  const isFree = day_id === 'free';
+  if (!isFree) {
+    const day = readAll_(SHEETS.DAYS).find(d => d.day_id === day_id);
+    if (!day) throw new Error('Día no encontrado.');
+  }
 
-  const exercises = readAll_(SHEETS.EXERCISES)
+  const exercises = isFree ? [] : readAll_(SHEETS.EXERCISES)
     .filter(e => e.day_id === day_id)
     .sort((a, b) => Number(a.exercise_order || 0) - Number(b.exercise_order || 0));
 
@@ -1817,15 +1822,20 @@ function getLastSessionForDay(params) {
 function saveSession(params) {
   params = params || {};
   const date = normalizeDate_(params.date);
+  const isFree = !!params.free;
   const routine_id = (params.routine_id || '').toString().trim();
   const day_id = (params.day_id || '').toString().trim();
-  if (!routine_id) throw new Error('routine_id requerido.');
-  if (!day_id) throw new Error('day_id requerido.');
 
-  const routine = readAll_(SHEETS.ROUTINES).find(r => r.routine_id === routine_id);
-  if (!routine) throw new Error('Rutina no encontrada.');
-  const day = readAll_(SHEETS.DAYS).find(d => d.day_id === day_id && d.routine_id === routine_id);
-  if (!day) throw new Error('Día no encontrado en esta rutina.');
+  let routine = {};
+  let day = {};
+  if (!isFree) {
+    if (!routine_id) throw new Error('routine_id requerido.');
+    if (!day_id) throw new Error('day_id requerido.');
+    routine = readAll_(SHEETS.ROUTINES).find(r => r.routine_id === routine_id);
+    if (!routine) throw new Error('Rutina no encontrada.');
+    day = readAll_(SHEETS.DAYS).find(d => d.day_id === day_id && d.routine_id === routine_id);
+    if (!day) throw new Error('Día no encontrado en esta rutina.');
+  }
 
   const bodyweight = normalizeOptionalNumber_(params.bodyweight, 'bodyweight');
   validateBodyweight_(bodyweight);
@@ -1839,13 +1849,13 @@ function saveSession(params) {
     const session = appendRow_(SHEETS.SESSIONS, {
       session_id: genId_('ses'),
       date,
-      routine_id,
-      day_id,
+      routine_id: isFree ? '' : routine_id,
+      day_id: isFree ? '' : day_id,
       bodyweight: bodyweight === null ? '' : bodyweight,
       notes,
       created_at: nowIso_(),
-      routine_name: routine.routine_name || '',
-      day_name: day.day_name || '',
+      routine_name: isFree ? '' : (routine.routine_name || ''),
+      day_name: isFree ? 'Entrenamiento libre' : (day.day_name || ''),
     });
 
     const setRows = [];

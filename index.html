@@ -1916,6 +1916,10 @@
       </div>
     </div>
 
+    <button class="ghost-btn full" data-action="start-free-train" style="margin: 4px 0 14px;">
+      🏃 Entrenamiento libre — agregá ejercicios sobre la marcha
+    </button>
+
     <div class="section">
       <div class="header-row">
         <h2 style="margin:0;">Elegí el día</h2>
@@ -2851,7 +2855,7 @@ function renderSessionListItem(session) {
       <div class="card-row">
         <div style="flex:1;min-width:0;">
           <h3>${escapeHtml(session.day_name || 'Sesión')}</h3>
-          <p class="muted">${escapeHtml(session.routine_name || '')} · ${formatDateLong(session.date)}</p>
+          <p class="muted">${escapeHtml([session.routine_name || '', formatDateLong(session.date)].filter(Boolean).join(' · '))}</p>
         </div>
       </div>
       <div class="summary-status">
@@ -4163,6 +4167,8 @@ async function handleDeleteExercise(rex_id) {
 // ============================================================
 // TRAIN — Parte 4
 // ============================================================
+const FREE_DAY_ID = 'free';
+
 registerScreen('train-pick', {
   async onEnter(params, navToken) {
     await loadTrainPick(navToken);
@@ -4171,9 +4177,14 @@ registerScreen('train-pick', {
 
 registerScreen('train', {
   async onEnter(params, navToken) {
+    const date = params && params.date;
+    if (params && params.free) {
+      if (!date) { goTo('train-pick'); return; }
+      await startFreeTraining({ date, navToken });
+      return;
+    }
     const routine_id = params && params.routine_id;
     const day_id = params && params.day_id;
-    const date = params && params.date;
     if (!routine_id || !day_id || !date) { goTo('train-pick'); return; }
     await startTraining({ routine_id, day_id, date, navToken });
   }
@@ -4334,6 +4345,32 @@ async function startTraining({ routine_id, day_id, date, navToken }) {
   }
 }
 
+async function startFreeTraining({ date, navToken }) {
+  state.currentRoutine = null;
+  state.currentDay = null;
+  state.lastSetsByExercise = {};
+  state.lastSetsByName = {};
+  state.trainProgressByName = {};
+  state.trainDataLoaded = false;
+
+  state.trainExercises = [];
+  const draft = loadSessionDraft(FREE_DAY_ID, date);
+  if (draft && Array.isArray(draft.exercise_list) && draft.exercise_list.length) {
+    state.trainExercises = draft.exercise_list.map(ex => Object.assign({}, ex));
+  }
+
+  $('#train-day-name').textContent = 'Entrenamiento libre';
+  $('#train-meta').textContent = formatDateLong(date);
+  renderTrainExercises(state.trainExercises);
+
+  if (draft) {
+    restoreTrainDraft(draft);
+    toast('Continuando sesión', 'success');
+  }
+  bindTrainAutosave(FREE_DAY_ID, date);
+  loadLastSetsForTraining(FREE_DAY_ID, date, navToken);
+}
+
 async function loadLastSetsForTraining(day_id, date, navToken) {
   try {
     const [lastSets, summary] = await cachedGasBatch([
@@ -4341,7 +4378,8 @@ async function loadLastSetsForTraining(day_id, date, navToken) {
       { fn: 'getProgressSummary', args: [] },
     ]);
     if (navToken && !isCurrentNav(navToken, 'train')) return;
-    if (state.screenParams.day_id !== day_id || state.screenParams.date !== date) return;
+    const currentDayId = state.screenParams.free ? FREE_DAY_ID : state.screenParams.day_id;
+    if (currentDayId !== day_id || state.screenParams.date !== date) return;
     const draft = collectTrainDraft();
     applyLastSetsResponse_(lastSets);
     state.trainProgressByName = {};
@@ -4545,9 +4583,10 @@ function canonicalKgFromDraft(rawValue, kgValue) {
 }
 
 function buildSavePayload() {
+  const isFree = !!(state.screenParams && state.screenParams.free);
   const r = state.currentRoutine;
   const day = state.currentDay;
-  if (!r || !day) throw new Error('Falta rutina o día.');
+  if (!isFree && (!r || !day)) throw new Error('Falta rutina o día.');
 
   const draft = collectTrainDraft();
   const exercises = (state.trainExercises || []).map(ex => {
@@ -4568,8 +4607,9 @@ function buildSavePayload() {
 
   return {
     date: state.screenParams.date,
-    routine_id: r.routine_id,
-    day_id: day.day_id,
+    routine_id: isFree ? '' : r.routine_id,
+    day_id: isFree ? '' : day.day_id,
+    free: isFree,
     notes: '',
     exercises,
   };
@@ -4633,8 +4673,9 @@ function addTrainSet(rexId, persist) {
 }
 
 function persistTrainDraft_() {
-  if (state.screenParams.day_id && state.screenParams.date) {
-    saveSessionDraft(state.screenParams.day_id, state.screenParams.date);
+  const day_id = state.screenParams.free ? FREE_DAY_ID : state.screenParams.day_id;
+  if (day_id && state.screenParams.date) {
+    saveSessionDraft(day_id, state.screenParams.date);
   }
 }
 
@@ -5020,7 +5061,7 @@ async function handleSaveSession(button) {
     const payload = buildSavePayload();
     const result = await withButtonLoading(button, gas.saveSession(payload), 'Guardando');
     invalidateSessionCaches();
-    clearSessionDraft(payload.day_id, payload.date);
+    clearSessionDraft(payload.free ? FREE_DAY_ID : payload.day_id, payload.date);
     if (!isCurrentNav(navToken, 'train')) return;
     state.lastSummary = result.summary;
     toast('Sesión guardada', 'success');
@@ -5753,7 +5794,7 @@ function renderSessionDetail(session) {
   const volume = calcClientVolume(session.exercises || []);
   const setCount = (session.exercises || []).reduce((sum, ex) => sum + (ex.sets || []).length, 0);
 
-  $('#sd-meta').textContent = `${session.routine_name || ''} · ${formatDateLong(session.date)}`;
+  $('#sd-meta').textContent = [session.routine_name || '', formatDateLong(session.date)].filter(Boolean).join(' · ');
   $('#sd-title').textContent = session.day_name || 'Sesión';
   $('#sd-volume').textContent = formatCompactNumber(volume);
   $('#sd-count').textContent = `${setCount} serie${setCount === 1 ? '' : 's'}`;
@@ -5797,7 +5838,7 @@ function calcClientVolume(exercises) {
 }
 
 function renderSessionEdit(session) {
-  $('#se-meta').textContent = `${session.routine_name || ''} · ${session.day_name || ''}`;
+  $('#se-meta').textContent = [session.routine_name || '', session.day_name || ''].filter(Boolean).join(' · ');
   $('#se-title').textContent = 'Editar sesión';
   $('#se-date').value = session.date || todayInputValue();
 
@@ -5903,7 +5944,9 @@ async function handleDeleteSession() {
 }
 
 function renderSummary(summary) {
-  $('#summary-meta').textContent = `${summary.routine_name} · ${formatDateLong(summary.date)}`;
+  $('#summary-meta').textContent = summary.routine_name
+    ? `${summary.routine_name} · ${formatDateLong(summary.date)}`
+    : formatDateLong(summary.date);
   $('#summary-day').textContent = summary.day_name;
   $('#summary-volume').textContent = formatCompactNumber(summary.total_volume);
   $('#summary-delta').textContent = summary.delta_percent == null
@@ -6086,6 +6129,11 @@ document.addEventListener('click', (e) => {
       if (r) goTo('train', { routine_id: r.routine_id, day_id: t.dataset.dayId, date });
       break;
     }
+    case 'start-free-train': {
+      const date = $('#tp-date').value || todayInputValue();
+      goTo('train', { free: '1', date });
+      break;
+    }
     case 'change-train-day': goTo('train-pick'); break;
     case 'add-train-set': addTrainSet(t.dataset.rexId); break;
     case 'remove-train-set': removeTrainSet(t.dataset.rexId, t.dataset.setNumber); break;
@@ -6121,8 +6169,9 @@ document.addEventListener('click', (e) => {
       break;
     }
     case 'set-units': {
-      if (state.currentScreen === 'train' && state.screenParams.day_id && state.screenParams.date) {
-        saveSessionDraft(state.screenParams.day_id, state.screenParams.date);
+      if (state.currentScreen === 'train' && state.screenParams.date) {
+        const day_id = state.screenParams.free ? FREE_DAY_ID : state.screenParams.day_id;
+        if (day_id) saveSessionDraft(day_id, state.screenParams.date);
       }
       units.set(t.dataset.unit);
       renderUnitToggle();
