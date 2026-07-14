@@ -748,7 +748,7 @@
     border-radius: 24px;
     padding: 6px;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 4px;
     z-index: 20;
   }
@@ -1760,6 +1760,30 @@
   }
 
   .hidden { display: none !important; }
+
+  /* Nutrition */
+  .nutrition-form-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+  .nutrition-form-grid.secondary { grid-template-columns:repeat(2,minmax(0,1fr)); margin-top:12px; }
+  .nutrition-field input { margin-top:6px; }
+  .nutrition-details { margin-top:14px; }
+  .nutrition-details summary { cursor:pointer; color:var(--accent); font-size:14px; font-weight:700; }
+  .nutrition-verdict { border-left:4px solid var(--muted); }
+  .nutrition-verdict.bajando_bien { border-left-color:var(--good); }
+  .nutrition-verdict.estancado { border-left-color:var(--warn); }
+  .nutrition-verdict.muy_rapido { border-left-color:var(--bad); }
+  .nutrition-verdict-metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:14px 0; }
+  .nutrition-verdict-metrics div { background:var(--card-soft); border-radius:12px; padding:10px; }
+  .nutrition-verdict-metrics strong { display:block; font-size:18px; }
+  .nutrition-chart { width:100%; height:190px; display:block; overflow:visible; }
+  .nutrition-chart .grid { stroke:var(--border); stroke-width:1; }
+  .nutrition-chart .line { fill:none; stroke:var(--accent); stroke-width:3; stroke-linecap:round; stroke-linejoin:round; }
+  .nutrition-chart .trend { fill:none; stroke:var(--good); stroke-width:2; stroke-dasharray:6 5; opacity:.8; }
+  .nutrition-chart circle { fill:var(--accent); stroke:var(--card); stroke-width:2; }
+  .nutrition-history-row { display:flex; justify-content:space-between; gap:12px; padding:11px 0; border-top:1px solid var(--border); font-size:13px; }
+  .nutrition-home { cursor:pointer; margin-top:18px; }
+  .nutrition-home-main { display:flex; justify-content:space-between; gap:12px; align-items:center; }
+  .nutrition-home-values { display:flex; gap:12px; color:var(--muted); font-size:13px; margin-top:7px; }
+  @media (max-width:380px) { .nutrition-form-grid { grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
@@ -1812,6 +1836,8 @@
     <div id="home-week-card" class="home-week" style="margin-top:18px;">
       <div class="skeleton" style="height:140px;"></div>
     </div>
+
+    <div id="home-nutrition-card" class="card nutrition-home" data-go="nutrition" style="display:none;"></div>
   </section>
 
   <!-- ============ ROUTINES ============ -->
@@ -2055,6 +2081,45 @@
     <button class="primary-btn full floating-save" data-action="save-session-edit">Guardar cambios</button>
   </section>
 
+  <!-- ============ NUTRITION ============ -->
+  <section id="screen-nutrition" class="screen">
+    <div class="header-row">
+      <div>
+        <div class="eyebrow">Seguimiento diario</div>
+        <h1 class="home-title-link" data-go="home" title="Ir al inicio">Nutrición</h1>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="header-row" style="margin-bottom:14px;">
+        <div><h2 style="margin:0;">Registro de hoy</h2><div id="nutrition-date-label" class="muted"></div></div>
+      </div>
+      <div class="nutrition-form-grid">
+        <label class="nutrition-field"><span class="field-label">Peso (kg)</span><input id="nutrition-weight" type="number" min="0" step="0.1" inputmode="decimal" placeholder="80.0"></label>
+        <label class="nutrition-field"><span class="field-label">Calorías</span><input id="nutrition-kcal" type="number" min="0" step="1" inputmode="numeric" placeholder="2050"></label>
+        <label class="nutrition-field"><span class="field-label">Proteína (g)</span><input id="nutrition-protein" type="number" min="0" step="1" inputmode="numeric" placeholder="155"></label>
+      </div>
+      <details class="nutrition-details">
+        <summary>+ más detalle</summary>
+        <div class="nutrition-form-grid secondary">
+          <label class="nutrition-field"><span class="field-label">Grasa (g)</span><input id="nutrition-fat" type="number" min="0" step="1" inputmode="numeric"></label>
+          <label class="nutrition-field"><span class="field-label">Carbos (g)</span><input id="nutrition-carbs" type="number" min="0" step="1" inputmode="numeric"></label>
+          <label class="nutrition-field"><span class="field-label">Agua (L)</span><input id="nutrition-water" type="number" min="0" step="0.1" inputmode="decimal"></label>
+          <label class="nutrition-field"><span class="field-label">Pasos</span><input id="nutrition-steps" type="number" min="0" step="1" inputmode="numeric"></label>
+        </div>
+        <label class="nutrition-field" style="display:block;margin-top:12px;"><span class="field-label">Notas</span><textarea id="nutrition-notes" rows="3" placeholder="Cómo te sentiste, hambre, energía..."></textarea></label>
+        <label style="display:flex;align-items:center;gap:9px;margin-top:12px;font-size:14px;"><input id="nutrition-trained" type="checkbox" style="width:auto;"> Entrené hoy</label>
+      </details>
+      <button class="primary-btn full" data-action="save-nutrition" style="margin-top:16px;">Guardar día</button>
+    </div>
+
+    <div id="nutrition-adjustment" class="card nutrition-verdict"><div class="skeleton" style="height:120px;"></div></div>
+    <div class="card">
+      <div class="header-row"><div><h2 style="margin:0;">Histórico de peso</h2><div class="muted">Últimos registros y tendencia</div></div></div>
+      <div id="nutrition-history"><div class="skeleton" style="height:190px;"></div></div>
+    </div>
+  </section>
+
   <!-- ============ PROGRESS ============ -->
   <section id="screen-progress" class="screen">
     <div class="header-row" id="progress-header">
@@ -2122,6 +2187,12 @@
       <path d="M7.5 15.5l3.4-4 3.1 2.3 5-6.3" fill="none" stroke="currentColor" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"/>
     </svg>
     <span class="nav-label">Progreso</span>
+  </button>
+  <button class="nav-btn" data-go="nutrition" aria-label="Nutrición" title="Nutrición">
+    <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 21V10M12 15c-4.5 0-7-2.5-7-7 4.5 0 7 2.5 7 7Zm0-3c0-4.5 2.5-7 7-7 0 4.5-2.5 7-7 7Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <span class="nav-label">Nutrición</span>
   </button>
   <button class="nav-btn" data-go="history" aria-label="Historial" title="Historial">
     <svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
@@ -2576,6 +2647,7 @@ function goTo(screenId, params) {
     summary: 'train',
     'session-detail': 'home',
     'session-edit': 'home',
+    nutrition: 'nutrition',
     progress: 'progress',
     history: 'history',
   };
@@ -2658,6 +2730,7 @@ async function loadHome(navToken) {
   const cachedStats = getApiCache('getHomeStats', []);
   const cachedSummary = getApiCache('getProgressSummary', []);
   const cachedWeek = getApiCache('getWeekActivity', weekArgs);
+  const cachedNutrition = getApiCache('getNutritionHomeStats', []);
   if (cachedStats) renderHomeStats(cachedStats);
   if (cachedStats && cachedSummary) renderHomeGoalsCard_(cachedStats, cachedSummary);
   if (cachedWeek) {
@@ -2666,17 +2739,20 @@ async function loadHome(navToken) {
     const el = $('#home-week-card');
     if (el) el.innerHTML = `<div class="skeleton" style="height:140px;"></div>`;
   }
+  if (cachedNutrition) renderNutritionHome_(cachedNutrition);
 
   try {
-    const [stats, summary, week] = await cachedGasBatch([
+    const [stats, summary, week, nutrition] = await cachedGasBatch([
       { fn: 'getHomeStats', args: [] },
       { fn: 'getProgressSummary', args: [] },
       { fn: 'getWeekActivity', args: weekArgs },
+      { fn: 'getNutritionHomeStats', args: [] },
     ]);
     if (navToken && !isCurrentNav(navToken, 'home')) return;
     renderHomeStats(stats);
     renderHomeGoalsCard_(stats, summary);
     if ((state.homeWeekOffset || 0) === offset) renderHomeWeekCard_(week);
+    renderNutritionHome_(nutrition);
     prefetchTrainData_(stats);
   } catch (err) {
     if (navToken && !isCurrentNav(navToken, 'home')) return;
@@ -6075,6 +6151,78 @@ function statusDotClass(status) {
 }
 
 // ============================================================
+// NUTRITION
+registerScreen('nutrition', { onEnter(params, navToken) {
+  $('#nutrition-date-label').textContent = formatDateLong(todayInputValue());
+  loadNutrition(navToken);
+}});
+
+async function loadNutrition(navToken) {
+  if (!backend.url) return;
+  try {
+    const [today, adjustment, history] = await cachedGasBatch([
+      { fn: 'getNutritionDay', args: [{ date: todayInputValue() }] },
+      { fn: 'getWeeklyAdjustment', args: [] },
+      { fn: 'listNutritionHistory', args: [{ limit: 60 }] },
+    ]);
+    if (navToken && !isCurrentNav(navToken, 'nutrition')) return;
+    fillNutritionForm_(today); renderNutritionAdjustment_(adjustment); renderNutritionHistory_(history || []);
+  } catch (err) { if (!navToken || isCurrentNav(navToken, 'nutrition')) toast(err.message || 'No se pudo cargar nutrición', 'error'); }
+}
+
+function nutritionValue_(id) { const v = $(id).value.trim(); return v === '' ? null : Number(v); }
+function setNutritionValue_(id, value) { $(id).value = value == null ? '' : value; }
+function fillNutritionForm_(day) {
+  const d = day || {};
+  ['weight','kcal','protein','fat','carbs','water','steps'].forEach(k => setNutritionValue_('#nutrition-' + k, d[k]));
+  $('#nutrition-notes').value = d.notes || '';
+  $('#nutrition-trained').checked = d.trained === true || String(d.trained).toLowerCase() === 'true';
+}
+
+async function handleSaveNutrition(button) {
+  const payload = { date: todayInputValue(), notes: $('#nutrition-notes').value.trim(), trained: $('#nutrition-trained').checked };
+  ['weight','kcal','protein','fat','carbs','water','steps'].forEach(k => { payload[k] = nutritionValue_('#nutrition-' + k); });
+  const oldText = button.textContent; button.disabled = true; button.textContent = 'Guardando…';
+  try {
+    await gas.saveNutritionDay(payload);
+    invalidateApiCache(['getNutritionDay','listNutritionHistory','getWeeklyAdjustment','getNutritionHomeStats']);
+    toast('Día guardado', 'success');
+    await loadNutrition(state.currentScreen === 'nutrition' ? state.navSeq : null);
+  } catch (err) { toast(err.message || 'No se pudo guardar', 'error'); }
+  finally { button.disabled = false; button.textContent = oldText; }
+}
+
+function renderNutritionAdjustment_(data) {
+  const el = $('#nutrition-adjustment');
+  const d = data || { verdict:'sin_datos', message:'Todavía no hay datos suficientes.' };
+  el.className = `card nutrition-verdict ${d.verdict || 'sin_datos'}`;
+  const kg = v => v == null ? '—' : `${Number(v).toFixed(1)} kg`;
+  const delta = d.delta_kg == null ? '—' : `${d.delta_kg > 0 ? '+' : ''}${Number(d.delta_kg).toFixed(2)} kg`;
+  const title = d.verdict === 'bajando_bien' ? 'Vas bien' : d.verdict === 'estancado' ? 'Atención al objetivo' : d.verdict === 'muy_rapido' ? 'Ritmo muy rápido' : 'Juntando datos';
+  el.innerHTML = `<div class="eyebrow">Autoajuste semanal</div><h2 style="margin:0;">${title}</h2>
+    <div class="nutrition-verdict-metrics"><div><strong>${kg(d.current_week_avg)}</strong><span class="muted-sm">Esta semana</span></div><div><strong>${kg(d.prev_week_avg)}</strong><span class="muted-sm">Anterior</span></div><div><strong>${delta}</strong><span class="muted-sm">Cambio</span></div></div>
+    <p class="muted" style="font-size:14px;">${escapeHtml(d.message || '')}</p>`;
+}
+
+function renderNutritionHistory_(rows) {
+  const el = $('#nutrition-history');
+  const weighted = rows.filter(r => r.weight != null).slice(0,30).reverse();
+  if (!weighted.length) { el.innerHTML = '<div class="empty-state"><div class="emoji">⚖️</div><h3>Sin pesos todavía</h3><p class="muted">Tu evolución aparece acá cuando guardes el primero.</p></div>'; return; }
+  const width=360, height=170, pad=18, values=weighted.map(r => Number(r.weight));
+  let min=Math.min(...values), max=Math.max(...values); if (min===max) { min-=1; max+=1; }
+  const points=values.map((v,i) => ({x:pad+i*(width-pad*2)/Math.max(1,values.length-1), y:pad+(max-v)*(height-pad*2)/(max-min)}));
+  const line=points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const trend=`${points[0].x},${points[0].y} ${points[points.length-1].x},${points[points.length-1].y}`;
+  el.innerHTML = `<svg class="nutrition-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Evolución del peso"><line class="grid" x1="${pad}" y1="${pad}" x2="${width-pad}" y2="${pad}"/><line class="grid" x1="${pad}" y1="${height-pad}" x2="${width-pad}" y2="${height-pad}"/><polyline class="trend" points="${trend}"/><polyline class="line" points="${line}"/>${points.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="4"><title>${weighted[i].date}: ${values[i]} kg</title></circle>`).join('')}</svg>
+    <div class="muted" style="display:flex;justify-content:space-between;margin-bottom:8px;"><span>${weighted[0].date}</span><span>${weighted[weighted.length-1].date}</span></div>
+    ${rows.slice(0,14).map(r=>`<div class="nutrition-history-row"><span>${escapeHtml(formatDateLong(r.date))}</span><span><strong>${r.weight == null ? '—' : `${r.weight} kg`}</strong>${r.kcal == null ? '' : ` · ${r.kcal} kcal`}</span></div>`).join('')}`;
+}
+
+function renderNutritionHome_(data) {
+  const el=$('#home-nutrition-card'); if (!el || !data) return; const today=data.today || {}; el.style.display='';
+  el.innerHTML=`<div class="nutrition-home-main"><div><div class="eyebrow">Nutrición</div><h3>${today.logged ? 'Registro de hoy' : 'Registrá tu peso de hoy'}</h3></div><span class="pill ${today.logged ? 'accent' : ''}">${today.logged ? 'Cargado' : 'Abrir →'}</span></div><div class="nutrition-home-values"><span>${today.weight == null ? 'Sin peso' : `${today.weight} kg`}</span><span>${today.kcal == null ? `${data.kcal_target} kcal objetivo` : `${today.kcal} kcal`}</span><span>${data.streak_days || 0} días</span></div>`;
+}
+
 // EVENT WIRING (delegación)
 // ============================================================
 document.addEventListener('click', (e) => {
@@ -6092,6 +6240,7 @@ document.addEventListener('click', (e) => {
   const action = t.dataset.action;
   switch (action) {
     case 'go-train': goTo('train-pick'); break;
+    case 'save-nutrition': runLockedAction('save-nutrition', () => handleSaveNutrition(t)); break;
     case 'open-exercise-detail':
       if (state.currentScreen === 'progress') {
         state.progressDetailExercise = t.dataset.exerciseName || null;
