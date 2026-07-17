@@ -1763,10 +1763,7 @@
 
   /* Nutrition */
   .nutrition-form-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
-  .nutrition-form-grid.secondary { grid-template-columns:repeat(2,minmax(0,1fr)); margin-top:12px; }
   .nutrition-field input { margin-top:6px; }
-  .nutrition-details { margin-top:14px; }
-  .nutrition-details summary { cursor:pointer; color:var(--accent); font-size:14px; font-weight:700; }
   .nutrition-verdict { border-left:4px solid var(--muted); }
   .nutrition-verdict.bajando_bien { border-left-color:var(--good); }
   .nutrition-verdict.estancado { border-left-color:var(--warn); }
@@ -1774,6 +1771,11 @@
   .nutrition-verdict-metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:14px 0; }
   .nutrition-verdict-metrics div { background:var(--card-soft); border-radius:12px; padding:10px; }
   .nutrition-verdict-metrics strong { display:block; font-size:18px; }
+  .nutrition-period-tabs { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .nutrition-period-nav { display:flex; align-items:center; justify-content:center; gap:14px; margin-bottom:14px; }
+  .nutrition-period-nav .nutrition-period-label { font-weight:700; font-size:14px; min-width:110px; text-align:center; }
+  .nutrition-period-nav .icon-btn { width:30px; height:30px; padding:0; font-size:16px; }
+  .nutrition-period-nav .icon-btn:disabled { opacity:0.35; cursor:default; }
   .nutrition-chart { width:100%; height:190px; display:block; overflow:visible; }
   .nutrition-chart .grid { stroke:var(--border); stroke-width:1; }
   .nutrition-chart .line { fill:none; stroke:var(--accent); stroke-width:3; stroke-linecap:round; stroke-linejoin:round; }
@@ -2099,24 +2101,18 @@
         <label class="nutrition-field"><span class="field-label">Calorías</span><input id="nutrition-kcal" type="number" min="0" step="1" inputmode="numeric" placeholder="2050"></label>
         <label class="nutrition-field"><span class="field-label">Proteína (g)</span><input id="nutrition-protein" type="number" min="0" step="1" inputmode="numeric" placeholder="155"></label>
       </div>
-      <details class="nutrition-details">
-        <summary>+ más detalle</summary>
-        <div class="nutrition-form-grid secondary">
-          <label class="nutrition-field"><span class="field-label">Grasa (g)</span><input id="nutrition-fat" type="number" min="0" step="1" inputmode="numeric"></label>
-          <label class="nutrition-field"><span class="field-label">Carbos (g)</span><input id="nutrition-carbs" type="number" min="0" step="1" inputmode="numeric"></label>
-          <label class="nutrition-field"><span class="field-label">Agua (L)</span><input id="nutrition-water" type="text" inputmode="decimal"></label>
-          <label class="nutrition-field"><span class="field-label">Pasos</span><input id="nutrition-steps" type="number" min="0" step="1" inputmode="numeric"></label>
-        </div>
-        <label class="nutrition-field" style="display:block;margin-top:12px;"><span class="field-label">Notas</span><textarea id="nutrition-notes" rows="3" placeholder="Cómo te sentiste, hambre, energía..."></textarea></label>
-        <label style="display:flex;align-items:center;gap:9px;margin-top:12px;font-size:14px;"><input id="nutrition-trained" type="checkbox" style="width:auto;"> Entrené hoy</label>
-      </details>
       <button class="primary-btn full" data-action="save-nutrition" style="margin-top:16px;">Guardar día</button>
     </div>
 
     <div id="nutrition-adjustment" class="card nutrition-verdict"><div class="skeleton" style="height:120px;"></div></div>
     <div class="card">
-      <div class="header-row"><div><h2 style="margin:0;">Histórico de peso</h2><div class="muted">Últimos registros y tendencia</div></div></div>
-      <div id="nutrition-history"><div class="skeleton" style="height:190px;"></div></div>
+      <div class="header-row"><div><h2 style="margin:0;">Histórico de peso</h2><div class="muted">Evolución y tendencia</div></div></div>
+      <div id="nutrition-chart-toolbar"></div>
+      <div id="nutrition-chart"><div class="skeleton" style="height:190px;"></div></div>
+    </div>
+    <div class="card">
+      <div class="header-row"><div><h2 style="margin:0;">Registros</h2></div></div>
+      <div id="nutrition-history-list"><div class="skeleton" style="height:120px;"></div></div>
     </div>
   </section>
 
@@ -2282,6 +2278,10 @@ const state = {
   exerciseLibrary: null,
   dayExerciseView: 'order',
   homeWeekOffset: 0,
+  nutritionHistoryRows: [],
+  nutritionHistoryExpanded: false,
+  nutritionChartPeriod: 'week',
+  nutritionChartOffset: 0,
   apiCache: {},
   navSeq: 0,
   loadTokens: {},
@@ -6163,10 +6163,12 @@ async function loadNutrition(navToken) {
     const [today, adjustment, history] = await cachedGasBatch([
       { fn: 'getNutritionDay', args: [{ date: todayInputValue() }] },
       { fn: 'getWeeklyAdjustment', args: [] },
-      { fn: 'listNutritionHistory', args: [{ limit: 60 }] },
+      { fn: 'listNutritionHistory', args: [{ limit: 400 }] },
     ]);
     if (navToken && !isCurrentNav(navToken, 'nutrition')) return;
-    fillNutritionForm_(today); renderNutritionAdjustment_(adjustment); renderNutritionHistory_(history || []);
+    fillNutritionForm_(today); renderNutritionAdjustment_(adjustment);
+    state.nutritionHistoryRows = history || [];
+    renderNutritionChart_(); renderNutritionHistoryList_();
   } catch (err) { if (!navToken || isCurrentNav(navToken, 'nutrition')) toast(err.message || 'No se pudo cargar nutrición', 'error'); }
 }
 
@@ -6174,14 +6176,12 @@ function nutritionValue_(id) { const v = $(id).value.trim(); return v === '' ? n
 function setNutritionValue_(id, value) { $(id).value = value == null ? '' : value; }
 function fillNutritionForm_(day) {
   const d = day || {};
-  ['weight','kcal','protein','fat','carbs','water','steps'].forEach(k => setNutritionValue_('#nutrition-' + k, d[k]));
-  $('#nutrition-notes').value = d.notes || '';
-  $('#nutrition-trained').checked = d.trained === true || String(d.trained).toLowerCase() === 'true';
+  ['weight','kcal','protein'].forEach(k => setNutritionValue_('#nutrition-' + k, d[k]));
 }
 
 async function handleSaveNutrition(button) {
-  const payload = { date: todayInputValue(), notes: $('#nutrition-notes').value.trim(), trained: $('#nutrition-trained').checked };
-  ['weight','kcal','protein','fat','carbs','water','steps'].forEach(k => { payload[k] = nutritionValue_('#nutrition-' + k); });
+  const payload = { date: todayInputValue() };
+  ['weight','kcal','protein'].forEach(k => { payload[k] = nutritionValue_('#nutrition-' + k); });
   const oldText = button.textContent; button.disabled = true; button.textContent = 'Guardando…';
   try {
     await gas.saveNutritionDay(payload);
@@ -6204,18 +6204,103 @@ function renderNutritionAdjustment_(data) {
     <p class="muted" style="font-size:14px;">${escapeHtml(d.message || '')}</p>`;
 }
 
-function renderNutritionHistory_(rows) {
-  const el = $('#nutrition-history');
-  const weighted = rows.filter(r => r.weight != null).slice(0,30).reverse();
-  if (!weighted.length) { el.innerHTML = '<div class="empty-state"><div class="emoji">⚖️</div><h3>Sin pesos todavía</h3><p class="muted">Tu evolución aparece acá cuando guardes el primero.</p></div>'; return; }
-  const width=360, height=170, pad=18, values=weighted.map(r => Number(r.weight));
-  let min=Math.min(...values), max=Math.max(...values); if (min===max) { min-=1; max+=1; }
-  const points=values.map((v,i) => ({x:pad+i*(width-pad*2)/Math.max(1,values.length-1), y:pad+(max-v)*(height-pad*2)/(max-min)}));
-  const line=points.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-  const trend=`${points[0].x},${points[0].y} ${points[points.length-1].x},${points[points.length-1].y}`;
-  el.innerHTML = `<svg class="nutrition-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Evolución del peso"><line class="grid" x1="${pad}" y1="${pad}" x2="${width-pad}" y2="${pad}"/><line class="grid" x1="${pad}" y1="${height-pad}" x2="${width-pad}" y2="${height-pad}"/><polyline class="trend" points="${trend}"/><polyline class="line" points="${line}"/>${points.map((p,i)=>`<circle cx="${p.x}" cy="${p.y}" r="4"><title>${weighted[i].date}: ${values[i]} kg</title></circle>`).join('')}</svg>
-    <div class="muted" style="display:flex;justify-content:space-between;margin-bottom:8px;"><span>${weighted[0].date}</span><span>${weighted[weighted.length-1].date}</span></div>
-    ${rows.slice(0,14).map(r=>`<div class="nutrition-history-row"><span>${escapeHtml(formatDateLong(r.date))}</span><span><strong>${r.weight == null ? '—' : `${r.weight} kg`}</strong>${r.kcal == null ? '' : ` · ${r.kcal} kcal`}</span></div>`).join('')}`;
+const MONTH_LABELS_SHORT_ = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+
+function nutritionPeriodRange_(period, offset) {
+  const today = parseIsoDateLocalClient(todayInputValue());
+  if (period === 'month') {
+    const start = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+    const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+    return { start: formatIsoDateClient(start), end: formatIsoDateClient(end), label: `${MONTH_LABELS_SHORT_[start.getMonth()]} ${start.getFullYear()}` };
+  }
+  if (period === 'year') {
+    const year = today.getFullYear() + offset;
+    return { start: `${year}-01-01`, end: `${year}-12-31`, label: String(year) };
+  }
+  const day = today.getDay();
+  const diffToMonday = (day === 0 ? -6 : 1 - day) + offset * 7;
+  const monday = new Date(today.getFullYear(), today.getMonth(), today.getDate() + diffToMonday);
+  const sunday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6);
+  return { start: formatIsoDateClient(monday), end: formatIsoDateClient(sunday), label: `${formatDateShort(formatIsoDateClient(monday))}–${formatDateShort(formatIsoDateClient(sunday))}` };
+}
+
+function nutritionWeekdaySlot_(iso) {
+  const day = parseIsoDateLocalClient(iso).getDay();
+  return day === 0 ? 6 : day - 1;
+}
+
+function nutritionDaysInMonth_(iso) {
+  const d = parseIsoDateLocalClient(iso);
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+}
+
+function nutritionAvgClient_(nums) {
+  return Math.round((nums.reduce((a, b) => a + b, 0) / nums.length) * 100) / 100;
+}
+
+function renderNutritionChart_() {
+  const period = state.nutritionChartPeriod;
+  const offset = state.nutritionChartOffset;
+  const range = nutritionPeriodRange_(period, offset);
+
+  const tabs = [['week', 'Semana'], ['month', 'Mes'], ['year', 'Año']]
+    .map(([p, l]) => `<button type="button" class="${p === period ? 'active' : ''}" data-action="nutrition-set-period" data-period="${p}">${l}</button>`).join('');
+  $('#nutrition-chart-toolbar').innerHTML = `
+    <div class="segmented compact nutrition-period-tabs">${tabs}</div>
+    <div class="nutrition-period-nav">
+      <button class="ghost-btn icon-btn" data-action="nutrition-period-prev" aria-label="Período anterior">‹</button>
+      <span class="nutrition-period-label">${escapeHtml(range.label)}</span>
+      <button class="ghost-btn icon-btn" data-action="nutrition-period-next" aria-label="Período siguiente" ${offset >= 0 ? 'disabled' : ''}>›</button>
+    </div>`;
+
+  const el = $('#nutrition-chart');
+  const rowsInRange = state.nutritionHistoryRows.filter(r => r.weight != null && r.date >= range.start && r.date <= range.end);
+
+  let points, total;
+  if (period === 'year') {
+    const byMonth = {};
+    rowsInRange.forEach(r => { const m = Number(r.date.slice(5, 7)) - 1; (byMonth[m] = byMonth[m] || []).push(Number(r.weight)); });
+    total = 12;
+    points = Object.keys(byMonth).map(m => ({ slot: Number(m), value: nutritionAvgClient_(byMonth[m]), label: MONTH_LABELS_SHORT_[Number(m)] })).sort((a, b) => a.slot - b.slot);
+  } else {
+    total = period === 'week' ? 7 : nutritionDaysInMonth_(range.start);
+    points = rowsInRange.map(r => ({
+      slot: period === 'week' ? nutritionWeekdaySlot_(r.date) : Number(r.date.slice(8, 10)) - 1,
+      value: Number(r.weight),
+      label: r.date,
+    })).sort((a, b) => a.slot - b.slot);
+  }
+
+  if (!points.length) {
+    el.innerHTML = '<div class="empty-state"><div class="emoji">⚖️</div><h3>Sin pesos en este período</h3><p class="muted">Elegí otra semana, mes o año.</p></div>';
+    return;
+  }
+
+  const width = 360, height = 170, pad = 18;
+  const values = points.map(p => p.value);
+  let min = Math.min(...values), max = Math.max(...values);
+  if (min === max) { min -= 1; max += 1; }
+  const xFor = slot => total <= 1 ? width / 2 : pad + slot * (width - pad * 2) / (total - 1);
+  const svgPoints = points.map(p => ({ x: xFor(p.slot), y: pad + (max - p.value) * (height - pad * 2) / (max - min) }));
+  const line = svgPoints.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const trend = svgPoints.length > 1 ? `${svgPoints[0].x},${svgPoints[0].y} ${svgPoints[svgPoints.length - 1].x},${svgPoints[svgPoints.length - 1].y}` : '';
+  el.innerHTML = `<svg class="nutrition-chart" viewBox="0 0 ${width} ${height}" role="img" aria-label="Evolución del peso">
+    <line class="grid" x1="${pad}" y1="${pad}" x2="${width - pad}" y2="${pad}"/>
+    <line class="grid" x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}"/>
+    ${trend ? `<polyline class="trend" points="${trend}"/>` : ''}
+    <polyline class="line" points="${line}"/>
+    ${svgPoints.map((p, i) => `<circle cx="${p.x}" cy="${p.y}" r="4"><title>${points[i].label}: ${values[i]} kg</title></circle>`).join('')}
+  </svg>`;
+}
+
+function renderNutritionHistoryList_() {
+  const el = $('#nutrition-history-list');
+  const rows = state.nutritionHistoryRows;
+  if (!rows.length) { el.innerHTML = '<p class="muted">Sin registros todavía.</p>'; return; }
+  const expanded = state.nutritionHistoryExpanded;
+  const visible = expanded ? rows : rows.slice(0, 7);
+  const moreBtn = rows.length > 7 ? `<button type="button" class="ghost-btn full" data-action="nutrition-history-toggle" style="margin-top:10px;">${expanded ? 'Ver menos' : 'Ver más'}</button>` : '';
+  el.innerHTML = `${visible.map(r => `<div class="nutrition-history-row"><span>${escapeHtml(formatDateLong(r.date))}</span><span><strong>${r.weight == null ? '—' : `${r.weight} kg`}</strong>${r.kcal == null ? '' : ` · ${r.kcal} kcal`}</span></div>`).join('')}${moreBtn}`;
 }
 
 function renderNutritionHome_(data) {
@@ -6337,6 +6422,23 @@ document.addEventListener('click', (e) => {
     case 'home-week-prev':
       state.homeWeekOffset = (state.homeWeekOffset || 0) - 1;
       loadHomeWeek(state.currentScreen === 'home' ? state.navSeq : null);
+      break;
+    case 'nutrition-set-period':
+      state.nutritionChartPeriod = t.dataset.period;
+      state.nutritionChartOffset = 0;
+      renderNutritionChart_();
+      break;
+    case 'nutrition-period-prev':
+      state.nutritionChartOffset = (state.nutritionChartOffset || 0) - 1;
+      renderNutritionChart_();
+      break;
+    case 'nutrition-period-next':
+      state.nutritionChartOffset = Math.min(0, (state.nutritionChartOffset || 0) + 1);
+      renderNutritionChart_();
+      break;
+    case 'nutrition-history-toggle':
+      state.nutritionHistoryExpanded = !state.nutritionHistoryExpanded;
+      renderNutritionHistoryList_();
       break;
     case 'home-week-next':
       state.homeWeekOffset = Math.min(0, (state.homeWeekOffset || 0) + 1);
