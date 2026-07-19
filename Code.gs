@@ -3309,7 +3309,8 @@ function getProgressSummary() {
 function listExerciseHistory(params) {
   params = params || {};
   const exerciseName = (params.exercise_name || '').toString().trim();
-  const limit = Math.max(1, Math.min(Number(params.limit || 8), 30));
+  const limitParam = (params.limit || 8).toString().toLowerCase();
+  const limit = limitParam === 'all' ? null : Math.max(1, Math.min(Number(limitParam) || 8, 100));
   if (!exerciseName) throw new Error('exercise_name requerido.');
 
   const exerciseNameKey = normalizeExerciseNameKey_(exerciseName);
@@ -3392,11 +3393,12 @@ function listExerciseHistory(params) {
     else trend = 'Tendencia estable';
   }
 
+  const newestFirst = chronological.reverse();
   return {
     exercise_name: exerciseName,
     goal: getExerciseGoal({ exercise_name: exerciseName }),
     trend,
-    sessions: chronological.reverse().slice(0, limit),
+    sessions: limit == null ? newestFirst : newestFirst.slice(0, limit),
   };
 }
 

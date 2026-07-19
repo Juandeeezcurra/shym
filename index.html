@@ -1512,11 +1512,54 @@
   /* ---- Progress chart ---- */
   .progress-exercise-chart {
     width: 100%;
-    height: 190px;
+    height: auto;
+    max-height: 260px;
     display: block;
     margin-top: 10px;
     overflow: visible;
   }
+  .ex-chart-scroll { width: 100%; overflow-x: auto; overscroll-behavior-inline: contain; }
+  .ex-chart-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: 14px 0 2px;
+  }
+  .ex-chart-label { color: var(--muted); font-size: 12px; font-weight: 700; }
+  .ex-chart-range {
+    display: inline-flex;
+    margin-left: auto;
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #0b0e11;
+  }
+  .ex-chart-range button {
+    min-height: 30px;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 750;
+    cursor: pointer;
+  }
+  .ex-chart-range button.active { background: var(--accent); color: #101010; }
+  .ex-chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 7px 14px;
+    margin-top: 4px;
+  }
+  .ex-chart-legend-item { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 11px; }
+  .ex-chart-swatch { width: 18px; height: 3px; border-radius: 999px; flex: 0 0 auto; }
+  .ex-chart-swatch.average { height: 0; border-top: 2px dashed #f4f7fa; border-radius: 0; }
+  .ex-chart-note { margin: 7px 0 0; color: var(--muted-2); font-size: 10px; text-align: center; }
   .progress-history-list {
     display: grid;
     gap: 8px;
@@ -2272,7 +2315,8 @@ const state = {
   progressExercises: [],
   progressOpenGroups: new Set(),
   lastProgressSummary: null,
-  exerciseMetric: 'weight',
+  exerciseMetric: 'e1rm',
+  exerciseChartRange: '4',
   lastExerciseHistory: null,
   exerciseNameSuggestions: null,
   exerciseLibrary: null,
@@ -5378,53 +5422,84 @@ function bestSetDelta(cur, prev) {
   return { cls: 'flat', arrow: '=', label: 'igual' };
 }
 
-function renderBestSetChart(sessions, metric) {
-  metric = metric || 'weight';
-  const points = sessions.slice().reverse(); // oldest -> newest
-  const rows = points.map(p => {
-    const b = bestSetOf(p.sets) || { weight: 0, reps: 0 };
-    let value;
-    if (metric === 'reps') value = b.reps;
-    else if (metric === 'e1rm') value = e1rmEstimate(b.weight, b.reps);
-    else value = b.weight;
-    return { p, b, value: Number(value || 0) };
-  });
-  if (rows.length < 2) return `<p class="muted" style="margin-top:14px;font-size:13px;">Necesitás al menos 2 sesiones para ver la curva.</p>`;
-  const values = rows.map(r => r.value);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const isFlat = (max - min) < 0.05;
-  const leftX = 44;
-  const rightX = 340;
-  const topY = 38;
-  const bottomY = 148;
-  const range = bottomY - topY;
-  const coords = rows.map((r, i) => {
-    const x = leftX + (i / (rows.length - 1)) * (rightX - leftX);
-    const y = isFlat ? topY + range / 2 : bottomY - ((r.value - min) / (max - min)) * range;
-    return { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 };
-  });
-  const polyline = coords.map(c => `${c.x},${c.y}`).join(' ');
-  const area = `${leftX},${bottomY} ${polyline} ${rightX},${bottomY}`;
-  const annot = (r) => {
-    if (metric === 'weight') return '×' + r.b.reps;
-    if (metric === 'reps') return units.toDisplay(r.b.weight);
-    return '';
+function renderSetSeriesChart(sessions, metric, rangeKey) {
+  metric = metric || 'e1rm';
+  rangeKey = rangeKey || '4';
+  const limit = rangeKey === 'all' ? sessions.length : Number(rangeKey || 4);
+  const points = sessions.slice(0, limit).reverse(); // oldest -> newest
+  if (points.length < 2) return `<p class="muted" style="margin-top:14px;font-size:13px;">Necesitás al menos 2 sesiones para ver la curva.</p>`;
+
+  const valueOf = (set) => {
+    if (!set || set.weight == null) return null;
+    if (metric === 'reps') return set.reps == null ? null : Number(set.reps);
+    if (metric === 'e1rm') return set.reps == null ? null : e1rmEstimate(set.weight, set.reps);
+    return Number(set.weight);
   };
-  const valLabel = (v) => metric === 'reps' ? (Math.round(v) + ' reps') : (units.toDisplay(v) + ' ' + units.label());
+  const setNumbers = [...new Set(points.flatMap(p => (p.sets || [])
+    .map(s => Number(s.set_number || 0)).filter(n => n > 0)))].sort((a, b) => a - b);
+  const series = setNumbers.map(n => ({
+    number: n,
+    values: points.map(p => valueOf((p.sets || []).find(s => Number(s.set_number || 0) === n))),
+  }));
+  const averages = points.map(p => {
+    const vals = (p.sets || []).map(valueOf).filter(v => v != null && isFinite(v));
+    return vals.length ? vals.reduce((sum, v) => sum + v, 0) / vals.length : null;
+  });
+  const allValues = series.flatMap(s => s.values).concat(averages).filter(v => v != null && isFinite(v));
+  if (!allValues.length) return `<p class="muted" style="margin-top:14px;font-size:13px;">No hay datos suficientes para esta métrica.</p>`;
+
+  const rawMin = Math.min(...allValues);
+  const rawMax = Math.max(...allValues);
+  const spread = Math.max(rawMax - rawMin, metric === 'reps' ? 2 : 5);
+  const min = Math.max(0, rawMin - spread * 0.12);
+  const max = rawMax + spread * 0.12;
+  const chartWidth = points.length <= 4 ? 360 : Math.min(1400, Math.max(740, 80 + points.length * 55));
+  const leftX = 58, rightX = chartWidth - 22, topY = 24, bottomY = 178;
+  const xAt = (i) => leftX + (i / (points.length - 1)) * (rightX - leftX);
+  const yAt = (v) => bottomY - ((v - min) / (max - min)) * (bottomY - topY);
+  const colors = ['#ff5a2a', '#38bdf8', '#a78bfa', '#fbbf24', '#4ade80', '#fb7185', '#2dd4bf', '#f472b6'];
+  const round = (v) => Math.round(v * 100) / 100;
+  const pathFor = (values) => {
+    let d = '';
+    let drawing = false;
+    values.forEach((v, i) => {
+      if (v == null || !isFinite(v)) { drawing = false; return; }
+      d += `${drawing ? ' L' : ' M'}${round(xAt(i))},${round(yAt(v))}`;
+      drawing = true;
+    });
+    return d.trim();
+  };
+  const valueLabel = (v) => metric === 'reps'
+    ? `${Math.round(v * 10) / 10} reps`
+    : `${Math.round(units.toDisplay(v) * 10) / 10} ${units.label()}`;
+  const gridLines = [0, 1, 2, 3].map(i => {
+    const ratio = i / 3;
+    const y = topY + ratio * (bottomY - topY);
+    const value = max - ratio * (max - min);
+    return `<line x1="${leftX}" y1="${round(y)}" x2="${rightX}" y2="${round(y)}" stroke="var(--border)" stroke-width="1"></line>
+      <text x="${leftX - 8}" y="${round(y + 4)}" fill="var(--muted)" font-size="10" text-anchor="end">${escapeHtml(valueLabel(value))}</text>`;
+  }).join('');
+  const visibleDates = new Set();
+  const maxDateLabels = points.length <= 12 ? points.length : 7;
+  for (let i = 0; i < maxDateLabels; i++) visibleDates.add(Math.round(i * (points.length - 1) / Math.max(1, maxDateLabels - 1)));
+  const dateLabels = points.map((p, i) => visibleDates.has(i)
+    ? `<text x="${round(xAt(i))}" y="207" fill="var(--muted-2)" font-size="10" text-anchor="middle">${escapeHtml(formatDateShort(p.date))}</text>` : '').join('');
+  const lineMarkup = series.map((s, idx) => {
+    const color = colors[idx % colors.length];
+    return `<path d="${pathFor(s.values)}" fill="none" stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"></path>
+      ${s.values.map((v, i) => v == null ? '' : `<circle cx="${round(xAt(i))}" cy="${round(yAt(v))}" r="3.5" fill="${color}" data-action="open-session" data-session-id="${escapeHtml(points[i].session_id)}" style="cursor:pointer;"><title>Serie ${s.number} · ${formatDateShort(points[i].date)} · ${valueLabel(v)}</title></circle>`).join('')}`;
+  }).join('');
+  const averageMarkup = `<path d="${pathFor(averages)}" fill="none" stroke="#f4f7fa" stroke-width="3.2" stroke-dasharray="8 6" stroke-linecap="round" stroke-linejoin="round"></path>
+    ${averages.map((v, i) => v == null ? '' : `<circle cx="${round(xAt(i))}" cy="${round(yAt(v))}" r="4" fill="#101418" stroke="#f4f7fa" stroke-width="2" data-action="open-session" data-session-id="${escapeHtml(points[i].session_id)}" style="cursor:pointer;"><title>Promedio · ${formatDateShort(points[i].date)} · ${valueLabel(v)}</title></circle>`).join('')}`;
+  const legend = series.map((s, idx) => `<span class="ex-chart-legend-item"><span class="ex-chart-swatch" style="background:${colors[idx % colors.length]};"></span>Serie ${s.number}</span>`).join('');
+
   return `
-    <svg class="progress-exercise-chart" viewBox="0 0 360 190" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Evolución de la mejor serie">
-      <line x1="${leftX}" y1="${topY}" x2="${rightX}" y2="${topY}" stroke="var(--border)" stroke-width="1"></line>
-      <line x1="${leftX}" y1="${bottomY}" x2="${rightX}" y2="${bottomY}" stroke="var(--border)" stroke-width="1"></line>
-      <path d="M${area}" fill="var(--accent-soft)"></path>
-      <polyline points="${polyline}" fill="none" stroke="var(--accent)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"></polyline>
-      ${coords.map((c, i) => `<circle cx="${c.x}" cy="${c.y}" r="4" fill="var(--accent)" data-action="open-session" data-session-id="${escapeHtml(rows[i].p.session_id)}" style="cursor:pointer;"></circle>`).join('')}
-      ${coords.map((c, i) => annot(rows[i]) ? `<text x="${c.x}" y="${Math.max(20, c.y - 11)}" fill="var(--muted)" font-size="10" text-anchor="middle">${escapeHtml(annot(rows[i]))}</text>` : '').join('')}
-      <text x="4" y="${topY + 4}" fill="var(--muted)" font-size="10">${escapeHtml(valLabel(max))}</text>
-      ${isFlat ? '' : `<text x="4" y="${bottomY + 4}" fill="var(--muted)" font-size="10">${escapeHtml(valLabel(min))}</text>`}
-      <text x="${leftX}" y="178" fill="var(--muted-2)" font-size="10" text-anchor="start">${escapeHtml(formatDateShort(rows[0].p.date))}</text>
-      <text x="${rightX}" y="178" fill="var(--muted-2)" font-size="10" text-anchor="end">${escapeHtml(formatDateShort(rows[rows.length - 1].p.date))}</text>
-    </svg>
+    <div class="ex-chart-scroll">
+      <svg class="progress-exercise-chart" viewBox="0 0 ${chartWidth} 222" ${points.length > 4 ? `style="min-width:${chartWidth}px;"` : ''} preserveAspectRatio="xMidYMid meet" role="img" aria-label="Evolución serie a serie y promedio">
+        ${gridLines}${lineMarkup}${averageMarkup}${dateLabels}
+      </svg>
+    </div>
+    <div class="ex-chart-legend">${legend}<span class="ex-chart-legend-item"><span class="ex-chart-swatch average"></span>Promedio</span></div>
   `;
 }
 
@@ -5477,7 +5552,7 @@ async function loadExerciseHistory(exerciseName, navToken, loadToken) {
   if (!exerciseName) return;
   loadToken = loadToken || nextLoadToken('progress');
   content.innerHTML = `<div class="skeleton" style="height:120px;"></div>`;
-  const args = [{ exercise_name: exerciseName, limit: 8 }];
+  const args = [{ exercise_name: exerciseName, limit: 'all' }];
   const cached = getApiCache('listExerciseHistory', args, API_CACHE_TTL.listExerciseHistory);
   if (cached) {
     renderExerciseHistory(cached);
@@ -5584,7 +5659,8 @@ function renderExerciseHistory(history) {
     return;
   }
 
-  const metric = state.exerciseMetric || 'weight';
+  const metric = state.exerciseMetric || 'e1rm';
+  const chartRange = state.exerciseChartRange || '4';
 
   // Encabezado / veredicto factual
   const latestBest = bestSetOf(sessions[0].sets);
@@ -5609,6 +5685,10 @@ function renderExerciseHistory(history) {
   const deltaChip = delta ? `<span class="ex-delta ${delta.cls}">${delta.arrow} ${escapeHtml(delta.label)}</span>` : '';
   const metricBtns = [['weight', 'Peso'], ['e1rm', '1RM est.'], ['reps', 'Reps']]
     .map(([m, l]) => `<button type="button" class="${m === metric ? 'active' : ''}" data-action="set-exercise-metric" data-metric="${m}">${l}</button>`).join('');
+  const rangeBtns = [['4', 'Últimas 4'], ['12', 'Últimas 12'], ['all', 'Todo']]
+    .map(([r, l]) => `<button type="button" class="${r === chartRange ? 'active' : ''}" data-action="set-exercise-chart-range" data-range="${r}">${l}</button>`).join('');
+  const chartTitle = metric === 'e1rm' ? '1RM estimado por serie' : (metric === 'reps' ? 'Repeticiones por serie' : 'Peso por serie');
+  const chartNote = metric === 'e1rm' ? '<p class="ex-chart-note">Promedio = media del 1RM estimado de todas las series de cada sesión</p>' : '';
 
   const recent = sessions.slice(0, 6);
 
@@ -5625,7 +5705,12 @@ function renderExerciseHistory(history) {
       </div>
       <div class="ex-stall"><span class="dot ${stallCls === 'good' ? '' : stallCls}"></span><p class="muted">${escapeHtml(stallText)}</p></div>
       <div class="segmented compact ex-metric">${metricBtns}</div>
-      ${renderBestSetChart(sessions, metric)}
+      <div class="ex-chart-toolbar">
+        <span class="ex-chart-label">${chartTitle}</span>
+        <div class="ex-chart-range" aria-label="Período del gráfico">${rangeBtns}</div>
+      </div>
+      ${renderSetSeriesChart(sessions, metric, chartRange)}
+      ${chartNote}
     </div>
     <div class="card">${renderSetBySessionGrid(sessions)}</div>
     <div class="progress-history-list">
@@ -6339,7 +6424,11 @@ document.addEventListener('click', (e) => {
       loadProgress(state.currentScreen === 'progress' ? state.navSeq : null);
       break;
     case 'set-exercise-metric':
-      state.exerciseMetric = t.dataset.metric || 'weight';
+      state.exerciseMetric = t.dataset.metric || 'e1rm';
+      if (state.lastExerciseHistory) renderExerciseHistory(state.lastExerciseHistory);
+      break;
+    case 'set-exercise-chart-range':
+      state.exerciseChartRange = t.dataset.range || '4';
       if (state.lastExerciseHistory) renderExerciseHistory(state.lastExerciseHistory);
       break;
     case 'set-day-exercise-view':
