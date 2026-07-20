@@ -1834,7 +1834,8 @@
   .nutrition-chart .axis-label { fill:var(--muted); font-size:9px; }
   .nutrition-chart .axis-label.y { text-anchor:start; }
   .nutrition-chart .axis-label.x { text-anchor:middle; }
-  .nutrition-history-row { display:flex; justify-content:space-between; gap:12px; padding:11px 0; border-top:1px solid var(--border); font-size:13px; }
+  .nutrition-history-row { display:flex; justify-content:space-between; gap:12px; padding:11px 0; border-top:1px solid var(--border); font-size:13px; cursor:pointer; }
+  .nutrition-history-row:active { opacity:0.7; }
   .nutrition-home { cursor:pointer; margin-top:18px; }
   .nutrition-home-main { display:flex; justify-content:space-between; gap:12px; align-items:center; }
   .nutrition-home-values { display:flex; gap:12px; color:var(--muted); font-size:13px; margin-top:7px; }
@@ -2164,7 +2165,7 @@
       <div id="nutrition-chart"><div class="skeleton" style="height:230px;"></div></div>
     </div>
     <div class="card">
-      <div class="header-row"><div><h2 style="margin:0;">Registros</h2></div></div>
+      <div class="header-row"><div><h2 style="margin:0;">Registros</h2></div><button class="ghost-btn icon-btn" data-action="nutrition-add-day" aria-label="Agregar registro" title="Agregar registro">+</button></div>
       <div id="nutrition-history-list"><div class="skeleton" style="height:120px;"></div></div>
     </div>
   </section>
@@ -6460,7 +6461,46 @@ function renderNutritionHistoryList_() {
   const expanded = state.nutritionHistoryExpanded;
   const visible = expanded ? rows : rows.slice(0, 7);
   const moreBtn = rows.length > 7 ? `<button type="button" class="ghost-btn full" data-action="nutrition-history-toggle" style="margin-top:10px;">${expanded ? 'Ver menos' : 'Ver más'}</button>` : '';
-  el.innerHTML = `${visible.map(r => `<div class="nutrition-history-row"><span>${escapeHtml(formatDateLong(r.date))}</span><span><strong>${r.weight == null ? '—' : `${r.weight} kg`}</strong>${r.kcal == null ? '' : ` · ${r.kcal} kcal`}</span></div>`).join('')}${moreBtn}`;
+  el.innerHTML = `${visible.map(r => `<div class="nutrition-history-row" data-action="nutrition-edit-day" data-date="${r.date}" role="button" tabindex="0"><span>${escapeHtml(formatDateLong(r.date))}</span><span><strong>${r.weight == null ? '—' : `${r.weight} kg`}</strong>${r.kcal == null ? '' : ` · ${r.kcal} kcal`}${r.protein == null ? '' : ` · ${r.protein}g prot`}</span></div>`).join('')}${moreBtn}`;
+}
+
+function openNutritionDayModal_(date) {
+  const isNew = !date;
+  const existing = isNew ? null : state.nutritionHistoryRows.find(r => r.date === date);
+  const today = todayInputValue();
+
+  modal.open({
+    title: isNew ? 'Agregar registro' : `Editar ${formatDateLong(date)}`,
+    bodyHtml: `
+      <label class="field-label">Fecha</label>
+      <input id="modal-nutrition-date" type="date" max="${today}" value="${isNew ? today : date}" ${isNew ? '' : 'disabled'} />
+      <div class="nutrition-form-grid" style="margin-top:14px;">
+        <label class="nutrition-field"><span class="field-label">Peso (kg)</span><input id="modal-nutrition-weight" type="text" inputmode="decimal" placeholder="80.0" value="${existing && existing.weight != null ? existing.weight : ''}"></label>
+        <label class="nutrition-field"><span class="field-label">Calorías</span><input id="modal-nutrition-kcal" type="number" min="0" step="1" inputmode="numeric" placeholder="2050" value="${existing && existing.kcal != null ? existing.kcal : ''}"></label>
+        <label class="nutrition-field"><span class="field-label">Proteína (g)</span><input id="modal-nutrition-protein" type="number" min="0" step="1" inputmode="numeric" placeholder="155" value="${existing && existing.protein != null ? existing.protein : ''}"></label>
+      </div>
+    `,
+    actions: [
+      { label: 'Guardar', kind: 'primary', onClick: async () => {
+        const dateVal = $('#modal-nutrition-date').value;
+        if (!dateVal) { toast('Elegí una fecha', 'error'); return; }
+        const payload = {
+          date: dateVal,
+          weight: nutritionValue_('#modal-nutrition-weight'),
+          kcal: nutritionValue_('#modal-nutrition-kcal'),
+          protein: nutritionValue_('#modal-nutrition-protein'),
+        };
+        try {
+          await gas.saveNutritionDay(payload);
+          modal.close();
+          invalidateApiCache(['getNutritionDay','listNutritionHistory','getWeeklyAdjustment','getNutritionHomeStats']);
+          toast('Registro guardado', 'success');
+          await loadNutrition(state.currentScreen === 'nutrition' ? state.navSeq : null);
+        } catch (err) { toast(err.message || 'No se pudo guardar', 'error'); }
+      }},
+      { label: 'Cancelar', onClick: () => modal.close() },
+    ]
+  });
 }
 
 function renderNutritionHome_(data) {
@@ -6608,6 +6648,8 @@ document.addEventListener('click', (e) => {
       state.nutritionHistoryExpanded = !state.nutritionHistoryExpanded;
       renderNutritionHistoryList_();
       break;
+    case 'nutrition-add-day': openNutritionDayModal_(null); break;
+    case 'nutrition-edit-day': openNutritionDayModal_(t.dataset.date); break;
     case 'home-week-next':
       state.homeWeekOffset = Math.min(0, (state.homeWeekOffset || 0) + 1);
       loadHomeWeek(state.currentScreen === 'home' ? state.navSeq : null);
