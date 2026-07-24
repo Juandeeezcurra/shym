@@ -1519,6 +1519,45 @@
     color: var(--muted);
   }
   .home-muscle-detail b { color: var(--fg); }
+  .home-muscle-list {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+    gap: 2px 12px;
+  }
+  .home-muscle-group {
+    grid-column: 1 / -1;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--muted);
+    margin: 10px 0 4px;
+  }
+  .home-muscle-group:first-child { margin-top: 0; }
+  .home-muscle-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 5px 7px;
+    border-radius: 8px;
+    font-size: 13px;
+    cursor: pointer;
+    min-width: 0;
+  }
+  .home-muscle-row.selected { background: var(--card-soft); }
+  .home-muscle-row .chip {
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    flex: 0 0 14px;
+  }
+  .home-muscle-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .home-muscle-row .sets { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 700; }
+  .home-muscle-row.zero .name, .home-muscle-row.zero .sets { color: var(--muted); }
 
   /* ---- Home train CTA ---- */
   .home-train-cta {
@@ -3319,6 +3358,34 @@ function buildMuscleBodySvg_() {
   </svg>`;
 }
 
+const HM_GROUPS = [
+  ['Pecho', ['pectoral_superior', 'pectoral_medio', 'pectoral_inferior']],
+  ['Espalda', ['dorsal_ancho', 'trapecio_superior', 'trapecio_medio', 'trapecio_inferior', 'romboides', 'redondo_mayor', 'erectores_espinales']],
+  ['Hombros', ['deltoide_anterior', 'deltoide_lateral', 'deltoide_posterior']],
+  ['Bíceps', ['biceps_cabeza_larga', 'biceps_cabeza_corta', 'braquial', 'braquiorradial']],
+  ['Tríceps', ['triceps_cabeza_larga', 'triceps_cabeza_lateral', 'triceps_cabeza_medial']],
+  ['Core', ['recto_abdominal', 'oblicuos', 'serrato']],
+  ['Piernas', ['cuadriceps', 'aductores', 'gluteo_mayor', 'isquios', 'gemelos', 'tibial_anterior']],
+];
+
+// Lista por grupo con el chip de color y las series efectivas de cada subzona.
+function hmBuildList_() {
+  return HM_GROUPS.map(([group, ids]) => {
+    const rows = ids.map(id => {
+      const s = (state.muscleHeatById && state.muscleHeatById[id]) || null;
+      const eff = s ? Number(s.effective_sets || 0) : 0;
+      const intensity = s ? Number(s.intensity || 0) : 0;
+      const label = (s && s.label) || id;
+      return `<div class="home-muscle-row ${eff > 0 ? '' : 'zero'}" data-action="select-muscle" data-subzone="${id}">
+        <span class="chip" style="background:${hmMuscleFill_(intensity)}"></span>
+        <span class="name">${escapeHtml(label)}</span>
+        <span class="sets">${eff.toFixed(1)}</span>
+      </div>`;
+    }).join('');
+    return `<div class="home-muscle-group">${escapeHtml(group)}</div>${rows}`;
+  }).join('');
+}
+
 function hmSubzoneLabel_(id) { return (state.muscleHeatById && state.muscleHeatById[id] && state.muscleHeatById[id].label) || id; }
 
 function hmDetailFor_(id) {
@@ -3338,7 +3405,9 @@ function hmDetailFor_(id) {
 
 function hmSelectMuscle_(id) {
   state.muscleHeatSelected = id;
-  $$('#home-muscle-card .mz').forEach(g => g.classList.toggle('selected', g.dataset.subzone === id));
+  $$('#home-muscle-card .mz, #home-muscle-card .home-muscle-row').forEach(el => {
+    el.classList.toggle('selected', el.dataset.subzone === id);
+  });
   hmDetailFor_(id);
 }
 
@@ -3375,6 +3444,7 @@ function renderHomeMuscleCard_(heat) {
     ${buildMuscleBodySvg_()}
     <div class="home-muscle-legend"><span class="zero"></span> sin trabajo <span class="bar"></span><span>menos → más</span></div>
     <div class="home-muscle-detail" id="home-muscle-detail">Tocá un músculo para ver sus series.</div>
+    <div class="home-muscle-list">${hmBuildList_()}</div>
   `;
 
   // Pintar según intensidad (0..1 normalizada al músculo más trabajado).
