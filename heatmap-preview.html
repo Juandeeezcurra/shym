@@ -127,12 +127,7 @@ const SILHOUETTES = {
 const NEUTRAL_SHAPES = {
   both: [
     { pts:[[0,6],[-10,7],[-16,16],[-16,31],[-13,41],[-8,49],[0,52],[8,49],[13,41],[16,31],[16,16],[10,7]], mirror:false, kind:'head' },
-    { pts:[[-81,237],[-89,238],[-95,245],[-96,255],[-93,264],[-87,268],[-81,262],[-77,249]], mirror:true, kind:'palm' },
-    { pts:[[-80,245],[-75,247],[-70,252],[-69,257],[-72,260],[-77,258],[-82,253]], mirror:true, kind:'thumb' },
-    { pts:[[-83,258],[-80,265],[-79,276],[-81,282],[-84,282],[-86,277],[-85,265]], mirror:true, kind:'index-finger' },
-    { pts:[[-87,260],[-86,269],[-86,282],[-89,287],[-92,284],[-92,277],[-90,267]], mirror:true, kind:'middle-finger' },
-    { pts:[[-91,259],[-94,266],[-98,278],[-99,283],[-102,281],[-102,275],[-98,264]], mirror:true, kind:'ring-finger' },
-    { pts:[[-94,255],[-100,258],[-105,266],[-107,272],[-110,271],[-109,265],[-103,256],[-97,251]], mirror:true, kind:'little-finger' },
+    { rawD:'M -81 237 C -86 238 -91 239 -94 242 C -97 245 -99 249 -100 253 L -106 264 C -108 268 -107 271 -104 272 C -102 272 -101 270 -100 267 L -97 260 L -101 274 C -102 278 -101 281 -98 282 C -95 282 -94 279 -94 276 L -92 263 L -95 279 C -96 283 -94 286 -91 286 C -88 286 -87 283 -87 280 L -87 263 L -89 278 C -89 282 -87 284 -84 283 C -82 282 -82 279 -82 276 L -81 261 C -79 263 -77 266 -75 268 C -72 270 -69 269 -68 266 C -67 263 -69 261 -72 259 L -78 252 C -76 247 -76 242 -78 239 Z', mirror:true, kind:'hand', fill:'url(#hand-muscle)' },
     { pts:[[-15,22],[-18,23],[-18,31],[-15,34],[-13,30],[-13,24]], mirror:true, kind:'ear' },
     { pts:[[-31,326],[-32,337],[-28,346],[-17,349],[-8,341],[-10,329],[-18,324]], mirror:true, kind:'joint' },
     { pts:[[-19,451],[-27,458],[-28,465],[-23,469],[-8,468],[-5,462],[-8,451],[-12,447]], mirror:true, kind:'foot' }
@@ -248,9 +243,10 @@ const ANATOMY_DETAILS = {
     {cls:'tendon-line',d:'M -21 435 C -18 445 -17 452 -18 458',mirror:true},
     {cls:'tendon-line',d:'M -78 225 C -79 234 -82 243 -85 252',mirror:true},
     {cls:'tendon-line',d:'M -72 224 C -75 235 -80 246 -89 260',mirror:true},
-    {d:'M -80 241 C -84 244 -89 244 -93 243',mirror:true},
-    {d:'M -82 258 C -83 266 -83 274 -82 280',mirror:true},{d:'M -88 260 C -89 269 -89 279 -89 284',mirror:true},
-    {d:'M -94 259 C -97 267 -99 275 -100 280',mirror:true},{d:'M -99 256 C -103 261 -106 267 -108 270',mirror:true},
+    {d:'M -78 242 C -83 245 -89 245 -94 242',mirror:true},
+    {d:'M -78 251 C -83 255 -89 256 -96 252',mirror:true},{d:'M -80 251 C -82 256 -81 261 -78 265',mirror:true},
+    {d:'M -84 262 C -85 268 -85 274 -84 279',mirror:true},{d:'M -90 263 C -91 269 -91 276 -91 282',mirror:true},
+    {d:'M -96 261 C -98 267 -99 273 -99 278',mirror:true},
     {d:'M -18 459 C -15 462 -11 463 -7 463',mirror:true}
   ],
   back: [
@@ -265,9 +261,10 @@ const ANATOMY_DETAILS = {
     {cls:'tendon-line',d:'M -20 421 C -18 437 -18 448 -18 458',mirror:true},
     {cls:'tendon-line',d:'M -78 225 C -80 235 -82 244 -85 252',mirror:true},
     {cls:'tendon-line',d:'M -72 224 C -75 235 -80 246 -89 260',mirror:true},
-    {d:'M -80 241 C -85 244 -89 244 -94 243',mirror:true},
-    {d:'M -82 258 C -83 266 -83 274 -82 280',mirror:true},{d:'M -88 260 C -89 269 -89 279 -89 284',mirror:true},
-    {d:'M -94 259 C -97 267 -99 275 -100 280',mirror:true},{d:'M -99 256 C -103 261 -106 267 -108 270',mirror:true},
+    {d:'M -78 242 C -83 245 -89 245 -94 242',mirror:true},
+    {d:'M -78 251 C -83 255 -89 256 -96 252',mirror:true},{d:'M -80 251 C -82 256 -81 261 -78 265',mirror:true},
+    {d:'M -84 262 C -85 268 -85 274 -84 279',mirror:true},{d:'M -90 263 C -91 269 -91 276 -91 282',mirror:true},
+    {d:'M -96 261 C -98 267 -99 273 -99 278',mirror:true},
     {d:'M -18 459 C -15 462 -11 463 -7 463',mirror:true}
   ]
 };
@@ -335,8 +332,10 @@ function buildView(view, tx) {
   const silhouette = smoothOpenClosed(SILHOUETTES[view]);
   const neutrals = NEUTRAL_SHAPES.both.concat(NEUTRAL_SHAPES[view] || []);
   const neutralSvg = neutrals.map(n => {
-    const d = smoothClosed(n.pts);
-    return n.mirror ? mirrored(d, NEUTRAL_FILL, 'neutral-muscle') : `<path d="${d}" fill="${NEUTRAL_FILL}" class="neutral-muscle"/>`;
+    const d = n.rawD || smoothClosed(n.pts);
+    const fill = n.fill || NEUTRAL_FILL;
+    const classes = `neutral-muscle${n.kind ? ` ${n.kind}` : ''}`;
+    return n.mirror ? mirrored(d, fill, classes) : `<path d="${d}" fill="${fill}" class="${classes}"/>`;
   }).join('');
   const zonesSvg = MUSCLE_ZONES.filter(z => z.view === view).map(z =>
     `<g class="mz" data-subzone="${z.id}">${z.shapes.map(pts => mirrored(smoothClosed(pts))).join('')}</g>`
@@ -358,6 +357,9 @@ function buildSvg() {
       </linearGradient>
       <linearGradient id="neutral-muscle" x1="0" y1="0" x2="0.9" y2="0.15">
         <stop offset="0" stop-color="#3a4245"/><stop offset=".5" stop-color="#51585a"/><stop offset="1" stop-color="#323a3e"/>
+      </linearGradient>
+      <linearGradient id="hand-muscle" x1="0" y1="0" x2="0.85" y2="0.2">
+        <stop offset="0" stop-color="#424b4f"/><stop offset=".48" stop-color="#5a6264"/><stop offset="1" stop-color="#353e42"/>
       </linearGradient>
       <filter id="muscle-depth" x="-12%" y="-12%" width="124%" height="124%">
         <feDropShadow dx="0" dy=".8" stdDeviation=".55" flood-color="#030506" flood-opacity=".62"/>
