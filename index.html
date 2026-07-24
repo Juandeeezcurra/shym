@@ -1479,7 +1479,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 10px 14px;
     flex-wrap: wrap;
   }
   .home-muscle-title {
@@ -1489,6 +1489,29 @@
     letter-spacing: 0.05em;
     color: var(--muted);
   }
+  .home-muscle-toggles { display: flex; gap: 8px; flex-wrap: wrap; }
+  /* Segmento propio, compacto e inline (el .segmented de la app es un grid grande). */
+  .hm-seg {
+    display: inline-flex;
+    gap: 2px;
+    padding: 3px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--card-soft);
+  }
+  .hm-seg button {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    border-radius: 7px;
+    padding: 6px 11px;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .hm-seg button.active { background: var(--accent); color: #101010; }
   .home-muscle-svg { width: 100%; height: auto; display: block; margin-top: 12px; }
   .home-muscle .mz { cursor: pointer; }
   .home-muscle .mz path {
@@ -1519,19 +1542,17 @@
     color: var(--muted);
   }
   .home-muscle-detail b { color: var(--fg); }
-  .home-muscle-toolbar {
-    display: flex;
+  .home-muscle-body { margin-top: 12px; }
+  .home-muscle-visual { min-width: 0; }
+  .home-muscle-listbar {
+    display: none;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    flex-wrap: wrap;
-    margin-top: 12px;
+    margin-bottom: 8px;
   }
-  .home-muscle-toolbar .home-muscle-toolbar-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
-  .home-muscle-body { margin-top: 4px; }
-  .home-muscle-visual { min-width: 0; }
+  .home-muscle-listbar .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
   .home-muscle-list {
-    margin-top: 8px;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
     gap: 2px 12px;
@@ -1568,20 +1589,20 @@
   .home-muscle-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .home-muscle-row .sets { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 700; }
   .home-muscle-row.zero .name, .home-muscle-row.zero .sets { color: var(--muted); }
-  /* Mobile: toggle cuerpo/lista (una sola vista a la vez). */
+  /* Mobile: toggle cuerpo/lista (una sola vista a la vez); orden solo en lista. */
   .home-muscle.show-list .home-muscle-visual { display: none; }
-  .home-muscle:not(.show-list) .home-muscle-list { display: none; }
+  .home-muscle:not(.show-list) .home-muscle-listwrap { display: none; }
+  .home-muscle.show-list .home-muscle-listbar { display: flex; }
   /* Web (≥900px): cuerpo y lista lado a lado, sin toggle de vista. */
   @media (min-width: 900px) {
     .home-muscle-viewtoggle { display: none; }
     .home-muscle-body { display: flex; gap: 22px; align-items: flex-start; }
     .home-muscle-visual { flex: 0 0 56%; display: block !important; }
+    .home-muscle-listwrap { flex: 1; min-width: 0; display: block !important; }
+    .home-muscle-listbar { display: flex !important; }
     .home-muscle-list {
-      flex: 1;
-      margin-top: 0;
       max-height: 560px;
       overflow-y: auto;
-      display: grid !important;
       grid-template-columns: 1fr;
     }
   }
@@ -3482,18 +3503,23 @@ function renderHomeMuscleCard_(heat) {
   el.innerHTML = `
     <div class="home-muscle-head">
       <span class="home-muscle-title">Mapa muscular · ${days} días</span>
-      <div class="segmented compact">${dayBtns}</div>
-    </div>
-    <div class="home-muscle-toolbar">
-      <div class="segmented compact home-muscle-viewtoggle">${viewBtns}</div>
-      <div class="segmented compact home-muscle-sort" aria-label="Ordenar músculos">${sortBtns}</div>
+      <div class="home-muscle-toggles">
+        <div class="hm-seg">${dayBtns}</div>
+        <div class="hm-seg home-muscle-viewtoggle">${viewBtns}</div>
+      </div>
     </div>
     <div class="home-muscle-body">
       <div class="home-muscle-visual">
         ${buildMuscleBodySvg_()}
         <div class="home-muscle-legend"><span class="zero"></span> sin trabajo <span class="bar"></span><span>menos → más</span></div>
       </div>
-      <div class="home-muscle-list">${hmBuildList_()}</div>
+      <div class="home-muscle-listwrap">
+        <div class="home-muscle-listbar">
+          <span class="lbl">Orden</span>
+          <div class="hm-seg" aria-label="Ordenar músculos">${sortBtns}</div>
+        </div>
+        <div class="home-muscle-list">${hmBuildList_()}</div>
+      </div>
     </div>
     <div class="home-muscle-detail" id="home-muscle-detail">Tocá un músculo para ver sus series.</div>
   `;
