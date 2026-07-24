@@ -1468,6 +1468,58 @@
     letter-spacing: -0.03em;
   }
 
+  /* ---- Home muscle heatmap ---- */
+  .home-muscle {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+  }
+  .home-muscle-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .home-muscle-title {
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+  }
+  .home-muscle-svg { width: 100%; height: auto; display: block; margin-top: 12px; }
+  .home-muscle .mz { cursor: pointer; }
+  .home-muscle .mz path {
+    transition: fill .2s, stroke .2s, filter .2s;
+    stroke: #11161a;
+    stroke-width: .85;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+    filter: url(#hm-depth);
+  }
+  .home-muscle .mz.selected path { stroke: #ffb49e; stroke-width: 1.8; filter: url(#hm-selected); }
+  .home-muscle .anatomy-base { stroke: #090d10; stroke-width: 1.15; vector-effect: non-scaling-stroke; }
+  .home-muscle .neutral-muscle { stroke: #161c20; stroke-width: .8; vector-effect: non-scaling-stroke; }
+  .home-muscle .anatomy-line { fill: none; stroke: rgba(255,255,255,.14); stroke-width: .72; stroke-linecap: round; pointer-events: none; vector-effect: non-scaling-stroke; }
+  .home-muscle .tendon-line { fill: none; stroke: rgba(215,225,218,.3); stroke-width: 1.05; stroke-linecap: round; pointer-events: none; vector-effect: non-scaling-stroke; }
+  .home-muscle .body-midline { fill: none; stroke: rgba(3,6,8,.62); stroke-width: 1; pointer-events: none; vector-effect: non-scaling-stroke; }
+  .home-muscle .view-label { fill: var(--muted); font-size: 11px; letter-spacing: 2px; text-anchor: middle; }
+  .home-muscle-legend { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 11px; color: var(--muted); }
+  .home-muscle-legend .bar { flex: 0 0 96px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #522f27, #ff5a2a); }
+  .home-muscle-legend .zero { width: 13px; height: 13px; border-radius: 4px; background: #252a2e; border: 1px solid var(--border); }
+  .home-muscle-detail {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: var(--card-soft);
+    border-radius: 10px;
+    font-size: 13px;
+    min-height: 20px;
+    color: var(--muted);
+  }
+  .home-muscle-detail b { color: var(--fg); }
+
   /* ---- Home train CTA ---- */
   .home-train-cta {
     background: var(--card);
@@ -1891,6 +1943,10 @@
 
     <div id="home-week-card" class="home-week" style="margin-top:18px;">
       <div class="skeleton" style="height:140px;"></div>
+    </div>
+
+    <div id="home-muscle-card" class="home-muscle" style="margin-top:18px;display:none;">
+      <div class="skeleton" style="height:320px;"></div>
     </div>
 
     <div id="home-nutrition-card" class="card nutrition-home" data-go="nutrition" style="display:none;"></div>
@@ -2364,6 +2420,7 @@ const API_CACHE_TTL = {
   getProgressSummary: 300000,
   listExerciseHistory: 300000,
   getExerciseGoal: 300000,
+  getMuscleHeatmap: 300000,
 };
 const API_CACHE_STORAGE_KEY = 'gymtracker:api-cache:v4';
 
@@ -2487,6 +2544,7 @@ function invalidateSessionCaches() {
     'getProgressSummary',
     'listExerciseHistory',
     'listAllExerciseNames',
+    'getMuscleHeatmap',
   ]);
 }
 
@@ -2782,12 +2840,14 @@ async function loadHome(navToken) {
   if (!backend.url) return;
   const offset = state.homeWeekOffset || 0;
   const weekArgs = [{ offset }];
+  const heatArgs = [{ days: state.muscleHeatDays || 7 }];
 
   // Pinta lo cacheado al instante; la red solo refresca lo que falte.
   const cachedStats = getApiCache('getHomeStats', []);
   const cachedSummary = getApiCache('getProgressSummary', []);
   const cachedWeek = getApiCache('getWeekActivity', weekArgs);
   const cachedNutrition = getApiCache('getNutritionHomeStats', []);
+  const cachedHeat = getApiCache('getMuscleHeatmap', heatArgs);
   if (cachedStats) renderHomeStats(cachedStats);
   if (cachedStats && cachedSummary) renderHomeGoalsCard_(cachedStats, cachedSummary);
   if (cachedWeek) {
@@ -2797,19 +2857,22 @@ async function loadHome(navToken) {
     if (el) el.innerHTML = `<div class="skeleton" style="height:140px;"></div>`;
   }
   if (cachedNutrition) renderNutritionHome_(cachedNutrition);
+  if (cachedHeat) renderHomeMuscleCard_(cachedHeat);
 
   try {
-    const [stats, summary, week, nutrition] = await cachedGasBatch([
+    const [stats, summary, week, nutrition, heat] = await cachedGasBatch([
       { fn: 'getHomeStats', args: [] },
       { fn: 'getProgressSummary', args: [] },
       { fn: 'getWeekActivity', args: weekArgs },
       { fn: 'getNutritionHomeStats', args: [] },
+      { fn: 'getMuscleHeatmap', args: heatArgs },
     ]);
     if (navToken && !isCurrentNav(navToken, 'home')) return;
     renderHomeStats(stats);
     renderHomeGoalsCard_(stats, summary);
     if ((state.homeWeekOffset || 0) === offset) renderHomeWeekCard_(week);
     renderNutritionHome_(nutrition);
+    if ((state.muscleHeatDays || 7) === (heatArgs[0].days)) renderHomeMuscleCard_(heat);
     prefetchTrainData_(stats);
   } catch (err) {
     if (navToken && !isCurrentNav(navToken, 'home')) return;
@@ -3012,6 +3075,337 @@ function renderHomeWeekCard_(data) {
     </div>
     ${lastSessionHtml}
   `;
+}
+
+// ============================================================
+// MAPA MUSCULAR (heatmap anatómico frente/dorso)
+// Geometría espejada: se dibuja la mitad izquierda y se refleja con scale(-1,1).
+// Cada músculo conserva su data-subzone; el color sólo cambia el fill.
+// ============================================================
+function hmSmoothClosed_(pts) {
+  const n = pts.length;
+  let d = `M ${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 0; i < n; i++) {
+    const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${p2[0]} ${p2[1]}`;
+  }
+  return d + ' Z';
+}
+function hmSmoothOpenClosed_(pts) {
+  const n = pts.length;
+  let d = `M ${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 0; i < n - 1; i++) {
+    const p0 = pts[Math.max(i - 1, 0)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(i + 2, n - 1)];
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${p2[0]} ${p2[1]}`;
+  }
+  return d + ' Z';
+}
+
+const HM_SILHOUETTES = {
+  front: [
+    [0,49],[-8,49],[-10,59],[-19,65],[-35,69],[-50,73],[-60,80],[-66,91],[-68,106],[-68,126],[-65,151],[-61,170],
+    [-66,180],[-72,192],[-77,207],[-82,225],[-82,238],[-89,240],[-95,247],[-96,257],[-92,267],[-84,264],[-78,249],[-74,240],[-70,229],[-64,211],[-57,191],[-48,172],
+    [-43,145],[-41,116],[-35,105],[-38,126],[-38,151],[-34,180],[-33,200],[-39,217],[-43,244],[-42,272],
+    [-38,301],[-32,326],[-31,337],[-36,357],[-36,382],[-31,411],[-24,438],[-19,451],[-27,458],[-28,465],[-23,469],[-8,468],[-5,462],
+    [-7,452],[-8,420],[-8,389],[-7,360],[-8,340],[-10,329],[-8,307],[-7,280],[-5,254],[-2,228]
+  ],
+  back: [
+    [0,49],[-8,49],[-10,59],[-19,65],[-35,69],[-50,73],[-60,80],[-66,91],[-68,106],[-68,126],[-65,151],[-61,170],
+    [-66,180],[-72,192],[-77,207],[-82,225],[-82,238],[-89,240],[-95,247],[-96,257],[-92,267],[-84,264],[-78,249],[-74,240],[-70,229],[-64,211],[-57,191],[-48,172],
+    [-43,145],[-41,116],[-35,105],[-38,126],[-38,151],[-34,180],[-33,200],[-39,217],[-43,244],[-42,272],
+    [-39,301],[-33,326],[-31,338],[-37,357],[-37,383],[-31,412],[-24,438],[-19,451],[-27,458],[-28,465],[-23,469],[-8,468],[-5,462],
+    [-7,452],[-8,420],[-8,389],[-7,360],[-8,340],[-10,329],[-8,307],[-7,280],[-5,254],[-2,228]
+  ]
+};
+
+// Piezas sin métricas propias: completan la figura y evitan huecos.
+const HM_NEUTRAL_SHAPES = {
+  both: [
+    { pts:[[0,6],[-10,7],[-16,16],[-16,31],[-13,41],[-8,49],[0,52],[8,49],[13,41],[16,31],[16,16],[10,7]], mirror:false, kind:'head' },
+    { pts:[[-81,237],[-88,239],[-94,245],[-97,254],[-96,264],[-92,273],[-86,276],[-81,271],[-80,262],[-75,260],[-72,256],[-74,251],[-78,250],[-77,243]], mirror:true, kind:'hand', fill:'url(#hm-hand)' },
+    { pts:[[-15,22],[-18,23],[-18,31],[-15,34],[-13,30],[-13,24]], mirror:true, kind:'ear' },
+    { pts:[[-31,326],[-32,337],[-28,346],[-17,349],[-8,341],[-10,329],[-18,324]], mirror:true, kind:'joint' },
+    { pts:[[-19,451],[-27,458],[-28,465],[-23,469],[-8,468],[-5,462],[-8,451],[-12,447]], mirror:true, kind:'foot' }
+  ],
+  front: [
+    { pts:[[-3,49],[-8,50],[-11,64],[-8,72],[-3,65]], mirror:true, kind:'tendon' },
+    { pts:[[-41,116],[-45,140],[-46,162],[-43,174],[-39,159],[-38,136]], mirror:true },
+    { pts:[[-58,171],[-65,178],[-70,191],[-74,207],[-79,228],[-78,240],[-72,238],[-66,222],[-61,205],[-54,187]], mirror:true },
+    { pts:[[-52,176],[-59,188],[-65,203],[-70,220],[-75,240],[-69,237],[-63,222],[-58,205],[-50,190]], mirror:true },
+    { pts:[[-61,177],[-68,186],[-70,198],[-67,210],[-62,207],[-57,193]], mirror:true },
+    { pts:[[-23,211],[-31,205],[-38,216],[-41,238],[-37,251],[-29,245]], mirror:true },
+    { pts:[[-2,211],[-12,211],[-22,216],[-27,226],[-19,232],[-8,231],[-2,226]], mirror:true },
+    { pts:[[-31,221],[-24,233],[-19,252],[-16,278],[-14,310],[-10,325],[-8,307],[-7,278],[-8,249],[-14,229]], mirror:true, kind:'strap' },
+    { pts:[[-31,340],[-36,357],[-36,382],[-31,411],[-25,432],[-22,423],[-24,397],[-24,369],[-22,348]], mirror:true },
+    { pts:[[-8,340],[-7,360],[-8,389],[-8,420],[-9,445],[-15,447],[-16,421],[-15,390],[-14,360]], mirror:true }
+  ],
+  back: [
+    { pts:[[-3,49],[-8,50],[-11,63],[-9,71],[-3,67]], mirror:true, kind:'tendon' },
+    { pts:[[-37,106],[-41,119],[-42,140],[-43,160],[-40,173],[-37,151]], mirror:true },
+    { pts:[[-58,171],[-65,179],[-71,192],[-75,208],[-80,228],[-79,240],[-73,238],[-67,222],[-62,205],[-54,187]], mirror:true },
+    { pts:[[-52,176],[-59,188],[-66,203],[-71,220],[-76,240],[-70,237],[-64,222],[-58,204],[-50,190]], mirror:true },
+    { pts:[[-61,178],[-68,187],[-71,199],[-67,211],[-62,207],[-57,193]], mirror:true },
+    { pts:[[-2,213],[-10,210],[-20,211],[-29,216],[-36,226],[-39,240],[-35,249],[-25,247],[-14,241],[-3,232]], mirror:true },
+    { pts:[[-31,338],[-37,357],[-37,383],[-31,412],[-25,434],[-22,425],[-24,397],[-24,370],[-22,348]], mirror:true },
+    { pts:[[-8,340],[-7,360],[-8,389],[-8,420],[-9,445],[-15,447],[-16,420],[-15,388],[-14,358]], mirror:true }
+  ]
+};
+
+const HM_MUSCLE_ZONES = [
+  {view:'front',id:'trapecio_superior',shapes:[[[-10,57],[-22,61],[-36,67],[-48,73],[-42,80],[-29,74],[-17,69],[-10,66]]]},
+  {view:'front',id:'deltoide_anterior',shapes:[[[-35,72],[-45,73],[-52,78],[-51,91],[-46,107],[-40,114],[-36,101],[-34,84]]]},
+  {view:'front',id:'deltoide_lateral',shapes:[[[-51,77],[-60,81],[-66,91],[-68,105],[-65,119],[-59,128],[-52,124],[-47,111],[-51,94]]]},
+  {view:'front',id:'pectoral_superior',shapes:[[[-2,81],[-12,78],[-24,78],[-34,81],[-36,87],[-32,93],[-22,97],[-12,96],[-2,93]]]},
+  {view:'front',id:'pectoral_medio',shapes:[[[-2,94],[-12,97],[-22,98],[-32,95],[-36,89],[-36,102],[-32,112],[-22,118],[-11,117],[-2,113]]]},
+  {view:'front',id:'pectoral_inferior',shapes:[[[-2,114],[-11,118],[-22,119],[-32,113],[-33,121],[-29,128],[-20,132],[-10,134],[-2,131]]]},
+  {view:'front',id:'dorsal_ancho',shapes:[[[-35,105],[-41,113],[-42,131],[-39,151],[-36,171],[-32,159],[-30,143],[-33,126]]]},
+  {view:'front',id:'recto_abdominal',shapes:[
+    [[-2,143],[-10,144],[-17,148],[-17,162],[-10,165],[-2,164]],
+    [[-2,166],[-10,167],[-17,165],[-17,180],[-10,184],[-2,182]],
+    [[-2,184],[-10,186],[-17,183],[-16,199],[-10,203],[-2,201]],
+    [[-2,203],[-10,205],[-16,201],[-15,214],[-10,225],[-4,231],[-2,228]]
+  ]},
+  {view:'front',id:'oblicuos',shapes:[[[-18,140],[-24,136],[-30,144],[-34,160],[-37,178],[-35,198],[-30,211],[-21,215],[-16,205],[-18,177]]]},
+  {view:'front',id:'serrato',shapes:[
+    [[-34,111],[-41,115],[-40,121],[-32,128],[-27,125],[-30,118]],
+    [[-33,124],[-40,128],[-39,135],[-31,141],[-26,137],[-29,131]],
+    [[-31,137],[-38,141],[-37,148],[-29,154],[-24,150],[-27,144]],
+    [[-29,150],[-36,154],[-34,161],[-27,166],[-22,161],[-25,156]]
+  ]},
+  {view:'front',id:'biceps_cabeza_larga',shapes:[[[-52,124],[-59,126],[-64,136],[-65,150],[-61,166],[-57,174],[-53,164],[-51,148]]]},
+  {view:'front',id:'biceps_cabeza_corta',shapes:[[[-44,115],[-50,121],[-52,135],[-51,149],[-54,164],[-57,174],[-51,177],[-46,166],[-43,146],[-42,128]]]},
+  {view:'front',id:'braquial',shapes:[[[-64,126],[-67,135],[-68,151],[-64,166],[-59,173],[-61,160],[-64,150],[-63,137]]]},
+  {view:'front',id:'braquiorradial',shapes:[[[-61,171],[-68,178],[-73,191],[-78,208],[-82,226],[-81,239],[-76,241],[-70,226],[-65,209],[-58,190]]]},
+  {view:'front',id:'cuadriceps',shapes:[
+    [[-36,215],[-42,231],[-43,253],[-41,278],[-37,302],[-31,323],[-24,328],[-17,326],[-10,330],[-7,317],[-9,301],[-10,281],[-12,263],[-17,239],[-23,225],[-29,219]]
+  ]},
+  {view:'front',id:'aductores',shapes:[[[-17,225],[-10,228],[-5,237],[-3,252],[-5,275],[-7,299],[-10,319],[-13,310],[-14,287],[-14,262],[-19,240]]]},
+  {view:'front',id:'tibial_anterior',shapes:[[[-21,345],[-27,352],[-29,369],[-27,390],[-22,416],[-17,442],[-13,449],[-12,425],[-14,397],[-14,370],[-16,351]]]},
+  {view:'front',id:'gemelos',shapes:[
+    [[-28,345],[-35,353],[-37,369],[-35,388],[-30,408],[-24,425],[-22,408],[-24,386],[-23,364]],
+    [[-14,345],[-8,352],[-7,369],[-8,389],[-11,412],[-14,431],[-18,421],[-17,398],[-16,372]]
+  ]},
+  {view:'back',id:'trapecio_superior',shapes:[[[-2,52],[-14,57],[-28,64],[-45,72],[-50,78],[-42,86],[-29,82],[-15,72],[-2,67]]]},
+  {view:'back',id:'trapecio_medio',shapes:[[[-2,69],[-14,75],[-29,84],[-39,91],[-35,105],[-27,114],[-15,110],[-2,104]]]},
+  {view:'back',id:'trapecio_inferior',shapes:[[[-2,106],[-13,112],[-25,119],[-21,135],[-13,155],[-5,178],[-2,184]]]},
+  {view:'back',id:'romboides',shapes:[[[-14,111],[-26,116],[-34,125],[-28,139],[-18,143],[-11,131]]]},
+  {view:'back',id:'deltoide_posterior',shapes:[[[-38,73],[-48,74],[-55,81],[-53,95],[-48,110],[-41,118],[-37,105],[-36,88]]]},
+  {view:'back',id:'deltoide_lateral',shapes:[[[-54,79],[-61,82],[-67,93],[-68,107],[-65,121],[-59,128],[-52,122],[-48,111],[-53,96]]]},
+  {view:'back',id:'redondo_mayor',shapes:[[[-37,113],[-43,117],[-46,128],[-40,139],[-31,137],[-29,128]]]},
+  {view:'back',id:'dorsal_ancho',shapes:[[[-31,139],[-42,138],[-43,154],[-39,175],[-34,194],[-25,207],[-14,214],[-4,219],[-4,187],[-10,176],[-18,163],[-25,148]]]},
+  {view:'back',id:'erectores_espinales',shapes:[[[-3,153],[-11,159],[-14,178],[-13,199],[-10,218],[-5,226],[-3,222]]]},
+  {view:'back',id:'oblicuos',shapes:[[[-33,173],[-38,181],[-38,199],[-34,214],[-27,220],[-22,211],[-27,198],[-29,182]]]},
+  {view:'back',id:'triceps_cabeza_larga',shapes:[[[-43,112],[-49,117],[-53,133],[-54,151],[-57,169],[-53,177],[-47,167],[-43,149],[-42,130]]]},
+  {view:'back',id:'triceps_cabeza_lateral',shapes:[[[-57,121],[-64,126],[-67,139],[-68,153],[-63,168],[-57,172],[-55,158],[-56,142],[-52,128]]]},
+  {view:'back',id:'triceps_cabeza_medial',shapes:[[[-54,163],[-61,169],[-65,176],[-61,184],[-54,186],[-49,178]]]},
+  {view:'back',id:'braquiorradial',shapes:[[[-61,177],[-68,183],[-74,196],[-79,212],[-82,227],[-81,239],[-76,241],[-70,226],[-65,208],[-57,189]]]},
+  {view:'back',id:'gluteo_mayor',shapes:[[[-3,225],[-14,216],[-27,217],[-37,226],[-41,241],[-40,259],[-34,274],[-23,282],[-11,280],[-3,268]]]},
+  {view:'back',id:'cuadriceps',shapes:[[[-39,260],[-43,274],[-42,296],[-38,315],[-32,328],[-27,330],[-29,311],[-32,288],[-33,269]]]},
+  {view:'back',id:'isquios',shapes:[
+    [[-34,276],[-27,279],[-22,289],[-20,308],[-19,325],[-23,335],[-28,331],[-32,315],[-34,297]],
+    [[-22,280],[-14,280],[-9,288],[-7,306],[-7,325],[-11,335],[-17,332],[-20,316],[-21,298]]
+  ]},
+  {view:'back',id:'aductores',shapes:[[[-11,278],[-6,280],[-3,291],[-2,309],[-3,331],[-7,329],[-8,309],[-9,291]]]},
+  {view:'back',id:'gemelos',shapes:[
+    [[-24,344],[-32,348],[-37,362],[-37,380],[-32,401],[-23,425],[-19,410],[-20,387],[-21,362]],
+    [[-18,345],[-10,348],[-7,362],[-7,381],[-12,403],[-18,425],[-22,410],[-21,386],[-21,362]]
+  ]}
+];
+
+const HM_ANATOMY_DETAILS = {
+  front: [
+    {cls:'body-midline',d:'M 0 77 L 0 226'},
+    {d:'M -6 86 C -16 84 -26 85 -34 89',mirror:true},
+    {d:'M -4 95 C -15 98 -26 98 -35 93',mirror:true},{d:'M -4 114 C -15 118 -25 119 -33 114',mirror:true},
+    {d:'M -6 125 C -15 129 -23 131 -29 128',mirror:true},{d:'M -17 146 C -22 161 -24 180 -23 202',mirror:true},
+    {d:'M -52 84 C -58 94 -59 109 -56 120',mirror:true},{d:'M -58 87 C -63 98 -63 112 -59 122',mirror:true},
+    {d:'M -48 128 C -53 140 -54 155 -52 167',mirror:true},{d:'M -58 132 C -61 144 -61 158 -57 167',mirror:true},
+    {d:'M -66 184 C -71 199 -76 216 -79 235',mirror:true},{d:'M -59 184 C -64 201 -69 220 -74 237',mirror:true},
+    {d:'M -35 229 C -38 253 -35 286 -29 315',mirror:true},{d:'M -27 231 C -29 255 -27 287 -22 318',mirror:true},
+    {d:'M -19 237 C -20 263 -19 293 -16 317',mirror:true},{d:'M -10 240 C -11 267 -10 297 -9 317',mirror:true},
+    {d:'M -27 352 C -29 374 -27 398 -21 428',mirror:true},{d:'M -15 353 C -13 379 -14 407 -14 437',mirror:true},
+    {cls:'tendon-line',d:'M -21 435 C -18 445 -17 452 -18 458',mirror:true},
+    {cls:'tendon-line',d:'M -78 225 C -79 233 -80 238 -81 241',mirror:true},
+    {cls:'tendon-line',d:'M -72 224 C -74 233 -76 238 -78 242',mirror:true},
+    {d:'M -78 242 C -82 244 -87 244 -91 242',mirror:true},
+    {d:'M -18 459 C -15 462 -11 463 -7 463',mirror:true}
+  ],
+  back: [
+    {cls:'body-midline',d:'M 0 51 L 0 269'},
+    {d:'M -10 61 C -19 72 -30 79 -43 81',mirror:true},{d:'M -8 84 C -19 90 -29 96 -37 101',mirror:true},
+    {d:'M -7 112 C -12 130 -11 147 -7 165',mirror:true},{d:'M -39 145 C -34 162 -28 184 -18 205',mirror:true},
+    {d:'M -49 130 C -52 145 -53 160 -51 172',mirror:true},{d:'M -66 184 C -72 200 -77 217 -80 235',mirror:true},
+    {d:'M -8 230 C -18 226 -29 229 -38 240',mirror:true},{d:'M -4 252 C -15 248 -28 254 -37 264',mirror:true},
+    {d:'M -34 283 C -32 301 -29 317 -25 328',mirror:true},{d:'M -24 284 C -22 303 -20 320 -17 330',mirror:true},
+    {d:'M -14 284 C -12 303 -10 319 -10 330',mirror:true},
+    {d:'M -29 353 C -31 374 -28 397 -22 417',mirror:true},{d:'M -13 352 C -10 373 -11 397 -17 417',mirror:true},
+    {cls:'tendon-line',d:'M -20 421 C -18 437 -18 448 -18 458',mirror:true},
+    {cls:'tendon-line',d:'M -78 225 C -79 233 -80 238 -81 241',mirror:true},
+    {cls:'tendon-line',d:'M -72 224 C -74 233 -76 238 -78 242',mirror:true},
+    {d:'M -78 242 C -82 244 -87 244 -91 242',mirror:true},
+    {d:'M -18 459 C -15 462 -11 463 -7 463',mirror:true}
+  ]
+};
+
+function hmMuscleFill_(intensity) {
+  if (!intensity || intensity <= 0) return '#252a2e';
+  const t = Math.pow(Math.min(intensity, 1), 0.78);
+  const from = [82, 47, 39], to = [255, 90, 42];
+  const rgb = from.map((v, i) => Math.round(v + (to[i] - v) * t));
+  return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
+}
+
+function hmMirrored_(d, fill, className) {
+  const f = fill ? ` fill="${fill}"` : '';
+  const c = className ? ` class="${className}"` : '';
+  return `<path d="${d}"${f}${c}/><path d="${d}"${f}${c} transform="scale(-1,1)"/>`;
+}
+
+function hmRenderDetails_(view) {
+  return (HM_ANATOMY_DETAILS[view] || []).map(line => {
+    const cls = line.cls || 'anatomy-line';
+    return line.mirror
+      ? `<path class="${cls}" d="${line.d}"/><path class="${cls}" d="${line.d}" transform="scale(-1,1)"/>`
+      : `<path class="${cls}" d="${line.d}"/>`;
+  }).join('');
+}
+
+function hmBuildView_(view, tx) {
+  const silhouette = hmSmoothOpenClosed_(HM_SILHOUETTES[view]);
+  const neutrals = HM_NEUTRAL_SHAPES.both.concat(HM_NEUTRAL_SHAPES[view] || []);
+  const neutralSvg = neutrals.map(n => {
+    const d = hmSmoothClosed_(n.pts);
+    const fill = n.fill || 'url(#hm-neutral)';
+    const classes = `neutral-muscle${n.kind ? ` ${n.kind}` : ''}`;
+    return n.mirror ? hmMirrored_(d, fill, classes) : `<path d="${d}" fill="${fill}" class="${classes}"/>`;
+  }).join('');
+  const zonesSvg = HM_MUSCLE_ZONES.filter(z => z.view === view).map(z =>
+    `<g class="mz" data-action="select-muscle" data-subzone="${z.id}">${z.shapes.map(pts => hmMirrored_(hmSmoothClosed_(pts))).join('')}</g>`
+  ).join('');
+  return `<g transform="translate(${tx},8)">
+    ${hmMirrored_(silhouette, 'url(#hm-body-base)', 'anatomy-base')}
+    ${neutralSvg}
+    ${zonesSvg}
+    ${hmRenderDetails_(view)}
+    <text class="view-label" x="0" y="497">${view === 'front' ? 'FRENTE' : 'DORSO'}</text>
+  </g>`;
+}
+
+function buildMuscleBodySvg_() {
+  return `<svg class="home-muscle-svg" viewBox="0 0 520 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mapa muscular, vista frontal y dorsal">
+    <defs>
+      <linearGradient id="hm-body-base" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#2b3337"/><stop offset=".52" stop-color="#444c4f"/><stop offset="1" stop-color="#293135"/>
+      </linearGradient>
+      <linearGradient id="hm-neutral" x1="0" y1="0" x2="0.9" y2="0.15">
+        <stop offset="0" stop-color="#3a4245"/><stop offset=".5" stop-color="#51585a"/><stop offset="1" stop-color="#323a3e"/>
+      </linearGradient>
+      <linearGradient id="hm-hand" x1="0" y1="0" x2="0.85" y2="0.2">
+        <stop offset="0" stop-color="#424b4f"/><stop offset=".48" stop-color="#5a6264"/><stop offset="1" stop-color="#353e42"/>
+      </linearGradient>
+      <filter id="hm-depth" x="-12%" y="-12%" width="124%" height="124%">
+        <feDropShadow dx="0" dy=".8" stdDeviation=".55" flood-color="#030506" flood-opacity=".62"/>
+      </filter>
+      <filter id="hm-selected" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="0" stdDeviation="1.7" flood-color="#ff5a2a" flood-opacity=".62"/>
+      </filter>
+    </defs>
+    ${hmBuildView_('front',135)}
+    ${hmBuildView_('back',385)}
+  </svg>`;
+}
+
+function hmSubzoneLabel_(id) { return (state.muscleHeatById && state.muscleHeatById[id] && state.muscleHeatById[id].label) || id; }
+
+function hmDetailFor_(id) {
+  const el = $('#home-muscle-detail');
+  if (!el) return;
+  const s = state.muscleHeatById && state.muscleHeatById[id];
+  if (!s) { el.innerHTML = 'Tocá un músculo para ver sus series.'; return; }
+  const eff = Number(s.effective_sets || 0);
+  if (eff <= 0) {
+    el.innerHTML = `<b>${escapeHtml(s.label || id)}</b> — sin trabajo en el período`;
+    return;
+  }
+  const direct = Number(s.direct_sets || 0), indirect = Number(s.indirect_sets || 0);
+  el.innerHTML = `<b>${escapeHtml(s.label || id)}</b> — ${eff.toFixed(1)} series efectivas `
+    + `<span class="muted">(${direct.toFixed(1)} directas + ${indirect.toFixed(1)} indirectas)</span>`;
+}
+
+function hmSelectMuscle_(id) {
+  state.muscleHeatSelected = id;
+  $$('#home-muscle-card .mz').forEach(g => g.classList.toggle('selected', g.dataset.subzone === id));
+  hmDetailFor_(id);
+}
+
+function hmDefaultDetail_() {
+  const el = $('#home-muscle-detail');
+  if (!el) return;
+  const subs = (state.muscleHeat && state.muscleHeat.subzones) || [];
+  const drawn = subs.filter(s => HM_DRAWN_SUBZONES.has(s.subzone));
+  const trained = drawn.filter(s => Number(s.effective_sets || 0) > 0);
+  if (!trained.length) { el.innerHTML = 'Todavía no hay series en el período. Tocá un músculo para verlo.'; return; }
+  const low = drawn.slice().sort((a, b) => Number(a.effective_sets || 0) - Number(b.effective_sets || 0)).slice(0, 3);
+  el.innerHTML = `Menos trabajados: <b>${low.map(s => escapeHtml(s.label || s.subzone)).join(', ')}</b>. Tocá un músculo para el detalle.`;
+}
+
+const HM_DRAWN_SUBZONES = new Set(HM_MUSCLE_ZONES.map(z => z.id));
+
+function renderHomeMuscleCard_(heat) {
+  const el = $('#home-muscle-card');
+  if (!el) return;
+  if (!heat || !Array.isArray(heat.subzones)) { el.style.display = 'none'; return; }
+  state.muscleHeat = heat;
+  state.muscleHeatById = {};
+  heat.subzones.forEach(s => { state.muscleHeatById[s.subzone] = s; });
+  const days = state.muscleHeatDays || 7;
+  const dayBtns = [[7, '7 días'], [30, '30 días']]
+    .map(([d, l]) => `<button type="button" class="${d === days ? 'active' : ''}" data-action="set-muscle-heat-days" data-days="${d}">${l}</button>`).join('');
+
+  el.style.display = '';
+  el.innerHTML = `
+    <div class="home-muscle-head">
+      <span class="home-muscle-title">Mapa muscular · ${days} días</span>
+      <div class="segmented compact">${dayBtns}</div>
+    </div>
+    ${buildMuscleBodySvg_()}
+    <div class="home-muscle-legend"><span class="zero"></span> sin trabajo <span class="bar"></span><span>menos → más</span></div>
+    <div class="home-muscle-detail" id="home-muscle-detail">Tocá un músculo para ver sus series.</div>
+  `;
+
+  // Pintar según intensidad (0..1 normalizada al músculo más trabajado).
+  $$('#home-muscle-card .mz').forEach(g => {
+    const s = state.muscleHeatById[g.dataset.subzone];
+    const intensity = s ? Number(s.intensity || 0) : 0;
+    const fill = hmMuscleFill_(intensity);
+    g.querySelectorAll('path').forEach(p => {
+      p.style.fill = fill;
+      if (intensity <= 0) p.style.stroke = '#465058';
+    });
+  });
+
+  const sel = state.muscleHeatSelected;
+  if (sel && state.muscleHeatById[sel]) hmSelectMuscle_(sel);
+  else hmDefaultDetail_();
+}
+
+// Toggle 7/30 días: pinta desde caché al instante; la red refresca si falta.
+async function loadMuscleHeat_(days) {
+  days = days || 7;
+  if (state.muscleHeatDays === days && state.muscleHeat) return;
+  state.muscleHeatDays = days;
+  const args = [{ days }];
+  const cached = getApiCache('getMuscleHeatmap', args);
+  if (cached) renderHomeMuscleCard_(cached);
+  try {
+    const heat = await cachedGas('getMuscleHeatmap', args);
+    if (state.currentScreen !== 'home') return;
+    if ((state.muscleHeatDays || 7) === days) renderHomeMuscleCard_(heat);
+  } catch (_) {}
 }
 
 function renderSessionListItem(session) {
@@ -6653,6 +7047,12 @@ document.addEventListener('click', (e) => {
     case 'home-week-next':
       state.homeWeekOffset = Math.min(0, (state.homeWeekOffset || 0) + 1);
       loadHomeWeek(state.currentScreen === 'home' ? state.navSeq : null);
+      break;
+    case 'set-muscle-heat-days':
+      loadMuscleHeat_(Number(t.dataset.days) || 7);
+      break;
+    case 'select-muscle':
+      hmSelectMuscle_(t.dataset.subzone);
       break;
     case 'toggle-progress-group': {
       const g = t.dataset.group || '';
