@@ -2026,8 +2026,6 @@
 
     <div id="home-pr-card" class="home-pr" style="display:none;"></div>
 
-    <div id="home-insights-card" class="home-insights" style="display:none;"></div>
-
     <div id="home-week-card" class="home-week" style="margin-top:18px;">
       <div class="skeleton" style="height:140px;"></div>
     </div>
@@ -2936,7 +2934,6 @@ async function loadHome(navToken) {
   const cachedNutrition = getApiCache('getNutritionHomeStats', []);
   const cachedHeat = getApiCache('getMuscleHeatmap', heatArgs);
   if (cachedStats) renderHomeStats(cachedStats);
-  if (cachedStats && cachedSummary) renderHomeGoalsCard_(cachedStats, cachedSummary);
   if (cachedWeek) {
     renderHomeWeekCard_(cachedWeek);
   } else {
@@ -2956,7 +2953,6 @@ async function loadHome(navToken) {
     ]);
     if (navToken && !isCurrentNav(navToken, 'home')) return;
     renderHomeStats(stats);
-    renderHomeGoalsCard_(stats, summary);
     if ((state.homeWeekOffset || 0) === offset) renderHomeWeekCard_(week);
     renderNutritionHome_(nutrition);
     if ((state.muscleHeatDays || 7) === (heatArgs[0].days)) renderHomeMuscleCard_(heat);
@@ -2984,47 +2980,6 @@ function prefetchTrainData_(stats) {
       }
     } catch (_) {}
   }, 500);
-}
-
-// "Objetivos de hoy": por cada ejercicio del día que toca, la última mejor
-// serie y qué conviene hacer (doble progresión). Reemplaza a "Cómo venís".
-function renderHomeGoalsCard_(stats, summary) {
-  const el = $('#home-insights-card');
-  if (!el) return;
-  const day = stats && stats.today_day;
-  const exercises = (day && day.exercises) || [];
-  if (!exercises.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
-
-  const progressByName = {};
-  ((summary && summary.exercises) || []).forEach(ex => {
-    progressByName[normalizeLookupKey(ex.name)] = ex;
-  });
-
-  const rows = exercises.map(ex => {
-    const p = progressByName[normalizeLookupKey(ex.exercise_name)];
-    const lastBest = p && p.last ? p.last : null;
-    const tip = computeExerciseTip(ex, lastBest, p ? p.stall_count : 0);
-    const lastLabel = lastBest
-      ? `últ. ${formatKgDisplay(lastBest.weight)}×${lastBest.reps || 0}`
-      : 'primera vez';
-    return `
-      <div class="home-goal-row" data-action="open-exercise-detail" data-exercise-name="${escapeHtml(ex.exercise_name)}">
-        <span class="home-goal-name">${escapeHtml(ex.exercise_name)}</span>
-        <span class="home-goal-last">${escapeHtml(lastLabel)}</span>
-        <span class="home-goal-chip ${tip.cls}">${escapeHtml(tip.short)}</span>
-      </div>
-    `;
-  }).join('');
-
-  const title = stats.trained_today
-    ? `Próximo: ${day.day_name}`
-    : (day.is_scheduled_today ? `Objetivos de hoy · ${day.day_name}` : `Próximo: ${day.day_name}`);
-
-  el.style.display = 'flex';
-  el.innerHTML = `
-    <div class="home-insights-title">${escapeHtml(title)}</div>
-    <div style="display:flex;flex-direction:column;">${rows}</div>
-  `;
 }
 
 function renderHomeStats(stats) {
