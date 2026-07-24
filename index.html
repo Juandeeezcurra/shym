@@ -1519,13 +1519,23 @@
     color: var(--muted);
   }
   .home-muscle-detail b { color: var(--fg); }
+  .home-muscle-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  .home-muscle-toolbar .home-muscle-toolbar-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .home-muscle-body { margin-top: 4px; }
+  .home-muscle-visual { min-width: 0; }
   .home-muscle-list {
-    margin-top: 14px;
-    padding-top: 14px;
-    border-top: 1px solid var(--border);
+    margin-top: 8px;
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
     gap: 2px 12px;
+    align-content: start;
   }
   .home-muscle-group {
     grid-column: 1 / -1;
@@ -1558,6 +1568,23 @@
   .home-muscle-row .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
   .home-muscle-row .sets { margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 700; }
   .home-muscle-row.zero .name, .home-muscle-row.zero .sets { color: var(--muted); }
+  /* Mobile: toggle cuerpo/lista (una sola vista a la vez). */
+  .home-muscle.show-list .home-muscle-visual { display: none; }
+  .home-muscle:not(.show-list) .home-muscle-list { display: none; }
+  /* Web (≥900px): cuerpo y lista lado a lado, sin toggle de vista. */
+  @media (min-width: 900px) {
+    .home-muscle-viewtoggle { display: none; }
+    .home-muscle-body { display: flex; gap: 22px; align-items: flex-start; }
+    .home-muscle-visual { flex: 0 0 56%; display: block !important; }
+    .home-muscle-list {
+      flex: 1;
+      margin-top: 0;
+      max-height: 560px;
+      overflow-y: auto;
+      display: grid !important;
+      grid-template-columns: 1fr;
+    }
+  }
 
   /* ---- Home train CTA ---- */
   .home-train-cta {
@@ -3368,22 +3395,31 @@ const HM_GROUPS = [
   ['Piernas', ['cuadriceps', 'aductores', 'gluteo_mayor', 'isquios', 'gemelos', 'tibial_anterior']],
 ];
 
-// Lista por grupo con el chip de color y las series efectivas de cada subzona.
+function hmListRow_(id) {
+  const s = (state.muscleHeatById && state.muscleHeatById[id]) || null;
+  const eff = s ? Number(s.effective_sets || 0) : 0;
+  const intensity = s ? Number(s.intensity || 0) : 0;
+  const label = (s && s.label) || id;
+  return `<div class="home-muscle-row ${eff > 0 ? '' : 'zero'}" data-action="select-muscle" data-subzone="${id}">
+    <span class="chip" style="background:${hmMuscleFill_(intensity)}"></span>
+    <span class="name">${escapeHtml(label)}</span>
+    <span class="sets">${eff.toFixed(1)}</span>
+  </div>`;
+}
+
+// Lista con el chip de color y las series efectivas de cada subzona.
+// Orden: 'group' (por grupo muscular), 'desc' (mayor→menor) o 'asc' (menor→mayor).
 function hmBuildList_() {
-  return HM_GROUPS.map(([group, ids]) => {
-    const rows = ids.map(id => {
-      const s = (state.muscleHeatById && state.muscleHeatById[id]) || null;
-      const eff = s ? Number(s.effective_sets || 0) : 0;
-      const intensity = s ? Number(s.intensity || 0) : 0;
-      const label = (s && s.label) || id;
-      return `<div class="home-muscle-row ${eff > 0 ? '' : 'zero'}" data-action="select-muscle" data-subzone="${id}">
-        <span class="chip" style="background:${hmMuscleFill_(intensity)}"></span>
-        <span class="name">${escapeHtml(label)}</span>
-        <span class="sets">${eff.toFixed(1)}</span>
-      </div>`;
-    }).join('');
-    return `<div class="home-muscle-group">${escapeHtml(group)}</div>${rows}`;
-  }).join('');
+  const sort = state.muscleHeatSort || 'group';
+  if (sort === 'group') {
+    return HM_GROUPS.map(([group, ids]) =>
+      `<div class="home-muscle-group">${escapeHtml(group)}</div>${ids.map(hmListRow_).join('')}`
+    ).join('');
+  }
+  const val = id => (state.muscleHeatById && state.muscleHeatById[id] ? Number(state.muscleHeatById[id].effective_sets || 0) : 0);
+  const ids = HM_GROUPS.reduce((acc, [, list]) => acc.concat(list), []);
+  ids.sort((a, b) => sort === 'desc' ? val(b) - val(a) : val(a) - val(b));
+  return ids.map(hmListRow_).join('');
 }
 
 function hmSubzoneLabel_(id) { return (state.muscleHeatById && state.muscleHeatById[id] && state.muscleHeatById[id].label) || id; }
@@ -3432,19 +3468,34 @@ function renderHomeMuscleCard_(heat) {
   state.muscleHeatById = {};
   heat.subzones.forEach(s => { state.muscleHeatById[s.subzone] = s; });
   const days = state.muscleHeatDays || 7;
+  const showList = !!state.muscleHeatShowList;
+  const sort = state.muscleHeatSort || 'group';
   const dayBtns = [[7, '7 días'], [30, '30 días']]
     .map(([d, l]) => `<button type="button" class="${d === days ? 'active' : ''}" data-action="set-muscle-heat-days" data-days="${d}">${l}</button>`).join('');
+  const viewBtns = [['body', 'Cuerpo'], ['list', 'Lista']]
+    .map(([v, l]) => `<button type="button" class="${(v === 'list') === showList ? 'active' : ''}" data-action="set-muscle-view" data-view="${v}">${l}</button>`).join('');
+  const sortBtns = [['desc', 'Más ↓'], ['asc', 'Menos ↑'], ['group', 'Grupo']]
+    .map(([s, l]) => `<button type="button" class="${s === sort ? 'active' : ''}" data-action="set-muscle-sort" data-sort="${s}">${l}</button>`).join('');
 
+  el.classList.toggle('show-list', showList);
   el.style.display = '';
   el.innerHTML = `
     <div class="home-muscle-head">
       <span class="home-muscle-title">Mapa muscular · ${days} días</span>
       <div class="segmented compact">${dayBtns}</div>
     </div>
-    ${buildMuscleBodySvg_()}
-    <div class="home-muscle-legend"><span class="zero"></span> sin trabajo <span class="bar"></span><span>menos → más</span></div>
+    <div class="home-muscle-toolbar">
+      <div class="segmented compact home-muscle-viewtoggle">${viewBtns}</div>
+      <div class="segmented compact home-muscle-sort" aria-label="Ordenar músculos">${sortBtns}</div>
+    </div>
+    <div class="home-muscle-body">
+      <div class="home-muscle-visual">
+        ${buildMuscleBodySvg_()}
+        <div class="home-muscle-legend"><span class="zero"></span> sin trabajo <span class="bar"></span><span>menos → más</span></div>
+      </div>
+      <div class="home-muscle-list">${hmBuildList_()}</div>
+    </div>
     <div class="home-muscle-detail" id="home-muscle-detail">Tocá un músculo para ver sus series.</div>
-    <div class="home-muscle-list">${hmBuildList_()}</div>
   `;
 
   // Pintar según intensidad (0..1 normalizada al músculo más trabajado).
@@ -7120,6 +7171,18 @@ document.addEventListener('click', (e) => {
       break;
     case 'set-muscle-heat-days':
       loadMuscleHeat_(Number(t.dataset.days) || 7);
+      break;
+    case 'set-muscle-view': {
+      state.muscleHeatShowList = t.dataset.view === 'list';
+      const card = $('#home-muscle-card');
+      if (card) card.classList.toggle('show-list', state.muscleHeatShowList);
+      $$('#home-muscle-card [data-action="set-muscle-view"]').forEach(b =>
+        b.classList.toggle('active', (b.dataset.view === 'list') === state.muscleHeatShowList));
+      break;
+    }
+    case 'set-muscle-sort':
+      state.muscleHeatSort = t.dataset.sort || 'group';
+      if (state.muscleHeat) renderHomeMuscleCard_(state.muscleHeat);
       break;
     case 'select-muscle':
       hmSelectMuscle_(t.dataset.subzone);
