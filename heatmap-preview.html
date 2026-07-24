@@ -47,7 +47,7 @@
   .detail { margin-top: 12px; padding: 10px 12px; background: var(--card-soft); border-radius: 10px; font-size: 13px; min-height: 40px; color: var(--muted); }
   .detail b { color: var(--text); }
   .legend { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 11px; color: var(--muted); }
-  .legend-bar { flex: 0 0 120px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, rgba(255,90,42,.12), rgba(255,90,42,.92)); }
+  .legend-bar { flex: 0 0 120px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #522f27, #ff5a2a); }
   .legend-zero { width: 14px; height: 14px; border-radius: 4px; background: var(--card-soft); border: 1px solid var(--border); }
   .controls { display: flex; gap: 14px; margin-top: 12px; font-size: 13px; color: var(--muted); }
   .controls label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
@@ -293,8 +293,12 @@ const ZERO_FILL = '#252a2e';
 
 function muscleFill(intensity) {
   if (!intensity || intensity <= 0) return ZERO_FILL;
-  const alpha = 0.20 + 0.78 * Math.min(intensity, 1);
-  return `rgba(255,90,42,${alpha.toFixed(3)})`;
+  // Color 100% opaco: la intensidad se expresa con luminosidad, no transparencia.
+  const t = Math.pow(Math.min(intensity, 1), 0.78);
+  const from = [82, 47, 39];
+  const to = [255, 90, 42];
+  const rgb = from.map((value, i) => Math.round(value + (to[i] - value) * t));
+  return `rgb(${rgb[0]},${rgb[1]},${rgb[2]})`;
 }
 
 function mirrored(d, fill, className) {
