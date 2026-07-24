@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Preview — Mapa muscular Shym</title>
+<style>
+  :root {
+    --bg: #07090b;
+    --card: #111519;
+    --card-soft: #171c21;
+    --border: #252c33;
+    --text: #f4f7f5;
+    --muted: #9aa7a0;
+    --accent: #ff5a2a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    padding: 24px;
+  }
+  h1 { font-size: 18px; margin-bottom: 4px; }
+  .hint { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+  .layout { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 18px; }
+  .map-card { width: 620px; max-width: 100%; }
+  .map-card svg { width: 100%; height: auto; display: block; }
+  .mz { cursor: pointer; }
+  .mz path {
+    transition: fill .2s, stroke .2s, filter .2s;
+    stroke: #11161a;
+    stroke-width: .85;
+    stroke-linejoin: round;
+    vector-effect: non-scaling-stroke;
+    filter: url(#muscle-depth);
+  }
+  .mz.selected path { stroke: #ffb49e; stroke-width: 1.8; filter: url(#muscle-selected); }
+  .mz.hover path { stroke: #ffe2d8; stroke-width: 1.45; filter: url(#muscle-hover); }
+  .anatomy-base { stroke: #090d10; stroke-width: 1.15; vector-effect: non-scaling-stroke; }
+  .neutral-muscle { stroke: #161c20; stroke-width: .8; vector-effect: non-scaling-stroke; }
+  .anatomy-line { fill: none; stroke: rgba(255,255,255,.14); stroke-width: .72; stroke-linecap: round; pointer-events: none; vector-effect: non-scaling-stroke; }
+  .tendon-line { fill: none; stroke: rgba(215,225,218,.3); stroke-width: 1.05; stroke-linecap: round; pointer-events: none; vector-effect: non-scaling-stroke; }
+  .body-midline { fill: none; stroke: rgba(3,6,8,.62); stroke-width: 1; pointer-events: none; vector-effect: non-scaling-stroke; }
+  .view-label { fill: var(--muted); font-size: 11px; letter-spacing: 2px; text-anchor: middle; }
+  .detail { margin-top: 12px; padding: 10px 12px; background: var(--card-soft); border-radius: 10px; font-size: 13px; min-height: 40px; color: var(--muted); }
+  .detail b { color: var(--text); }
+  .legend { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 11px; color: var(--muted); }
+  .legend-bar { flex: 0 0 120px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, rgba(255,90,42,.12), rgba(255,90,42,.92)); }
+  .legend-zero { width: 14px; height: 14px; border-radius: 4px; background: var(--card-soft); border: 1px solid var(--border); }
+  .controls { display: flex; gap: 14px; margin-top: 12px; font-size: 13px; color: var(--muted); }
+  .controls label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .list-card { width: 340px; max-width: 100%; max-height: 710px; overflow-y: auto; }
+  .group-title { font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin: 12px 0 6px; }
+  .group-title:first-child { margin-top: 0; }
+  .zrow { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+  .zrow:hover, .zrow.selected { background: var(--card-soft); }
+  .zrow .chip { width: 16px; height: 16px; border-radius: 5px; border: 1px solid var(--border); flex: 0 0 16px; }
+  .zrow .sets { margin-left: auto; color: var(--muted); font-size: 12px; }
+  @media (max-width: 700px) {
+    body { padding: 14px; }
+    .card { padding: 12px; }
+    .map-card { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<h1>Mapa muscular — preview de anatomía</h1>
+<p class="hint">Datos falsos, solo para aprobar el dibujo. Tocá un músculo (o un ítem de la lista) para identificarlo. “Contornos” marca los límites de todas las zonas.</p>
+
+<div class="layout">
+  <div class="card map-card">
+    <div id="map"></div>
+    <div class="legend"><span class="legend-zero"></span> sin trabajo <span class="legend-bar"></span><span>menos → más</span></div>
+    <div class="detail" id="detail">Tocá un músculo para ver su detalle.</div>
+    <div class="controls"><label><input type="checkbox" id="outlines"> Contornos de todas las zonas</label></div>
+  </div>
+  <div class="card list-card" id="zone-list"></div>
+</div>
+
+<script>
+// Cada músculo mantiene su data-subzone original. La geometría sólo cambia
+// la representación visual; el heatmap y la selección siguen usando los IDs.
+function smoothClosed(pts) {
+  const n = pts.length;
+  let d = `M ${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 0; i < n; i++) {
+    const p0 = pts[(i - 1 + n) % n], p1 = pts[i], p2 = pts[(i + 1) % n], p3 = pts[(i + 2) % n];
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${p2[0]} ${p2[1]}`;
+  }
+  return d + ' Z';
+}
+
+function smoothOpenClosed(pts) {
+  const n = pts.length;
+  let d = `M ${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 0; i < n - 1; i++) {
+    const p0 = pts[Math.max(i - 1, 0)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(i + 2, n - 1)];
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+    d += ` C ${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${p2[0]} ${p2[1]}`;
+  }
+  return d + ' Z';
+}
+
+const SILHOUETTES = {
+  front: [
+    [0,49],[-8,49],[-10,59],[-19,65],[-35,69],[-50,73],[-60,80],[-66,91],[-68,106],[-68,126],[-65,151],[-61,170],
+    [-66,180],[-70,199],[-71,220],[-67,239],[-62,249],[-69,255],[-72,269],[-69,282],[-64,291],[-60,281],[-58,258],[-54,240],[-51,218],
+    [-50,190],[-46,171],[-43,145],[-41,116],[-35,105],[-38,126],[-38,151],[-34,180],[-33,200],[-39,217],[-43,244],[-42,272],
+    [-38,301],[-32,326],[-31,337],[-36,357],[-36,382],[-31,411],[-24,438],[-19,451],[-27,458],[-28,465],[-23,469],[-8,468],[-5,462],
+    [-7,452],[-8,420],[-8,389],[-7,360],[-8,340],[-10,329],[-8,307],[-7,280],[-5,254],[-2,228]
+  ],
+  back: [
+    [0,49],[-8,49],[-10,59],[-19,65],[-35,69],[-50,73],[-60,80],[-66,91],[-68,106],[-68,126],[-65,151],[-61,170],
+    [-66,180],[-70,199],[-71,220],[-67,239],[-62,249],[-69,255],[-72,269],[-69,282],[-64,291],[-60,281],[-58,258],[-54,240],[-51,218],
+    [-50,190],[-46,171],[-43,145],[-41,116],[-35,105],[-38,126],[-38,151],[-34,180],[-33,200],[-39,217],[-43,244],[-42,272],
+    [-39,301],[-33,326],[-31,338],[-37,357],[-37,383],[-31,412],[-24,438],[-19,451],[-27,458],[-28,465],[-23,469],[-8,468],[-5,462],
+    [-7,452],[-8,420],[-8,389],[-7,360],[-8,340],[-10,329],[-8,307],[-7,280],[-5,254],[-2,228]
+  ]
+};
+
+// Piezas anatómicas sin métricas propias: completan la figura y evitan huecos.
+const NEUTRAL_SHAPES = {
+  both: [
+    { pts:[[0,6],[-10,7],[-16,16],[-16,31],[-13,41],[-8,49],[0,52],[8,49],[13,41],[16,31],[16,16],[10,7]], mirror:false, kind:'head' },
+    { pts:[[-62,249],[-69,255],[-72,269],[-69,282],[-64,291],[-60,281],[-58,258],[-58,250]], mirror:true, kind:'hand' },
+    { pts:[[-15,22],[-18,23],[-18,31],[-15,34],[-13,30],[-13,24]], mirror:true, kind:'ear' },
+    { pts:[[-31,326],[-32,337],[-28,346],[-17,349],[-8,341],[-10,329],[-18,324]], mirror:true, kind:'joint' },
+    { pts:[[-19,451],[-27,458],[-28,465],[-23,469],[-8,468],[-5,462],[-8,451],[-12,447]], mirror:true, kind:'foot' }
+  ],
+  front: [
+    { pts:[[-3,49],[-8,50],[-11,64],[-8,72],[-3,65]], mirror:true, kind:'tendon' },
+    { pts:[[-41,116],[-45,140],[-46,162],[-43,174],[-39,159],[-38,136]], mirror:true },
+    { pts:[[-58,171],[-62,177],[-64,193],[-63,213],[-58,239],[-53,238],[-52,218],[-53,195]], mirror:true },
+    { pts:[[-52,178],[-56,190],[-58,211],[-56,233],[-52,239],[-49,218],[-49,194]], mirror:true },
+    { pts:[[-23,211],[-31,205],[-38,216],[-41,238],[-37,251],[-29,245]], mirror:true },
+    { pts:[[-2,211],[-12,211],[-22,216],[-27,226],[-19,232],[-8,231],[-2,226]], mirror:true },
+    { pts:[[-31,221],[-24,233],[-19,252],[-16,278],[-14,310],[-10,325],[-8,307],[-7,278],[-8,249],[-14,229]], mirror:true, kind:'strap' },
+    { pts:[[-31,340],[-36,357],[-36,382],[-31,411],[-25,432],[-22,423],[-24,397],[-24,369],[-22,348]], mirror:true },
+    { pts:[[-8,340],[-7,360],[-8,389],[-8,420],[-9,445],[-15,447],[-16,421],[-15,390],[-14,360]], mirror:true }
+  ],
+  back: [
+    { pts:[[-3,49],[-8,50],[-11,63],[-9,71],[-3,67]], mirror:true, kind:'tendon' },
+    { pts:[[-37,106],[-41,119],[-42,140],[-43,160],[-40,173],[-37,151]], mirror:true },
+    { pts:[[-58,171],[-64,180],[-66,199],[-64,220],[-59,240],[-54,238],[-52,217],[-54,194]], mirror:true },
+    { pts:[[-53,176],[-57,194],[-59,216],[-56,237],[-52,239],[-49,218],[-49,194]], mirror:true },
+    { pts:[[-2,213],[-10,210],[-20,211],[-29,216],[-36,226],[-39,240],[-35,249],[-25,247],[-14,241],[-3,232]], mirror:true },
+    { pts:[[-31,338],[-37,357],[-37,383],[-31,412],[-25,434],[-22,425],[-24,397],[-24,370],[-22,348]], mirror:true },
+    { pts:[[-8,340],[-7,360],[-8,389],[-8,420],[-9,445],[-15,447],[-16,420],[-15,388],[-14,358]], mirror:true }
+  ]
+};
+
+const MUSCLE_ZONES = [
+  // FRENTE — torso y hombros
+  {view:'front',id:'trapecio_superior',shapes:[[[ -10,57],[-22,61],[-36,67],[-48,73],[-42,80],[-29,74],[-17,69],[-10,66]]]},
+  {view:'front',id:'deltoide_anterior',shapes:[[[ -35,72],[-45,73],[-52,78],[-51,91],[-46,107],[-40,114],[-36,101],[-34,84]]]},
+  {view:'front',id:'deltoide_lateral',shapes:[[[ -51,77],[-60,81],[-66,91],[-68,105],[-65,119],[-59,128],[-52,124],[-47,111],[-51,94]]]},
+  {view:'front',id:'pectoral_superior',shapes:[[[ -2,78],[-12,75],[-24,75],[-35,79],[-34,91],[-24,95],[-12,94],[-2,91]]]},
+  {view:'front',id:'pectoral_medio',shapes:[[[ -2,93],[-13,96],[-25,97],[-35,94],[-36,105],[-33,116],[-23,122],[-11,121],[-2,116]]]},
+  {view:'front',id:'pectoral_inferior',shapes:[[[ -2,118],[-12,123],[-23,124],[-33,119],[-31,130],[-24,139],[-13,143],[-2,139]]]},
+  {view:'front',id:'serrato',shapes:[
+    [[-33,116],[-38,119],[-35,126],[-28,130],[-25,126]],
+    [[-31,130],[-37,133],[-34,141],[-27,145],[-24,140]],
+    [[-29,145],[-35,149],[-32,157],[-25,161],[-22,155]]
+  ]},
+  {view:'front',id:'recto_abdominal',shapes:[
+    [[-2,143],[-10,144],[-17,148],[-17,162],[-10,165],[-2,164]],
+    [[-2,166],[-10,167],[-17,165],[-17,180],[-10,184],[-2,182]],
+    [[-2,184],[-10,186],[-17,183],[-16,199],[-10,203],[-2,201]],
+    [[-2,203],[-10,205],[-16,201],[-15,214],[-10,225],[-4,231],[-2,228]]
+  ]},
+  {view:'front',id:'oblicuos',shapes:[[[ -18,145],[-24,139],[-30,145],[-34,160],[-37,178],[-35,198],[-30,211],[-21,215],[-16,205],[-18,181]]]},
+  {view:'front',id:'dorsal_ancho',shapes:[[[ -35,107],[-41,114],[-42,132],[-39,151],[-36,171],[-32,159],[-30,143],[-33,127]]]},
+  // FRENTE — brazos
+  {view:'front',id:'biceps_cabeza_larga',shapes:[[[ -52,124],[-59,126],[-64,136],[-65,150],[-61,166],[-57,174],[-53,164],[-51,148]]]},
+  {view:'front',id:'biceps_cabeza_corta',shapes:[[[ -44,115],[-50,121],[-52,135],[-51,149],[-54,164],[-57,174],[-51,177],[-46,166],[-43,146],[-42,128]]]},
+  {view:'front',id:'braquial',shapes:[[[ -64,126],[-67,135],[-68,151],[-64,166],[-59,173],[-61,160],[-64,150],[-63,137]]]},
+  {view:'front',id:'braquiorradial',shapes:[[[ -61,171],[-67,180],[-70,198],[-70,219],[-65,238],[-59,245],[-60,226],[-61,207],[-58,187]]]},
+  // FRENTE — piernas
+  {view:'front',id:'cuadriceps',shapes:[
+    [[-38,216],[-43,239],[-42,269],[-38,299],[-31,323],[-25,326],[-27,303],[-31,274],[-31,245]],
+    [[-29,219],[-31,244],[-30,273],[-25,304],[-20,324],[-14,321],[-15,294],[-18,265],[-20,238]],
+    [[-14,264],[-17,286],[-15,308],[-10,328],[-7,323],[-8,301],[-9,279],[-10,260]]
+  ]},
+  {view:'front',id:'aductores',shapes:[[[ -14,229],[-8,235],[-5,253],[-6,278],[-8,304],[-10,321],[-14,310],[-16,282],[-18,254]]]},
+  {view:'front',id:'tibial_anterior',shapes:[[[ -22,346],[-27,358],[-28,382],[-24,410],[-18,440],[-14,448],[-13,424],[-15,397],[-16,369]]]},
+  {view:'front',id:'gemelos',shapes:[
+    [[-29,346],[-35,359],[-35,380],[-31,403],[-26,420],[-23,405],[-24,383],[-23,361]],
+    [[-13,346],[-8,357],[-8,381],[-9,408],[-12,428],[-16,421],[-16,397],[-15,371]]
+  ]},
+
+  // DORSO — espalda y hombros
+  {view:'back',id:'trapecio_superior',shapes:[[[ -2,52],[-14,57],[-28,64],[-45,72],[-50,78],[-42,86],[-29,82],[-15,72],[-2,67]]]},
+  {view:'back',id:'trapecio_medio',shapes:[[[ -2,69],[-14,75],[-29,84],[-39,91],[-35,105],[-27,114],[-15,110],[-2,104]]]},
+  {view:'back',id:'trapecio_inferior',shapes:[[[ -2,106],[-13,112],[-25,119],[-21,135],[-13,155],[-5,178],[-2,184]]]},
+  {view:'back',id:'romboides',shapes:[[[ -14,111],[-26,116],[-34,125],[-28,139],[-18,143],[-11,131]]]},
+  {view:'back',id:'deltoide_posterior',shapes:[[[ -38,73],[-48,74],[-55,81],[-53,95],[-48,110],[-41,118],[-37,105],[-36,88]]]},
+  {view:'back',id:'deltoide_lateral',shapes:[[[ -54,79],[-61,82],[-67,93],[-68,107],[-65,121],[-59,128],[-52,122],[-48,111],[-53,96]]]},
+  {view:'back',id:'redondo_mayor',shapes:[[[ -37,113],[-43,117],[-46,128],[-40,139],[-31,137],[-29,128]]]},
+  {view:'back',id:'dorsal_ancho',shapes:[[[ -31,139],[-42,138],[-43,154],[-39,175],[-34,194],[-25,207],[-14,214],[-4,219],[-4,187],[-10,176],[-18,163],[-25,148]]]},
+  {view:'back',id:'erectores_espinales',shapes:[[[ -3,153],[-11,159],[-14,178],[-13,199],[-10,218],[-5,226],[-3,222]]]},
+  {view:'back',id:'oblicuos',shapes:[[[ -33,173],[-38,181],[-38,199],[-34,214],[-27,220],[-22,211],[-27,198],[-29,182]]]},
+  // DORSO — brazos
+  {view:'back',id:'triceps_cabeza_larga',shapes:[[[ -43,112],[-49,117],[-53,133],[-54,151],[-57,169],[-53,177],[-47,167],[-43,149],[-42,130]]]},
+  {view:'back',id:'triceps_cabeza_lateral',shapes:[[[ -57,121],[-64,126],[-67,139],[-68,153],[-63,168],[-57,172],[-55,158],[-56,142],[-52,128]]]},
+  {view:'back',id:'triceps_cabeza_medial',shapes:[[[ -54,163],[-61,169],[-65,176],[-61,184],[-54,186],[-49,178]]]},
+  {view:'back',id:'braquiorradial',shapes:[[[ -61,177],[-67,186],[-70,202],[-69,220],[-64,240],[-59,245],[-59,225],[-60,205],[-57,188]]]},
+  // DORSO — cadera y piernas
+  {view:'back',id:'gluteo_mayor',shapes:[[[ -3,225],[-14,216],[-27,217],[-37,226],[-41,241],[-40,259],[-34,274],[-23,282],[-11,280],[-3,268]]]},
+  {view:'back',id:'cuadriceps',shapes:[[[ -39,260],[-43,276],[-41,300],[-34,322],[-29,328],[-31,303],[-34,279]]]},
+  {view:'back',id:'isquios',shapes:[
+    [[-34,276],[-31,296],[-29,318],[-23,333],[-18,330],[-19,309],[-22,287],[-25,279]],
+    [[-20,281],[-18,302],[-16,323],[-11,334],[-7,328],[-8,305],[-10,283]]
+  ]},
+  {view:'back',id:'aductores',shapes:[[[ -10,280],[-6,291],[-5,310],[-7,329],[-3,331],[-2,307],[-3,282]]]},
+  {view:'back',id:'gemelos',shapes:[
+    [[-24,345],[-32,350],[-36,365],[-35,386],[-29,407],[-22,424],[-19,408],[-21,385],[-21,363]],
+    [[-18,346],[-10,350],[-7,366],[-8,388],[-13,410],[-18,424],[-21,409],[-20,385],[-21,363]]
+  ]}
+];
+
+// Trazos sutiles sobre las masas: dirección de fibras, tendones y referencias óseas.
+const ANATOMY_DETAILS = {
+  front: [
+    {cls:'body-midline',d:'M 0 77 L 0 226'},
+    {d:'M -8 82 C -18 83 -27 84 -34 88',mirror:true},{d:'M -7 87 C -17 89 -27 91 -34 96',mirror:true},
+    {d:'M -7 104 C -18 108 -27 108 -34 104',mirror:true},{d:'M -7 113 C -17 116 -26 117 -33 113',mirror:true},
+    {d:'M -7 128 C -17 134 -24 134 -30 130',mirror:true},{d:'M -17 151 C -22 163 -24 180 -23 202',mirror:true},
+    {d:'M -52 84 C -58 94 -59 109 -56 120',mirror:true},{d:'M -58 87 C -63 98 -63 112 -59 122',mirror:true},
+    {d:'M -48 128 C -53 140 -54 155 -52 167',mirror:true},{d:'M -58 132 C -61 144 -61 158 -57 167',mirror:true},
+    {d:'M -62 184 C -64 202 -62 221 -59 235',mirror:true},{d:'M -57 185 C -58 204 -56 222 -53 233',mirror:true},
+    {d:'M -28 228 C -30 253 -28 286 -23 315',mirror:true},
+    {d:'M -19 237 C -21 265 -20 295 -17 319',mirror:true},{d:'M -11 244 C -12 270 -11 298 -10 318',mirror:true},
+    {d:'M -27 352 C -29 374 -27 398 -21 428',mirror:true},{d:'M -15 353 C -13 379 -14 407 -14 437',mirror:true},
+    {cls:'tendon-line',d:'M -21 435 C -18 445 -17 452 -18 458',mirror:true},
+    {cls:'tendon-line',d:'M -62 231 C -61 241 -61 247 -61 254',mirror:true},
+    {d:'M -62 260 C -65 267 -66 276 -64 284',mirror:true},{d:'M -18 459 C -15 462 -11 463 -7 463',mirror:true}
+  ],
+  back: [
+    {cls:'body-midline',d:'M 0 51 L 0 269'},
+    {d:'M -10 61 C -19 72 -30 79 -43 81',mirror:true},{d:'M -8 84 C -19 90 -29 96 -37 101',mirror:true},
+    {d:'M -7 112 C -12 130 -11 147 -7 165',mirror:true},{d:'M -39 145 C -34 162 -28 184 -18 205',mirror:true},
+    {d:'M -49 130 C -52 145 -53 160 -51 172',mirror:true},{d:'M -63 188 C -65 207 -62 227 -59 237',mirror:true},
+    {d:'M -8 230 C -18 226 -29 229 -38 240',mirror:true},{d:'M -4 252 C -15 248 -28 254 -37 264',mirror:true},
+    {d:'M -31 285 C -28 302 -25 316 -22 327',mirror:true},{d:'M -18 287 C -16 306 -13 320 -11 330',mirror:true},
+    {d:'M -29 353 C -31 374 -28 397 -22 417',mirror:true},{d:'M -13 352 C -10 373 -11 397 -17 417',mirror:true},
+    {cls:'tendon-line',d:'M -20 421 C -18 437 -18 448 -18 458',mirror:true},
+    {cls:'tendon-line',d:'M -62 232 C -61 242 -61 248 -61 254',mirror:true},
+    {d:'M -62 260 C -65 267 -66 276 -64 284',mirror:true},{d:'M -18 459 C -15 462 -11 463 -7 463',mirror:true}
+  ]
+};
+
+const LABELS = {
+  pectoral_superior:'Pectoral superior', pectoral_medio:'Pectoral medio', pectoral_inferior:'Pectoral inferior',
+  dorsal_ancho:'Dorsal ancho', trapecio_superior:'Trapecio superior', trapecio_medio:'Trapecio medio', trapecio_inferior:'Trapecio inferior',
+  romboides:'Romboides', redondo_mayor:'Redondo mayor', erectores_espinales:'Erectores espinales',
+  deltoide_anterior:'Deltoide anterior', deltoide_lateral:'Deltoide lateral', deltoide_posterior:'Deltoide posterior',
+  biceps_cabeza_larga:'Bíceps cabeza larga', biceps_cabeza_corta:'Bíceps cabeza corta', braquial:'Braquial', braquiorradial:'Braquiorradial',
+  triceps_cabeza_larga:'Tríceps cabeza larga', triceps_cabeza_lateral:'Tríceps cabeza lateral', triceps_cabeza_medial:'Tríceps cabeza medial',
+  recto_abdominal:'Recto abdominal', oblicuos:'Oblicuos', serrato:'Serrato', cuadriceps:'Cuádriceps', aductores:'Aductores',
+  gluteo_mayor:'Glúteo mayor', isquios:'Isquios', gemelos:'Gemelos', tibial_anterior:'Tibial anterior'
+};
+
+const GROUPS = {
+  Pecho:['pectoral_superior','pectoral_medio','pectoral_inferior'],
+  Espalda:['dorsal_ancho','trapecio_superior','trapecio_medio','trapecio_inferior','romboides','redondo_mayor','erectores_espinales'],
+  Hombros:['deltoide_anterior','deltoide_lateral','deltoide_posterior'],
+  Bíceps:['biceps_cabeza_larga','biceps_cabeza_corta','braquial','braquiorradial'],
+  Tríceps:['triceps_cabeza_larga','triceps_cabeza_lateral','triceps_cabeza_medial'],
+  Core:['recto_abdominal','oblicuos','serrato'],
+  Piernas:['cuadriceps','aductores','gluteo_mayor','isquios','gemelos','tibial_anterior']
+};
+
+const DEMO_SETS = {
+  pectoral_superior:14.2, pectoral_medio:12.8, pectoral_inferior:4.1, dorsal_ancho:16.5, trapecio_superior:3.2,
+  trapecio_medio:7.4, trapecio_inferior:4, romboides:5.6, redondo_mayor:6.1, erectores_espinales:4.4,
+  deltoide_anterior:11.3, deltoide_lateral:9.8, deltoide_posterior:5.2, biceps_cabeza_larga:8.9,
+  biceps_cabeza_corta:6.7, braquial:4.9, braquiorradial:2.8, triceps_cabeza_larga:9.4,
+  triceps_cabeza_lateral:7.7, triceps_cabeza_medial:5.8, recto_abdominal:5.5, oblicuos:2.4, serrato:1.9,
+  cuadriceps:6.2, aductores:3.4, gluteo_mayor:6.8, isquios:6.4, gemelos:4, tibial_anterior:0
+};
+
+const SILHOUETTE_FILL = 'url(#body-base)';
+const NEUTRAL_FILL = 'url(#neutral-muscle)';
+const ZERO_FILL = '#252a2e';
+
+function muscleFill(intensity) {
+  if (!intensity || intensity <= 0) return ZERO_FILL;
+  const alpha = 0.20 + 0.78 * Math.min(intensity, 1);
+  return `rgba(255,90,42,${alpha.toFixed(3)})`;
+}
+
+function mirrored(d, fill, className) {
+  const f = fill ? ` fill="${fill}"` : '';
+  const c = className ? ` class="${className}"` : '';
+  return `<path d="${d}"${f}${c}/><path d="${d}"${f}${c} transform="scale(-1,1)"/>`;
+}
+
+function renderDetails(view) {
+  return (ANATOMY_DETAILS[view] || []).map(line => {
+    const cls = line.cls || 'anatomy-line';
+    return line.mirror
+      ? `<path class="${cls}" d="${line.d}"/><path class="${cls}" d="${line.d}" transform="scale(-1,1)"/>`
+      : `<path class="${cls}" d="${line.d}"/>`;
+  }).join('');
+}
+
+function buildView(view, tx) {
+  const silhouette = smoothOpenClosed(SILHOUETTES[view]);
+  const neutrals = NEUTRAL_SHAPES.both.concat(NEUTRAL_SHAPES[view] || []);
+  const neutralSvg = neutrals.map(n => {
+    const d = smoothClosed(n.pts);
+    return n.mirror ? mirrored(d, NEUTRAL_FILL, 'neutral-muscle') : `<path d="${d}" fill="${NEUTRAL_FILL}" class="neutral-muscle"/>`;
+  }).join('');
+  const zonesSvg = MUSCLE_ZONES.filter(z => z.view === view).map(z =>
+    `<g class="mz" data-subzone="${z.id}">${z.shapes.map(pts => mirrored(smoothClosed(pts))).join('')}</g>`
+  ).join('');
+  return `<g transform="translate(${tx},8)">
+    ${mirrored(silhouette, SILHOUETTE_FILL, 'anatomy-base')}
+    ${neutralSvg}
+    ${zonesSvg}
+    ${renderDetails(view)}
+    <text class="view-label" x="0" y="497">${view === 'front' ? 'FRENTE' : 'DORSO'}</text>
+  </g>`;
+}
+
+function buildSvg() {
+  return `<svg viewBox="0 0 520 520" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Mapa anatómico muscular, vista frontal y dorsal">
+    <defs>
+      <linearGradient id="body-base" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#2b3337"/><stop offset=".52" stop-color="#444c4f"/><stop offset="1" stop-color="#293135"/>
+      </linearGradient>
+      <linearGradient id="neutral-muscle" x1="0" y1="0" x2="0.9" y2="0.15">
+        <stop offset="0" stop-color="#3a4245"/><stop offset=".5" stop-color="#51585a"/><stop offset="1" stop-color="#323a3e"/>
+      </linearGradient>
+      <filter id="muscle-depth" x="-12%" y="-12%" width="124%" height="124%">
+        <feDropShadow dx="0" dy=".8" stdDeviation=".55" flood-color="#030506" flood-opacity=".62"/>
+      </filter>
+      <filter id="muscle-hover" x="-15%" y="-15%" width="130%" height="130%">
+        <feDropShadow dx="0" dy="0" stdDeviation="1.3" flood-color="#ffb49e" flood-opacity=".44"/>
+      </filter>
+      <filter id="muscle-selected" x="-20%" y="-20%" width="140%" height="140%">
+        <feDropShadow dx="0" dy="0" stdDeviation="1.7" flood-color="#ff5a2a" flood-opacity=".62"/>
+      </filter>
+    </defs>
+    ${buildView('front',135)}
+    ${buildView('back',385)}
+  </svg>`;
+}
+
+function paint() {
+  const max = Math.max(...Object.values(DEMO_SETS));
+  document.querySelectorAll('.mz').forEach(g => {
+    const sets = DEMO_SETS[g.dataset.subzone] || 0;
+    const fill = muscleFill(max > 0 ? sets / max : 0);
+    g.querySelectorAll('path').forEach(p => {
+      p.style.fill = fill;
+      p.style.stroke = sets > 0 ? '' : '#465058';
+    });
+  });
+}
+
+function select(id) {
+  document.querySelectorAll('.mz, .zrow').forEach(el => el.classList.toggle('selected', (el.dataset.subzone || el.dataset.zone) === id));
+  const sets = DEMO_SETS[id] || 0;
+  document.getElementById('detail').innerHTML = sets > 0
+    ? `<b>${LABELS[id]}</b> — ${sets.toFixed(1)} series efectivas <span style="color:var(--muted)">(datos de ejemplo)</span>`
+    : `<b>${LABELS[id]}</b> — sin trabajo en el período <span style="color:var(--muted)">(datos de ejemplo)</span>`;
+}
+
+function buildList() {
+  const max = Math.max(...Object.values(DEMO_SETS));
+  document.getElementById('zone-list').innerHTML = Object.entries(GROUPS).map(([group, ids]) => `
+    <div class="group-title">${group}</div>
+    ${ids.map(id => `<div class="zrow" data-zone="${id}"><span class="chip" style="background:${muscleFill((DEMO_SETS[id] || 0) / max)}"></span>${LABELS[id]}<span class="sets">${(DEMO_SETS[id] || 0).toFixed(1)}</span></div>`).join('')}
+  `).join('');
+}
+
+document.getElementById('map').innerHTML = buildSvg();
+paint();
+buildList();
+
+document.getElementById('map').addEventListener('click', e => {
+  const g = e.target.closest('.mz');
+  if (g) select(g.dataset.subzone);
+});
+document.getElementById('map').addEventListener('mouseover', e => {
+  const g = e.target.closest('.mz');
+  document.querySelectorAll('.mz.hover').forEach(el => el.classList.remove('hover'));
+  if (g) document.querySelectorAll(`.mz[data-subzone="${g.dataset.subzone}"]`).forEach(el => el.classList.add('hover'));
+});
+document.getElementById('map').addEventListener('mouseleave', () => document.querySelectorAll('.mz.hover').forEach(el => el.classList.remove('hover')));
+document.getElementById('zone-list').addEventListener('click', e => {
+  const row = e.target.closest('.zrow');
+  if (row) select(row.dataset.zone);
+});
+document.getElementById('outlines').addEventListener('change', e => {
+  document.querySelectorAll('.mz path').forEach(p => { p.style.stroke = e.target.checked ? '#77838c' : ''; });
+  if (!e.target.checked) paint();
+});
+</script>
+</body>
+</html>
