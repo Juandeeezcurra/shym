@@ -2507,7 +2507,9 @@ const API_CACHE_TTL = {
   getExerciseGoal: 300000,
   getMuscleHeatmap: 300000,
 };
-const API_CACHE_STORAGE_KEY = 'gymtracker:api-cache:v4';
+// v5: fuerza descartar el cache local (la biblioteca se cachea 30 min por
+// dispositivo y hay ejercicios nuevos que no aparecerían hasta que expire).
+const API_CACHE_STORAGE_KEY = 'gymtracker:api-cache:v5';
 
 function apiCacheKey(fnName, args) {
   return `${fnName}:${JSON.stringify(args || [])}`;
@@ -5454,41 +5456,48 @@ function buildSessionExerciseFromLibrary_(libEx, sets) {
   };
 }
 
-function renderTrainLibraryPicks(items, referenceDistribution) {
-  if (!items || !items.length) {
+// Lista plana con TODA la biblioteca (Exercise_Library), no solo los ejercicios
+// que están en algún día de la rutina activa. `items` en null = todavía
+// cargando; [] = biblioteca vacía de verdad. Orden alfabético (el que ya trae
+// listExerciseLibrary), salvo en el modo "cambiar", donde manda el % de match.
+function renderTrainLibraryPicks(items, referenceDistribution, query) {
+  if (!items) {
+    return `
+      <div class="skeleton" style="height:52px;margin-bottom:6px;"></div>
+      <div class="skeleton" style="height:52px;"></div>
+    `;
+  }
+  if (!items.length) {
     return `<p class="muted-sm">Todavía no tenés ejercicios en <b>Rutinas → Mis ejercicios</b>.</p>`;
   }
-  const scored = items.map(ex => ({
+  const q = normalizeLookupKey(query || '');
+  const matching = q ? items.filter(ex => normalizeLookupKey(ex.exercise_name).indexOf(q) >= 0) : items.slice();
+  if (!matching.length) {
+    return `<p class="muted-sm">Ningún ejercicio de tu biblioteca coincide con esa búsqueda.</p>`;
+  }
+  const rows = matching.map(ex => ({
     ex,
     match: referenceDistribution ? computeMuscleMatchPercent(referenceDistribution, getExerciseMuscleDistribution(ex)) : null,
   }));
-  const groups = groupExercisesByMuscle(items);
-  return groups.map(group => {
-    const rows = group.exercises
-      .map(ex => scored.find(s => s.ex === ex))
-      .sort((a, b) => (b.match || 0) - (a.match || 0) || a.ex.exercise_name.localeCompare(b.ex.exercise_name));
-    return `
-      <div style="margin-bottom:8px;">
-        <div class="muted-sm" style="margin-bottom:4px;text-transform:uppercase;letter-spacing:0.06em;">${escapeHtml(formatMuscleGroup(group.value))}</div>
-        ${rows.map(({ ex, match }) => `
-          <div class="card tx-lib-row" data-ex-id="${escapeHtml(ex.exercise_id)}" style="padding:10px 12px;margin-bottom:6px;cursor:pointer;">
-            <div class="card-row">
-              <div style="min-width:0;">
-                <h3 style="margin:0 0 2px;font-size:14px;word-break:break-word;">${escapeHtml(ex.exercise_name)}</h3>
-                <p class="muted-sm">${ex.target_sets} series · ${ex.target_reps_min}–${ex.target_reps_max} reps</p>
-              </div>
-              ${match != null ? `<span class="pill accent" style="flex-shrink:0;">${match}%</span>` : ''}
-            </div>
-          </div>
-        `).join('')}
+  rows.sort((a, b) => (b.match || 0) - (a.match || 0) || a.ex.exercise_name.localeCompare(b.ex.exercise_name));
+  return rows.map(({ ex, match }) => `
+    <div class="card tx-lib-row" data-ex-id="${escapeHtml(ex.exercise_id)}" style="padding:10px 12px;margin-bottom:6px;cursor:pointer;">
+      <div class="card-row">
+        <div style="min-width:0;">
+          <h3 style="margin:0 0 2px;font-size:14px;word-break:break-word;">${escapeHtml(ex.exercise_name)}</h3>
+          <p class="muted-sm">${escapeHtml(formatMuscleGroup(ex.muscle_group))} · ${ex.target_sets} series · ${ex.target_reps_min}–${ex.target_reps_max} reps</p>
+        </div>
+        ${match != null ? `<span class="pill accent" style="flex-shrink:0;">${match}%</span>` : ''}
       </div>
-    `;
-  }).join('');
+    </div>
+  `).join('');
 }
 
 async function trainExercisePicker({ title, confirmLabel, defaultSets, referenceDistribution }) {
   const suggestions = getLocalExerciseNameSuggestions();
-  const libraryItems = state.exerciseLibrary || [];
+  // null mientras no tengamos la biblioteca cargada, para no mostrar el vacío
+  // "no tenés ejercicios" cuando en realidad todavía está viajando por red.
+  let libraryItems = (state.exerciseLibrary && state.exerciseLibrary.length) ? state.exerciseLibrary : null;
   return new Promise((resolve) => {
     modal.open({
       title,
@@ -5496,7 +5505,8 @@ async function trainExercisePicker({ title, confirmLabel, defaultSets, reference
         <div style="display:grid;gap:12px;">
           <div>
             <label class="field-label">Tus ejercicios</label>
-            <div id="tx-library-list" style="max-height:260px;overflow-y:auto;">${renderTrainLibraryPicks(libraryItems, referenceDistribution)}</div>
+            <input id="tx-lib-search" type="text" inputmode="search" autocomplete="off" placeholder="Buscar en tu biblioteca" style="margin-bottom:8px;" />
+            <div id="tx-library-list" style="max-height:260px;overflow-y:auto;"></div>
           </div>
           <div style="border-top:1px solid var(--border);padding-top:12px;">
             <label class="field-label">O escribí uno nuevo</label>
@@ -5539,24 +5549,35 @@ async function trainExercisePicker({ title, confirmLabel, defaultSets, reference
         { label: 'Cancelar', onClick: () => { modal.close(); resolve(null); } },
       ]
     });
-    let currentLibraryItems = libraryItems;
-    const bindLibraryRowClicks = () => {
+    const renderLibrary = () => {
+      const list = $('#tx-library-list');
+      if (!list) return;
+      const search = $('#tx-lib-search');
+      list.innerHTML = renderTrainLibraryPicks(libraryItems, referenceDistribution, search ? search.value : '');
       $$('#tx-library-list .tx-lib-row').forEach(row => {
         row.addEventListener('click', () => {
-          const libEx = currentLibraryItems.find(e => e.exercise_id === row.dataset.exId);
+          const libEx = (libraryItems || []).find(e => e.exercise_id === row.dataset.exId);
           if (!libEx) return;
           modal.close();
           resolve(buildSessionExerciseFromLibrary_(libEx, defaultSets));
         });
       });
     };
-    bindLibraryRowClicks();
+    renderLibrary();
+    const searchInput = $('#tx-lib-search');
+    if (searchInput) searchInput.addEventListener('input', renderLibrary);
+    // Fuente única de verdad de este selector: la biblioteca completa. Se pide
+    // siempre, así aparecen también los ejercicios que no están en la rutina.
     cachedGas('listExerciseLibrary', []).then(items => {
       state.exerciseLibrary = items;
-      currentLibraryItems = items;
+      libraryItems = items;
+      renderLibrary();
+    }).catch(() => {
+      if (libraryItems) return;
+      libraryItems = [];
       const list = $('#tx-library-list');
-      if (list) { list.innerHTML = renderTrainLibraryPicks(items, referenceDistribution); bindLibraryRowClicks(); }
-    }).catch(() => {});
+      if (list) list.innerHTML = `<p class="muted-sm">No se pudo cargar tu biblioteca. Escribí el nombre abajo para agregarlo igual.</p>`;
+    });
     loadExerciseNameSuggestions().then(names => {
       const list = $('#train-ex-suggestions');
       if (list) list.innerHTML = renderExerciseNameOptions(names);
