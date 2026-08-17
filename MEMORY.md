@@ -112,6 +112,15 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
 - Auditoria tecnica guardada en `docs/tech-audit.md`. Arreglos aplicados: boot del Home, fecha local, goals tolerantes a hoja faltante, drafts canonicos en kg, validacion de bodyweight, notas preservadas, retorno desde Progreso, snapshots historicos, duplicacion con musculo obligatorio/inferido e historial de 91 dias.
 - Snapshots historicos: sesiones nuevas guardan `routine_name`/`day_name`; sets nuevos guardan `muscle_group`. `setup()` corre migracion historica y tambien existe `migrateHistoricalSnapshots()` para backfill manual. La migracion solo recupera datos inferibles desde IDs actuales o nombres equivalentes.
 - `docs/pending.md` ya no es fuente activa: queda como archivo historico de pendientes completados. Usar este `MEMORY.md` como fuente de estado.
+- Informe de rendimiento completo:
+  - `getPerformanceReport({ weeks })` (4-16, default 8) devuelve score global 0-100, 4 componentes, `strength` e `insights`. No requiere columnas nuevas ni `setup()`: deriva todo de sheets existentes.
+  - Componentes y pesos: Consistencia 30 (sesiones reales vs `Routine_Days.week_days` de la rutina activa), Progresion 30 (ejercicios subiendo vs `stall_count`), Carga 25 (series efectivas semanales via `getSetMuscleStimuli_` + tendencia primera vs segunda mitad), Intensidad 15 (RIR promedio; se excluye del score si la cobertura es menor a 20% o hay menos de 10 series con RIR). El score global renormaliza sobre los componentes con datos.
+  - La ventana se recorta a la semana de tu primera sesion real y se reporta en `effective_weeks`. Sin eso, pedir 16 semanas con 10 entrenadas inventaba semanas vacias y disparaba tendencias falsas tipo `+600%`. El frontend avisa cuando recorta.
+  - Sin sesiones en el rango devuelve `emptyPerformanceReport_`: todo en `null`, sin insights. No mostrar score 0.
+  - `insights` son reglas ordenadas por prioridad, maximo 6. Incluye el cruce `Nutrition` x PRs (proteina/kcal en semanas con PR vs sin PR), que solo es posible porque nutricion y entrenamiento viven en la misma base.
+  - Vive arriba de `screen-progress`, no en Home ni en el bottom nav. Se renderiza con `renderPerformanceReport` y cachea 1800s en back y 600s en front.
+  - Los estados nunca se comunican solo por color: `--good` y `--warn` tienen delta-E 1.9 bajo protanopia, asi que cada insight lleva icono y etiqueta de texto. No sacar esas etiquetas.
+  - Intensidad no lleva sparkline a proposito: en RIR "mas alto" es peor y se leia al reves junto a las otras dos.
 
 ## Ideas Futuras Guardadas
 

@@ -91,6 +91,7 @@ const READ_API_CACHE_SECONDS_ = {
   listNutritionHistory: 1800,
   getWeeklyAdjustment: 600,
   getNutritionHomeStats: 600,
+  getPerformanceReport: 1800,
 };
 
 const WRITE_API_ = {
@@ -263,6 +264,7 @@ function getApi_() {
     listNutritionHistory,
     getWeeklyAdjustment,
     getNutritionHomeStats,
+    getPerformanceReport,
   };
 }
 
@@ -4073,3 +4075,800 @@ function getMuscleModelMeta_() {
   };
 }
 
+
+// ============================================================
+// PERFORMANCE REPORT — vision global de rendimiento
+// Todo se deriva de sheets existentes. No requiere migracion.
+
+const PERF_WEIGHTS_ = {
+  consistency: 30,
+  progression: 30,
+  load: 25,
+  intensity: 15,
+};
+
+function getPerformanceReport(params) {
+  params = params || {};
+  const weeks = Math.max(4, Math.min(Number(params.weeks || 8), 16));
+  const today = todayIso_();
+  const currentWeekStart = getWeekRange_(today).start;
+  const startWeek = addDaysIso_(currentWeekStart, -7 * (weeks - 1));
+
+  const sessions = readAll_(SHEETS.SESSIONS);
+  const sets = readAll_(SHEETS.SETS);
+  const exercises = readAll_(SHEETS.EXERCISES);
+  const routines = readAll_(SHEETS.ROUTINES);
+  const days = readAll_(SHEETS.DAYS);
+  const nutrition = sheetExists_(SHEETS.NUTRITION) ? readAll_(SHEETS.NUTRITION) : [];
+
+  // La ventana se recorta a partir de tu primera sesion real. Sin esto, pedir
+  // 16 semanas cuando llevas 10 entrenando inventa 6 semanas vacias y arruina
+  // tanto la adherencia como la tendencia de carga.
+  const trainedDates = sessions
+    .map(s => normalizeDate_(s.date))
+    .filter(d => d && d <= today)
+    .sort();
+  if (!trainedDates.length) return emptyPerformanceReport_(weeks);
+  const firstWeek = getWeekRange_(trainedDates[0]).start;
+  const effectiveStart = firstWeek > startWeek ? firstWeek : startWeek;
+
+  const weekStarts = [];
+  for (let ws = effectiveStart; ws <= currentWeekStart; ws = addDaysIso_(ws, 7)) {
+    weekStarts.push(ws);
+  }
+  if (!weekStarts.length) weekStarts.push(currentWeekStart);
+
+  const consistency = buildPerfConsistency_(sessions, routines, days, weekStarts, currentWeekStart, today);
+  const progression = buildPerfProgression_(sessions, sets, exercises, startWeek, today);
+  const load = buildPerfLoad_(sessions, sets, exercises, weekStarts, currentWeekStart, today);
+  const intensity = buildPerfIntensity_(sessions, sets, weekStarts, today);
+  const strength = buildPerfStrength_(sessions, sets, weekStarts, today, nutrition);
+
+  const components = [
+    { key: 'consistency', label: 'Consistencia', weight: PERF_WEIGHTS_.consistency, data: consistency },
+    { key: 'progression', label: 'Progresión', weight: PERF_WEIGHTS_.progression, data: progression },
+    { key: 'load', label: 'Carga', weight: PERF_WEIGHTS_.load, data: load },
+    { key: 'intensity', label: 'Intensidad', weight: PERF_WEIGHTS_.intensity, data: intensity },
+  ];
+
+  let weightSum = 0;
+  let scoreSum = 0;
+  components.forEach(c => {
+    if (c.data.score == null) return;
+    weightSum += c.weight;
+    scoreSum += c.data.score * c.weight;
+  });
+  const overall = weightSum > 0 ? Math.round(scoreSum / weightSum) : null;
+
+  const insights = buildPerfInsights_({
+    consistency: consistency,
+    progression: progression,
+    load: load,
+    intensity: intensity,
+    strength: strength,
+    nutritionLink: buildPerfNutritionLink_(sessions, sets, nutrition, weekStarts, currentWeekStart, today),
+  });
+
+  return {
+    weeks: weeks,
+    effective_weeks: weekStarts.length,
+    week_starts: weekStarts,
+    generated_at: nowIso_(),
+    overall_score: overall,
+    overall_label: perfScoreLabel_(overall),
+    components: components.map(c => ({
+      key: c.key,
+      label: c.label,
+      weight: c.weight,
+      score: c.data.score,
+      headline: c.data.headline,
+      detail: c.data.detail,
+      series: c.data.series || null,
+      extra: c.data.extra || null,
+    })),
+    strength: strength,
+    insights: insights,
+  };
+}
+
+function emptyPerformanceReport_(weeks) {
+  const labels = { consistency: 'Consistencia', progression: 'Progresión', load: 'Carga', intensity: 'Intensidad' };
+  return {
+    weeks: weeks,
+    effective_weeks: 0,
+    week_starts: [],
+    generated_at: nowIso_(),
+    overall_score: null,
+    overall_label: 'Sin datos',
+    components: Object.keys(labels).map(key => ({
+      key: key,
+      label: labels[key],
+      weight: PERF_WEIGHTS_[key],
+      score: null,
+      headline: '—',
+      detail: 'Sin sesiones registradas todavía.',
+      series: null,
+      extra: null,
+    })),
+    strength: { top_lifts: [], core_lifts: [], total_e1rm_delta: null, total_e1rm_delta_pct: null, bodyweight: null },
+    insights: [],
+  };
+}
+
+function perfScoreLabel_(score) {
+  if (score == null) return 'Sin datos';
+  if (score >= 85) return 'Excelente';
+  if (score >= 70) return 'Bien';
+  if (score >= 55) return 'Aceptable';
+  if (score >= 40) return 'Flojo';
+  return 'Crítico';
+}
+
+function perfClamp_(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function perfAvg_(arr) {
+  const clean = (arr || []).filter(n => n != null && !isNaN(n));
+  if (!clean.length) return null;
+  return clean.reduce((a, b) => a + b, 0) / clean.length;
+}
+
+// ---- Consistencia: sesiones reales vs dias planificados ----
+
+function buildPerfConsistency_(sessions, routines, days, weekStarts, currentWeekStart, today) {
+  const activeRoutine = (routines || []).find(r => isTrue_(r.is_active));
+  let planned = 0;
+  if (activeRoutine) {
+    const routineDays = (days || []).filter(d => d.routine_id === activeRoutine.routine_id);
+    let scheduled = 0;
+    routineDays.forEach(d => { scheduled += parseWeekDays_(d.week_days).length; });
+    planned = scheduled > 0 ? scheduled : routineDays.length;
+  }
+
+  const daysByWeek = {};
+  weekStarts.forEach(ws => { daysByWeek[ws] = {}; });
+  (sessions || []).forEach(session => {
+    const date = normalizeDate_(session.date);
+    if (!date || date > today) return;
+    const ws = getWeekRange_(date).start;
+    if (!daysByWeek[ws]) return;
+    daysByWeek[ws][date] = true;
+  });
+
+  const series = weekStarts.map(ws => ({
+    week_start: ws,
+    sessions: Object.keys(daysByWeek[ws]).length,
+    planned: planned || null,
+    current: ws === currentWeekStart,
+  }));
+
+  const closed = series.filter(w => !w.current);
+  const closedCounts = closed.map(w => w.sessions);
+  const avgSessions = perfAvg_(closedCounts);
+
+  let score = null;
+  let detail = '';
+  if (avgSessions == null) {
+    detail = 'Todavía no hay semanas cerradas en el rango.';
+  } else if (planned > 0) {
+    const ratios = closedCounts.map(c => perfClamp_(c / planned, 0, 1));
+    score = Math.round(perfAvg_(ratios) * 100);
+    detail = 'Promedio ' + round2_(avgSessions) + ' de ' + planned + ' sesiones planificadas por semana.';
+  } else {
+    // Sin rutina activa con dias asignados: 4 sesiones/semana como referencia.
+    const ratios = closedCounts.map(c => perfClamp_(c / 4, 0, 1));
+    score = Math.round(perfAvg_(ratios) * 100);
+    detail = 'Sin días planificados en la rutina activa. Se compara contra 4 sesiones/semana.';
+  }
+
+  const missedWeeks = closed.filter(w => w.sessions === 0).length;
+  const streak = getStreakStatsFromSessions_(sessions, today, planned > 0 ? Math.min(planned, 3) : 3);
+
+  return {
+    score: score,
+    headline: score == null ? '—' : score + '% de adherencia',
+    detail: detail,
+    series: series,
+    extra: {
+      planned_per_week: planned || null,
+      avg_sessions: avgSessions == null ? null : round2_(avgSessions),
+      missed_weeks: missedWeeks,
+      current_week_sessions: (series.find(w => w.current) || {}).sessions || 0,
+      streak_weeks: streak.streak_weeks,
+    },
+  };
+}
+
+// ---- Progresion: ejercicios subiendo vs estancados ----
+
+function perfBestSet_(setsArr) {
+  let best = null;
+  (setsArr || []).forEach(s => {
+    const w = s.weight === '' || s.weight == null ? null : Number(s.weight);
+    if (w == null || isNaN(w)) return;
+    const r = Number(s.reps || 0);
+    if (!best || w > best.weight || (w === best.weight && r > best.reps)) {
+      best = { weight: w, reps: r };
+    }
+  });
+  return best;
+}
+
+function buildPerfProgression_(sessions, sets, exercises, startWeek, today) {
+  const sessionsById = indexBy_(sessions, 'session_id');
+  const exerciseMeta = buildExerciseMuscleMeta_(exercises);
+  const groupByName = {};
+  (exercises || []).forEach(ex => {
+    const name = (ex.exercise_name || '').toString().trim();
+    if (!name || groupByName[name]) return;
+    groupByName[name] = resolveExerciseMuscleGroup_(ex, exerciseMeta);
+  });
+
+  // Historial completo por ejercicio (necesario para detectar estancamiento real).
+  const byExercise = {};
+  (sets || []).forEach(set => {
+    const name = (set.exercise_name || '').toString().trim();
+    if (!name) return;
+    const session = sessionsById[set.session_id];
+    if (!session) return;
+    const date = normalizeDate_(session.date);
+    if (!date || date > today) return;
+    if (!byExercise[name]) byExercise[name] = {};
+    const sid = session.session_id;
+    if (!byExercise[name][sid]) {
+      byExercise[name][sid] = { date: date, created_at: session.created_at || '', sets: [] };
+    }
+    byExercise[name][sid].sets.push(set);
+  });
+
+  const rows = [];
+  Object.keys(byExercise).forEach(name => {
+    const map = byExercise[name];
+    const chrono = Object.keys(map).map(k => map[k]).sort((a, b) => {
+      const c = a.date.localeCompare(b.date);
+      return c !== 0 ? c : (a.created_at || '').localeCompare(b.created_at || '');
+    });
+    const lastDate = chrono[chrono.length - 1].date;
+    // Solo cuentan ejercicios tocados dentro de la ventana.
+    if (lastDate < startWeek) return;
+
+    const bests = chrono.map(s => ({ date: s.date, best: perfBestSet_(s.sets) })).filter(b => b.best);
+    if (!bests.length) return;
+
+    let runMax = -Infinity;
+    let lastUpIdx = -1;
+    bests.forEach((b, idx) => {
+      if (b.best.weight > runMax) { runMax = b.best.weight; lastUpIdx = idx; }
+    });
+    const stall = (bests.length - 1) - lastUpIdx;
+    const last = bests[bests.length - 1];
+    const prev = bests.length > 1 ? bests[bests.length - 2] : null;
+
+    let direction = 'new';
+    if (prev) {
+      if (last.best.weight > prev.best.weight) direction = 'up';
+      else if (last.best.weight < prev.best.weight) direction = 'down';
+      else if (last.best.reps > prev.best.reps) direction = 'reps';
+      else if (last.best.reps < prev.best.reps) direction = 'down';
+      else direction = 'flat';
+    }
+
+    rows.push({
+      name: name,
+      muscle_group: groupByName[name] || '',
+      sessions_count: bests.length,
+      last_date: last.date,
+      last: last.best,
+      prev: prev ? prev.best : null,
+      stall_count: stall,
+      direction: direction,
+    });
+  });
+
+  const comparable = rows.filter(r => r.prev);
+  const improving = comparable.filter(r => r.direction === 'up' || r.direction === 'reps');
+  const stalled = rows.filter(r => r.stall_count >= 3).sort((a, b) => b.stall_count - a.stall_count);
+  const regressing = comparable.filter(r => r.direction === 'down');
+
+  const score = comparable.length
+    ? Math.round((improving.length / comparable.length) * 100)
+    : null;
+
+  return {
+    score: score,
+    headline: comparable.length ? improving.length + ' de ' + comparable.length + ' subiendo' : '—',
+    detail: comparable.length
+      ? stalled.length + ' estancados hace 3+ sesiones, ' + regressing.length + ' bajando.'
+      : 'Hacen falta al menos 2 sesiones por ejercicio para comparar.',
+    extra: {
+      total_exercises: rows.length,
+      comparable: comparable.length,
+      improving: improving.length,
+      regressing: regressing.length,
+      stalled: stalled.slice(0, 5).map(r => ({
+        name: r.name,
+        muscle_group: r.muscle_group,
+        stall_count: r.stall_count,
+        last: r.last,
+      })),
+      top_movers: improving
+        .slice()
+        .sort((a, b) => (b.last.weight - b.prev.weight) - (a.last.weight - a.prev.weight))
+        .slice(0, 3)
+        .map(r => ({
+          name: r.name,
+          delta_weight: round2_(r.last.weight - r.prev.weight),
+          last: r.last,
+        })),
+    },
+  };
+}
+
+// ---- Carga: series efectivas semanales y balance por musculo ----
+
+function buildPerfLoad_(sessions, sets, exercises, weekStarts, currentWeekStart, today) {
+  const sessionsById = indexBy_(sessions, 'session_id');
+  const exerciseMeta = buildExerciseMuscleMeta_(exercises);
+  const groups = MUSCLE_GROUPS_.filter(Boolean);
+
+  const byWeek = {};
+  weekStarts.forEach(ws => {
+    byWeek[ws] = {
+      week_start: ws,
+      total_sets: 0,
+      tonnage: 0,
+      current: ws === currentWeekStart,
+      groups: groups.reduce((acc, g) => { acc[g] = 0; return acc; }, {}),
+    };
+  });
+
+  (sets || []).forEach(set => {
+    const session = sessionsById[set.session_id];
+    if (!session) return;
+    const date = normalizeDate_(session.date);
+    if (!date || date > today) return;
+    const ws = getWeekRange_(date).start;
+    const bucket = byWeek[ws];
+    if (!bucket) return;
+    const w = set.weight === '' || set.weight == null ? 0 : Number(set.weight);
+    const r = set.reps === '' || set.reps == null ? 0 : Number(set.reps);
+    if (!isNaN(w) && !isNaN(r)) bucket.tonnage += w * r;
+    getSetMuscleStimuli_(set, exerciseMeta).forEach(stimulus => {
+      const value = Number(stimulus.effective_sets || 0);
+      if (value <= 0) return;
+      if (bucket.groups[stimulus.muscle_group] == null) return;
+      bucket.groups[stimulus.muscle_group] += value;
+      bucket.total_sets += value;
+    });
+  });
+
+  const series = weekStarts.map(ws => {
+    const b = byWeek[ws];
+    groups.forEach(g => { b.groups[g] = round2_(b.groups[g]); });
+    b.total_sets = round2_(b.total_sets);
+    b.tonnage = round2_(b.tonnage);
+    return b;
+  });
+
+  const closed = series.filter(w => !w.current);
+  let score = null;
+  let trendPct = null;
+  let detail = 'Hacen falta al menos 4 semanas cerradas para medir tendencia.';
+
+  if (closed.length >= 4) {
+    const half = Math.floor(closed.length / 2);
+    const older = perfAvg_(closed.slice(0, half).map(w => w.total_sets));
+    const recent = perfAvg_(closed.slice(closed.length - half).map(w => w.total_sets));
+    if (older && older > 0) {
+      trendPct = (recent - older) / older;
+      // Ideal: crecimiento leve y sostenido (0% a +25%).
+      if (trendPct >= 0 && trendPct <= 0.25) score = 100;
+      else if (trendPct > 0.25) score = Math.round(perfClamp_(100 - (trendPct - 0.25) * 120, 45, 100));
+      else score = Math.round(perfClamp_(100 + trendPct * 200, 0, 100));
+      detail = 'Series efectivas por semana: ' + round2_(older) + ' -> ' + round2_(recent)
+        + ' (' + (trendPct >= 0 ? '+' : '') + Math.round(trendPct * 100) + '%).';
+    }
+  }
+
+  // Balance: promedio semanal por grupo sobre semanas cerradas.
+  const perGroupAvg = {};
+  groups.forEach(g => {
+    perGroupAvg[g] = round2_(perfAvg_((closed.length ? closed : series).map(w => w.groups[g])) || 0);
+  });
+  const values = groups.map(g => perGroupAvg[g]).filter(v => v > 0).sort((a, b) => a - b);
+  const median = values.length
+    ? (values.length % 2 ? values[(values.length - 1) / 2] : (values[values.length / 2 - 1] + values[values.length / 2]) / 2)
+    : 0;
+  // Un grupo que nunca tocaste no es lo mismo que uno que entrenas poco.
+  const untrained = groups.filter(g => perGroupAvg[g] <= 0);
+  const underworked = groups
+    .filter(g => perGroupAvg[g] > 0 && median > 0 && perGroupAvg[g] < median * 0.6)
+    .map(g => ({ muscle_group: g, weekly_sets: perGroupAvg[g], median: round2_(median) }))
+    .sort((a, b) => a.weekly_sets - b.weekly_sets);
+
+  return {
+    score: score,
+    headline: closed.length ? round2_(perfAvg_(closed.map(w => w.total_sets)) || 0) + ' series/semana' : '—',
+    detail: detail,
+    series: series,
+    extra: {
+      trend_pct: trendPct == null ? null : round2_(trendPct * 100),
+      per_group_weekly: perGroupAvg,
+      median_weekly: round2_(median),
+      underworked: underworked,
+      untrained: untrained,
+      avg_tonnage: closed.length ? round2_(perfAvg_(closed.map(w => w.tonnage)) || 0) : null,
+    },
+  };
+}
+
+// ---- Intensidad: RIR promedio y su deriva ----
+
+function buildPerfIntensity_(sessions, sets, weekStarts, today) {
+  const sessionsById = indexBy_(sessions, 'session_id');
+  const byWeek = {};
+  weekStarts.forEach(ws => { byWeek[ws] = { week_start: ws, sum: 0, count: 0, total: 0 }; });
+
+  (sets || []).forEach(set => {
+    const session = sessionsById[set.session_id];
+    if (!session) return;
+    const date = normalizeDate_(session.date);
+    if (!date || date > today) return;
+    const ws = getWeekRange_(date).start;
+    const bucket = byWeek[ws];
+    if (!bucket) return;
+    bucket.total++;
+    if (set.rir === '' || set.rir == null) return;
+    const rir = Number(set.rir);
+    if (isNaN(rir)) return;
+    bucket.sum += rir;
+    bucket.count++;
+  });
+
+  const series = weekStarts.map(ws => {
+    const b = byWeek[ws];
+    return {
+      week_start: ws,
+      avg_rir: b.count ? round2_(b.sum / b.count) : null,
+      logged_sets: b.count,
+      total_sets: b.total,
+    };
+  });
+
+  const totalSets = series.reduce((a, w) => a + w.total_sets, 0);
+  const loggedSets = series.reduce((a, w) => a + w.logged_sets, 0);
+  const coverage = totalSets ? loggedSets / totalSets : 0;
+
+  if (coverage < 0.2 || loggedSets < 10) {
+    return {
+      score: null,
+      headline: 'Sin datos de RIR',
+      detail: 'Solo ' + Math.round(coverage * 100) + '% de las series tienen RIR cargado. Cargalo para medir intensidad.',
+      series: series,
+      extra: { coverage: round2_(coverage * 100), logged_sets: loggedSets },
+    };
+  }
+
+  const withRir = series.filter(w => w.avg_rir != null);
+  const avgRir = perfAvg_(withRir.map(w => w.avg_rir));
+  // Zona util: RIR 1-3. Fuera de ahi, penaliza.
+  let score;
+  if (avgRir >= 1 && avgRir <= 3) score = 100;
+  else if (avgRir < 1) score = Math.round(perfClamp_(100 - (1 - avgRir) * 25, 60, 100));
+  else score = Math.round(perfClamp_(100 - (avgRir - 3) * 22, 0, 100));
+
+  let drift = null;
+  if (withRir.length >= 4) {
+    const half = Math.floor(withRir.length / 2);
+    const older = perfAvg_(withRir.slice(0, half).map(w => w.avg_rir));
+    const recent = perfAvg_(withRir.slice(withRir.length - half).map(w => w.avg_rir));
+    if (older != null && recent != null) drift = round2_(recent - older);
+  }
+
+  return {
+    score: score,
+    headline: 'RIR promedio ' + round2_(avgRir),
+    detail: drift == null
+      ? Math.round(coverage * 100) + '% de series con RIR cargado.'
+      : 'Deriva de ' + (drift >= 0 ? '+' : '') + drift + ' RIR entre la primera y la segunda mitad del rango.',
+    series: series,
+    extra: {
+      avg_rir: round2_(avgRir),
+      drift: drift,
+      coverage: round2_(coverage * 100),
+      logged_sets: loggedSets,
+    },
+  };
+}
+
+// ---- Fuerza: 1RM estimado agregado y peso corporal ----
+
+function buildPerfStrength_(sessions, sets, weekStarts, today, nutrition) {
+  const sessionsById = indexBy_(sessions, 'session_id');
+  const startWeek = weekStarts[0];
+  const midWeek = weekStarts[Math.floor(weekStarts.length / 2)];
+
+  const byExercise = {};
+  (sets || []).forEach(set => {
+    const name = (set.exercise_name || '').toString().trim();
+    if (!name) return;
+    const session = sessionsById[set.session_id];
+    if (!session) return;
+    const date = normalizeDate_(session.date);
+    if (!date || date < startWeek || date > today) return;
+    const e1rm = calcEstimatedOneRepMax_(set.weight, set.reps);
+    if (!e1rm) return;
+    if (!byExercise[name]) byExercise[name] = { name: name, first_half: 0, second_half: 0, best: 0, sessions: {} };
+    const bucket = byExercise[name];
+    bucket.sessions[session.session_id] = true;
+    bucket.best = Math.max(bucket.best, e1rm);
+    if (date < midWeek) bucket.first_half = Math.max(bucket.first_half, e1rm);
+    else bucket.second_half = Math.max(bucket.second_half, e1rm);
+  });
+
+  const lifts = Object.keys(byExercise)
+    .map(name => {
+      const b = byExercise[name];
+      return {
+        name: name,
+        sessions_count: Object.keys(b.sessions).length,
+        best_e1rm: round2_(b.best),
+        first_half_e1rm: b.first_half ? round2_(b.first_half) : null,
+        second_half_e1rm: b.second_half ? round2_(b.second_half) : null,
+        delta: (b.first_half && b.second_half) ? round2_(b.second_half - b.first_half) : null,
+      };
+    })
+    .sort((a, b) => b.sessions_count - a.sessions_count || b.best_e1rm - a.best_e1rm);
+
+  const core = lifts.filter(l => l.delta != null).slice(0, 5);
+  const totalDelta = core.length ? round2_(core.reduce((a, l) => a + l.delta, 0)) : null;
+  const totalBase = core.length ? core.reduce((a, l) => a + l.first_half_e1rm, 0) : 0;
+  const deltaPct = totalBase > 0 ? round2_((totalDelta / totalBase) * 100) : null;
+
+  const bw = buildPerfBodyweight_(sessions, nutrition, startWeek, midWeek, today);
+
+  return {
+    top_lifts: lifts.slice(0, 6),
+    core_lifts: core,
+    total_e1rm_delta: totalDelta,
+    total_e1rm_delta_pct: deltaPct,
+    bodyweight: bw,
+  };
+}
+
+function buildPerfBodyweight_(sessions, nutrition, startWeek, midWeek, today) {
+  const points = [];
+  (sessions || []).forEach(s => {
+    const date = normalizeDate_(s.date);
+    if (!date || date < startWeek || date > today) return;
+    const w = s.bodyweight === '' || s.bodyweight == null ? null : Number(s.bodyweight);
+    if (w == null || isNaN(w) || w <= 0) return;
+    points.push({ date: date, weight: w });
+  });
+  (nutrition || []).forEach(r => {
+    const date = r.date ? normalizeDate_(r.date) : '';
+    if (!date || date < startWeek || date > today) return;
+    const w = r.weight === '' || r.weight == null ? null : Number(r.weight);
+    if (w == null || isNaN(w) || w <= 0) return;
+    points.push({ date: date, weight: w });
+  });
+  if (!points.length) return null;
+  points.sort((a, b) => a.date.localeCompare(b.date));
+
+  const first = perfAvg_(points.filter(p => p.date < midWeek).map(p => p.weight));
+  const second = perfAvg_(points.filter(p => p.date >= midWeek).map(p => p.weight));
+  return {
+    latest: round2_(points[points.length - 1].weight),
+    latest_date: points[points.length - 1].date,
+    first_half_avg: first == null ? null : round2_(first),
+    second_half_avg: second == null ? null : round2_(second),
+    delta: (first != null && second != null) ? round2_(second - first) : null,
+    samples: points.length,
+  };
+}
+
+// ---- Cruce nutricion x rendimiento ----
+
+function buildPerfNutritionLink_(sessions, sets, nutrition, weekStarts, currentWeekStart, today) {
+  if (!nutrition || !nutrition.length) return null;
+  const sessionsById = indexBy_(sessions, 'session_id');
+
+  // Mejor peso historico por ejercicio, recorrido en orden cronologico,
+  // para contar cuantos PRs de peso cayeron en cada semana.
+  const ordered = (sets || []).map(set => {
+    const session = sessionsById[set.session_id];
+    if (!session) return null;
+    const date = normalizeDate_(session.date);
+    if (!date || date > today) return null;
+    const w = set.weight === '' || set.weight == null ? null : Number(set.weight);
+    if (w == null || isNaN(w) || w <= 0) return null;
+    const name = (set.exercise_name || '').toString().trim();
+    if (!name) return null;
+    return { date: date, created_at: session.created_at || '', name: name, weight: w };
+  }).filter(Boolean).sort((a, b) => {
+    const c = a.date.localeCompare(b.date);
+    return c !== 0 ? c : (a.created_at || '').localeCompare(b.created_at || '');
+  });
+
+  const bestSoFar = {};
+  const prsByWeek = {};
+  weekStarts.forEach(ws => { prsByWeek[ws] = 0; });
+  ordered.forEach(item => {
+    const prevBest = bestSoFar[item.name];
+    if (prevBest == null) {
+      bestSoFar[item.name] = item.weight;
+      return;
+    }
+    if (item.weight > prevBest) {
+      bestSoFar[item.name] = item.weight;
+      const ws = getWeekRange_(item.date).start;
+      if (prsByWeek[ws] != null) prsByWeek[ws]++;
+    }
+  });
+
+  const nutritionByWeek = {};
+  weekStarts.forEach(ws => { nutritionByWeek[ws] = { kcal: [], protein: [] }; });
+  nutrition.forEach(r => {
+    const date = r.date ? normalizeDate_(r.date) : '';
+    if (!date || date > today) return;
+    const ws = getWeekRange_(date).start;
+    if (!nutritionByWeek[ws]) return;
+    const kcal = r.kcal === '' || r.kcal == null ? null : Number(r.kcal);
+    const protein = r.protein === '' || r.protein == null ? null : Number(r.protein);
+    if (kcal != null && !isNaN(kcal) && kcal > 0) nutritionByWeek[ws].kcal.push(kcal);
+    if (protein != null && !isNaN(protein) && protein > 0) nutritionByWeek[ws].protein.push(protein);
+  });
+
+  const rows = weekStarts
+    .filter(ws => ws !== currentWeekStart)
+    .map(ws => ({
+      week_start: ws,
+      prs: prsByWeek[ws] || 0,
+      kcal: perfAvg_(nutritionByWeek[ws].kcal),
+      protein: perfAvg_(nutritionByWeek[ws].protein),
+      logged_days: Math.max(nutritionByWeek[ws].kcal.length, nutritionByWeek[ws].protein.length),
+    }))
+    .filter(r => r.logged_days >= 3);
+
+  if (rows.length < 4) return null;
+
+  const good = rows.filter(r => r.prs > 0);
+  const flat = rows.filter(r => r.prs === 0);
+  if (good.length < 2 || flat.length < 2) return null;
+
+  return {
+    weeks_compared: rows.length,
+    good_weeks: good.length,
+    flat_weeks: flat.length,
+    good_protein: perfAvg_(good.map(r => r.protein)) == null ? null : Math.round(perfAvg_(good.map(r => r.protein))),
+    flat_protein: perfAvg_(flat.map(r => r.protein)) == null ? null : Math.round(perfAvg_(flat.map(r => r.protein))),
+    good_kcal: perfAvg_(good.map(r => r.kcal)) == null ? null : Math.round(perfAvg_(good.map(r => r.kcal))),
+    flat_kcal: perfAvg_(flat.map(r => r.kcal)) == null ? null : Math.round(perfAvg_(flat.map(r => r.kcal))),
+  };
+}
+
+// ---- Insights por reglas ----
+
+function buildPerfInsights_(ctx) {
+  const out = [];
+  const push = (tone, priority, title, body) => {
+    out.push({ tone: tone, priority: priority, title: title, body: body });
+  };
+
+  const cons = ctx.consistency || {};
+  const prog = ctx.progression || {};
+  const load = ctx.load || {};
+  const intensity = ctx.intensity || {};
+  const strength = ctx.strength || {};
+  const link = ctx.nutritionLink;
+
+  // 1. Estancamientos
+  const stalled = (prog.extra && prog.extra.stalled) || [];
+  if (stalled.length) {
+    const names = stalled.slice(0, 3).map(s => s.name + ' (' + s.stall_count + ')');
+    push('warn', 10, 'Ejercicios estancados',
+      names.join(', ') + '. Sin subir peso hace 3+ sesiones. Probá bajar una serie y subir carga, o cambiar el rango de reps.');
+  }
+
+  // 2. Grupos sin entrenar / desbalance de volumen
+  const untrained = (load.extra && load.extra.untrained) || [];
+  if (untrained.length) {
+    push('warn', 9, 'Grupos que no entrenás',
+      untrained.map(perfMuscleLabel_).join(', ') + '. Cero series en todo el rango. Si es a propósito, ignoralo; si no, es el agujero más grande del plan.');
+  }
+  const under = (load.extra && load.extra.underworked) || [];
+  if (under.length) {
+    const worst = under[0];
+    push('warn', 8, 'Desbalance de volumen',
+      perfMuscleLabel_(worst.muscle_group) + ': ' + worst.weekly_sets + ' series/semana vs ' + worst.median
+      + ' de mediana' + (under.length > 1 ? ' (y ' + (under.length - 1) + ' grupo(s) más por debajo)' : '') + '.');
+  }
+
+  // 3. Adherencia
+  if (cons.score != null && cons.score < 70) {
+    const missed = (cons.extra && cons.extra.missed_weeks) || 0;
+    push('warn', 8, 'Adherencia baja',
+      cons.score + '% de los días planificados' + (missed ? ', con ' + missed + ' semana(s) sin entrenar' : '')
+      + '. Es la palanca más barata: cumplir el plan pesa más que optimizarlo.');
+  } else if (cons.score != null && cons.score >= 90) {
+    push('good', 3, 'Consistencia sólida',
+      cons.score + '% de adherencia y racha de ' + ((cons.extra && cons.extra.streak_weeks) || 0) + ' semana(s).');
+  }
+
+  // 4. Tendencia de carga
+  const trend = load.extra ? load.extra.trend_pct : null;
+  if (trend != null && trend <= -15) {
+    push('warn', 7, 'Volumen cayendo',
+      'Tus series efectivas semanales bajaron ' + Math.abs(Math.round(trend)) + '%. Si no fue un deload planificado, es la causa más probable de los estancamientos.');
+  } else if (trend != null && trend >= 40) {
+    push('warn', 6, 'Volumen subiendo muy rápido',
+      '+' + Math.round(trend) + '% en series semanales. Ese ritmo suele adelantar fatiga antes que adaptación.');
+  } else if (trend != null && trend >= 4 && trend <= 25) {
+    push('good', 2, 'Carga bien progresada',
+      'Series semanales +' + Math.round(trend) + '%: crecimiento sostenido sin salto brusco.');
+  }
+
+  // 5. Deriva de RIR
+  const drift = intensity.extra ? intensity.extra.drift : null;
+  const avgRir = intensity.extra ? intensity.extra.avg_rir : null;
+  if (drift != null && drift >= 0.8) {
+    push('warn', 6, 'Estás entrenando más lejos del fallo',
+      'Tu RIR promedio subió ' + drift + ' puntos en el rango. Mismo peso, menos esfuerzo relativo: eso frena el estímulo.');
+  } else if (avgRir != null && avgRir > 3.5) {
+    push('warn', 5, 'Intensidad baja',
+      'RIR promedio ' + avgRir + '. Trabajar a 1-3 RIR en las series efectivas rinde bastante más.');
+  } else if (avgRir != null && avgRir < 0.5) {
+    push('warn', 5, 'Casi siempre al fallo',
+      'RIR promedio ' + avgRir + '. Llegar al fallo en todas las series acumula fatiga sin sumar estímulo proporcional.');
+  }
+  if (intensity.score == null && intensity.extra && intensity.extra.coverage != null && intensity.extra.coverage < 20) {
+    push('info', 4, 'Cargá el RIR',
+      'Solo ' + Math.round(intensity.extra.coverage) + '% de tus series tienen RIR. Es el dato más barato de cargar y el único que mide cuánto esfuerzo real pusiste.');
+  }
+
+  // 6. Fuerza vs peso corporal
+  const bw = strength.bodyweight;
+  if (strength.total_e1rm_delta != null && bw && bw.delta != null) {
+    if (strength.total_e1rm_delta > 0 && bw.delta > 0.5) {
+      push('good', 5, 'Estás ganando, no solo peso',
+        'Peso corporal +' + bw.delta + ' kg y 1RM estimado combinado +' + strength.total_e1rm_delta + ' kg en tus ' + strength.core_lifts.length + ' levantamientos principales.');
+    } else if (strength.total_e1rm_delta <= 0 && bw.delta > 0.5) {
+      push('warn', 7, 'Subís peso pero no fuerza',
+        'Peso corporal +' + bw.delta + ' kg y 1RM estimado combinado ' + strength.total_e1rm_delta + ' kg. Revisá volumen e intensidad antes de seguir sumando calorías.');
+    } else if (strength.total_e1rm_delta > 0 && bw.delta < -0.5) {
+      push('good', 5, 'Fuerza en déficit',
+        'Bajaste ' + Math.abs(bw.delta) + ' kg y aún así tu 1RM estimado combinado subió ' + strength.total_e1rm_delta + ' kg. Ese es el mejor escenario posible.');
+    }
+  }
+
+  // 7. Nutricion x PRs
+  if (link && link.good_protein != null && link.flat_protein != null) {
+    const diff = link.good_protein - link.flat_protein;
+    if (Math.abs(diff) >= 15) {
+      push('info', 6, 'Proteína y semanas con PR',
+        'Tus ' + link.good_weeks + ' semanas con PR promediaron ' + link.good_protein + ' g de proteína; las ' + link.flat_weeks
+        + ' sin PR, ' + link.flat_protein + ' g. Correlación, no causa, pero vale mirarla.');
+    }
+  }
+  if (link && link.good_kcal != null && link.flat_kcal != null) {
+    const diff = link.good_kcal - link.flat_kcal;
+    if (Math.abs(diff) >= 200) {
+      push('info', 5, 'Calorías y semanas con PR',
+        'Semanas con PR: ' + link.good_kcal + ' kcal promedio. Semanas planas: ' + link.flat_kcal + ' kcal.');
+    }
+  }
+
+  // 8. Buenas noticias de progresion
+  const movers = (prog.extra && prog.extra.top_movers) || [];
+  if (movers.length && movers[0].delta_weight > 0) {
+    push('good', 4, 'Subieron en su última sesión',
+      movers.map(m => m.name + ' +' + m.delta_weight + ' kg').join(', ') + '.');
+  }
+
+  return out.sort((a, b) => b.priority - a.priority).slice(0, 6);
+}
+
+function perfMuscleLabel_(group) {
+  return MUSCLE_GROUP_LABELS_[group] || group || 'Otros';
+}

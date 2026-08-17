@@ -903,6 +903,221 @@
   .segmented.compact {
     margin-bottom: 14px;
   }
+  /* ---- Informe de rendimiento ---- */
+  .perf-report {
+    margin-bottom: 22px;
+  }
+  .perf-hero {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 16px;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: var(--card);
+  }
+  .perf-hero-score {
+    font-size: 44px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+  .perf-hero-meta { flex: 1; min-width: 0; }
+  .perf-hero-label {
+    font-size: 15px;
+    font-weight: 800;
+    margin-bottom: 3px;
+  }
+  .perf-hero-sub {
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.35;
+  }
+  .perf-range {
+    display: flex;
+    gap: 6px;
+    margin: 12px 0 14px;
+  }
+  .perf-range button {
+    flex: 1;
+    padding: 7px 0;
+    border-radius: 999px;
+    border: 1px solid var(--border);
+    background: var(--card-soft);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .perf-range button.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #101010;
+  }
+  .perf-components {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .perf-tile {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--card);
+    padding: 12px;
+    min-width: 0;
+  }
+  .perf-tile-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .perf-tile-name {
+    font-size: 11.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+  .perf-tile-score {
+    font-size: 20px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .perf-tile-headline {
+    font-size: 13px;
+    font-weight: 700;
+    margin-top: 7px;
+    line-height: 1.3;
+  }
+  .perf-tile-detail {
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 4px;
+    line-height: 1.35;
+  }
+  /* Medidor: barra fina anclada a la base, extremos redondeados 4px */
+  .perf-meter {
+    height: 6px;
+    border-radius: 4px;
+    background: var(--card-soft);
+    overflow: hidden;
+    margin-top: 9px;
+  }
+  .perf-meter-fill {
+    height: 100%;
+    border-radius: 4px;
+    background: var(--accent);
+  }
+  .perf-meter-fill.is-good { background: var(--good); }
+  .perf-meter-fill.is-warn { background: var(--warn); }
+  .perf-meter-fill.is-bad  { background: var(--accent); }
+  .perf-spark { margin-top: 9px; display: block; width: 100%; }
+  .perf-spark-axis { font-size: 9px; fill: var(--muted-2); }
+  .perf-insights { margin-top: 16px; }
+  .perf-insight {
+    display: flex;
+    gap: 10px;
+    padding: 11px 12px;
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--card);
+    margin-bottom: 8px;
+  }
+  .perf-insight-icon {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 900;
+    margin-top: 1px;
+  }
+  .perf-insight.tone-warn .perf-insight-icon { background: rgba(255, 209, 102, 0.16); color: var(--warn); }
+  .perf-insight.tone-good .perf-insight-icon { background: rgba(73, 226, 120, 0.16); color: var(--good); }
+  .perf-insight.tone-info .perf-insight-icon { background: rgba(255, 90, 42, 0.16); color: var(--accent); }
+  .perf-insight-body { min-width: 0; }
+  .perf-insight-title {
+    font-size: 13.5px;
+    font-weight: 800;
+    margin-bottom: 3px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-wrap: wrap;
+  }
+  .perf-insight-tag {
+    font-size: 9.5px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 2px 6px;
+    border-radius: 5px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .perf-insight-text {
+    font-size: 12.5px;
+    color: var(--muted);
+    line-height: 1.42;
+  }
+  .perf-section-title {
+    font-size: 13px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    padding: 0 4px 8px;
+    margin-top: 18px;
+  }
+  .perf-lifts {
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    background: var(--card);
+    padding: 4px 12px;
+  }
+  .perf-lift-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .perf-lift-row:last-child { border-bottom: 0; }
+  .perf-lift-name {
+    font-size: 13px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .perf-lift-val {
+    font-size: 12.5px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    color: var(--muted);
+  }
+  .perf-lift-delta { font-weight: 800; }
+  .perf-lift-delta.up { color: var(--good); }
+  .perf-lift-delta.down { color: var(--warn); }
+  .perf-toggle {
+    width: 100%;
+    margin-top: 12px;
+    padding: 10px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--card-soft);
+    color: var(--muted);
+    font-size: 12.5px;
+    font-weight: 700;
+    cursor: pointer;
+  }
   .progress-group {
     margin-bottom: 10px;
     border: 1px solid var(--border);
@@ -2320,6 +2535,10 @@
     </div>
 
     <div id="progress-summary-view">
+      <div id="perf-report" class="perf-report">
+        <div class="skeleton" style="height:210px;"></div>
+      </div>
+      <div class="perf-section-title">Por ejercicio</div>
       <div id="progress-summary-content">
         <div class="skeleton" style="height:160px;"></div>
       </div>
@@ -2466,6 +2685,9 @@ const state = {
   progressDetailExercise: null,
   progressExercises: [],
   progressOpenGroups: new Set(),
+  perfWeeks: 8,
+  perfShowLifts: false,
+  lastPerfReport: null,
   lastProgressSummary: null,
   exerciseMetric: 'e1rm',
   exerciseChartRange: '4',
@@ -2506,6 +2728,7 @@ const API_CACHE_TTL = {
   listExerciseHistory: 300000,
   getExerciseGoal: 300000,
   getMuscleHeatmap: 300000,
+  getPerformanceReport: 600000,
 };
 // v5: fuerza descartar el cache local (la biblioteca se cachea 30 min por
 // dispositivo y hay ejercicios nuevos que no aparecerían hasta que expire).
@@ -2632,6 +2855,7 @@ function invalidateSessionCaches() {
     'listExerciseHistory',
     'listAllExerciseNames',
     'getMuscleHeatmap',
+    'getPerformanceReport',
   ]);
 }
 
@@ -5813,7 +6037,234 @@ async function loadProgress(navToken) {
     await loadExerciseHistory(state.progressDetailExercise, navToken);
     return;
   }
+  loadPerformanceReport(navToken);
   await loadProgressSummary(navToken);
+}
+
+// ============================================================
+// INFORME DE RENDIMIENTO
+// Score global + 4 componentes + insights. Los estados nunca
+// se comunican solo por color: siempre llevan icono y texto.
+// ============================================================
+
+const PERF_TONE_ICON = { good: '✓', warn: '!', info: 'i' };
+const PERF_TONE_TAG = { good: 'Va bien', warn: 'Atención', info: 'Dato' };
+
+async function loadPerformanceReport(navToken) {
+  const el = $('#perf-report');
+  if (!el) return;
+  const loadToken = nextLoadToken('perf');
+  const args = [{ weeks: state.perfWeeks }];
+
+  const cached = getApiCache('getPerformanceReport', args, API_CACHE_TTL.getPerformanceReport);
+  if (cached) {
+    renderPerformanceReport(cached);
+    return;
+  }
+  el.innerHTML = `<div class="skeleton" style="height:210px;"></div>`;
+  try {
+    const data = await cachedGas('getPerformanceReport', args);
+    if (!isCurrentLoad('perf', loadToken, 'progress', navToken)) return;
+    renderPerformanceReport(data);
+  } catch (err) {
+    if (!isCurrentLoad('perf', loadToken, 'progress', navToken)) return;
+    el.innerHTML = `<p class="muted">No se pudo cargar el informe: ${escapeHtml(err.message)}</p>`;
+  }
+}
+
+function perfScoreTone(score) {
+  if (score == null) return 'muted';
+  if (score >= 75) return 'good';
+  if (score >= 50) return 'warn';
+  return 'bad';
+}
+
+function perfScoreColor(score) {
+  const tone = perfScoreTone(score);
+  if (tone === 'good') return 'var(--good)';
+  if (tone === 'warn') return 'var(--warn)';
+  if (tone === 'bad') return 'var(--accent)';
+  return 'var(--muted-2)';
+}
+
+// Sparkline de barras: marca fina, extremos redondeados, anclada a la base,
+// 2px de aire entre barras. Una sola serie, sin leyenda.
+function perfSparkline(values, labels, unit) {
+  const vals = (values || []).map(v => (v == null || isNaN(v) ? null : Number(v)));
+  const present = vals.filter(v => v != null);
+  if (present.length < 2) return '';
+  const max = Math.max(...present, 0.0001);
+  const W = 260, H = 34, gap = 2;
+  const n = vals.length;
+  const bw = Math.max(2, (W - gap * (n - 1)) / n);
+  const bars = vals.map((v, i) => {
+    const x = i * (bw + gap);
+    if (v == null) {
+      return `<rect x="${x.toFixed(2)}" y="${H - 2}" width="${bw.toFixed(2)}" height="2" rx="1" fill="var(--border)"></rect>`;
+    }
+    const h = Math.max(2, (v / max) * H);
+    const label = `${labels[i] || ''}: ${Math.round(v * 10) / 10}${unit || ''}`;
+    return `<rect x="${x.toFixed(2)}" y="${(H - h).toFixed(2)}" width="${bw.toFixed(2)}" height="${h.toFixed(2)}" rx="${Math.min(4, bw / 2).toFixed(2)}" fill="var(--accent)"><title>${escapeHtml(label)}</title></rect>`;
+  }).join('');
+  return `<svg class="perf-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Evolución semanal">${bars}</svg>`;
+}
+
+function perfWeekLabels(weekStarts) {
+  return (weekStarts || []).map(ws => {
+    const parts = String(ws).split('-');
+    return parts.length === 3 ? `${parts[2]}/${parts[1]}` : ws;
+  });
+}
+
+function renderPerformanceReport(data) {
+  const el = $('#perf-report');
+  if (!el || !data) return;
+  state.lastPerfReport = data;
+
+  const labels = perfWeekLabels(data.week_starts);
+  const comps = data.components || [];
+  const scored = comps.filter(c => c.score != null).length;
+
+  if (data.overall_score == null && !scored) {
+    el.innerHTML = `
+      <div class="empty-state">
+        <div class="emoji">📈</div>
+        <h3>Todavía no hay suficiente</h3>
+        <p class="muted">Necesitás algunas semanas de sesiones registradas para que el informe tenga sentido.</p>
+      </div>
+      ${renderPerfRange()}
+    `;
+    return;
+  }
+
+  const overall = data.overall_score;
+  const eff = data.effective_weeks || data.weeks;
+  // Si pediste más semanas de las que tenés entrenadas, la ventana se recorta
+  // en el backend. Decirlo evita que "16 sem" y "8 sem" parezcan un bug.
+  const clamped = data.effective_weeks != null && data.effective_weeks < data.weeks;
+  const hero = `
+    <div class="perf-hero">
+      <div class="perf-hero-score" style="color:${perfScoreColor(overall)};">${overall == null ? '—' : overall}</div>
+      <div class="perf-hero-meta">
+        <div class="perf-hero-label">${escapeHtml(data.overall_label || '')}</div>
+        <div class="perf-hero-sub">
+          Últimas ${eff} semana${eff === 1 ? '' : 's'}, sobre ${scored} de 4 componentes con datos.${clamped ? ` Pediste ${data.weeks}, pero tu historial arranca hace ${eff}.` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+
+  const tiles = comps.map(c => {
+    const seriesSvg = perfComponentSpark(c, labels);
+    const pct = c.score == null ? 0 : c.score;
+    return `
+      <div class="perf-tile">
+        <div class="perf-tile-head">
+          <span class="perf-tile-name">${escapeHtml(c.label)}</span>
+          <span class="perf-tile-score" style="color:${perfScoreColor(c.score)};">${c.score == null ? '—' : c.score}</span>
+        </div>
+        <div class="perf-tile-headline">${escapeHtml(c.headline || '')}</div>
+        <div class="perf-meter">
+          <div class="perf-meter-fill is-${perfScoreTone(c.score)}" style="width:${pct}%;"></div>
+        </div>
+        ${seriesSvg}
+        <div class="perf-tile-detail">${escapeHtml(c.detail || '')}</div>
+      </div>
+    `;
+  }).join('');
+
+  const insights = (data.insights || []).map(ins => {
+    const tone = PERF_TONE_ICON[ins.tone] ? ins.tone : 'info';
+    return `
+      <div class="perf-insight tone-${tone}">
+        <span class="perf-insight-icon" aria-hidden="true">${PERF_TONE_ICON[tone]}</span>
+        <div class="perf-insight-body">
+          <div class="perf-insight-title">
+            ${escapeHtml(ins.title)}
+            <span class="perf-insight-tag">${escapeHtml(PERF_TONE_TAG[tone])}</span>
+          </div>
+          <div class="perf-insight-text">${escapeHtml(ins.body)}</div>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  el.innerHTML = `
+    ${hero}
+    ${renderPerfRange()}
+    <div class="perf-components">${tiles}</div>
+    ${insights ? `<div class="perf-section-title">Qué mirar</div><div class="perf-insights">${insights}</div>` : ''}
+    ${renderPerfLifts(data.strength)}
+  `;
+}
+
+function perfComponentSpark(c, labels) {
+  if (!c.series || !c.series.length) return '';
+  if (c.key === 'consistency') {
+    return perfSparkline(c.series.map(w => w.sessions), labels, ' ses.');
+  }
+  if (c.key === 'load') {
+    return perfSparkline(c.series.map(w => w.total_sets), labels, ' series');
+  }
+  // Intensidad no lleva sparkline a propósito: en RIR "más alto" es peor, y
+  // mezclarlo con las otras dos (donde más alto es mejor) se lee al revés.
+  // La deriva ya va en texto en el detalle.
+  return '';
+}
+
+function renderPerfRange() {
+  const opts = [4, 8, 12, 16];
+  return `
+    <div class="perf-range" role="group" aria-label="Rango del informe">
+      ${opts.map(w => `
+        <button type="button" data-action="perf-set-weeks" data-weeks="${w}" class="${state.perfWeeks === w ? 'active' : ''}">${w} sem</button>
+      `).join('')}
+    </div>
+  `;
+}
+
+function renderPerfLifts(strength) {
+  if (!strength) return '';
+  const lifts = strength.core_lifts && strength.core_lifts.length
+    ? strength.core_lifts
+    : (strength.top_lifts || []);
+  if (!lifts.length) return '';
+
+  const bw = strength.bodyweight;
+  const totalDelta = strength.total_e1rm_delta;
+  const summaryBits = [];
+  if (totalDelta != null) {
+    summaryBits.push(`1RM estimado combinado ${totalDelta >= 0 ? '+' : ''}${units.toDisplay(totalDelta)} ${units.label()}`);
+  }
+  if (bw && bw.delta != null) {
+    summaryBits.push(`peso corporal ${bw.delta >= 0 ? '+' : ''}${units.toDisplay(bw.delta)} ${units.label()}`);
+  }
+
+  const rows = lifts.map(l => {
+    const d = l.delta;
+    const cls = d == null ? '' : (d > 0 ? 'up' : (d < 0 ? 'down' : ''));
+    let deltaTxt;
+    if (d == null) deltaTxt = 'sin comparación';
+    else if (d === 0) deltaTxt = '= igual';
+    else deltaTxt = `${d > 0 ? '↑ +' : '↓ '}${units.toDisplay(d)} ${units.label()}`;
+    return `
+      <div class="perf-lift-row">
+        <span class="perf-lift-name">${escapeHtml(l.name)}</span>
+        <span class="perf-lift-val">${units.toDisplay(l.best_e1rm)} ${units.label()} · <span class="perf-lift-delta ${cls}">${escapeHtml(deltaTxt)}</span></span>
+      </div>
+    `;
+  }).join('');
+
+  if (!state.perfShowLifts) {
+    return `<button type="button" class="perf-toggle" data-action="perf-toggle-lifts">Ver fuerza estimada (1RM)</button>`;
+  }
+
+  return `
+    <div class="perf-section-title">Fuerza estimada (1RM)</div>
+    ${summaryBits.length ? `<p class="muted" style="padding:0 4px 10px;">${escapeHtml(summaryBits.join(' · '))} entre la primera y la segunda mitad del rango.</p>` : ''}
+    <div class="perf-lifts">${rows}</div>
+    <button type="button" class="perf-toggle" data-action="perf-toggle-lifts">Ocultar fuerza estimada</button>
+  `;
 }
 
 function renderProgressViews() {
@@ -6822,7 +7273,7 @@ async function handleSaveNutrition(button) {
   const oldText = button.textContent; button.disabled = true; button.textContent = 'Guardando…';
   try {
     await gas.saveNutritionDay(payload);
-    invalidateApiCache(['getNutritionDay','listNutritionHistory','getWeeklyAdjustment','getNutritionHomeStats']);
+    invalidateApiCache(['getNutritionDay','listNutritionHistory','getWeeklyAdjustment','getNutritionHomeStats','getPerformanceReport']);
     toast('Día guardado', 'success');
     await loadNutrition(state.currentScreen === 'nutrition' ? state.navSeq : null);
   } catch (err) { toast(err.message || 'No se pudo guardar', 'error'); }
@@ -7010,7 +7461,7 @@ function openNutritionDayModal_(date) {
         try {
           await gas.saveNutritionDay(payload);
           modal.close();
-          invalidateApiCache(['getNutritionDay','listNutritionHistory','getWeeklyAdjustment','getNutritionHomeStats']);
+          invalidateApiCache(['getNutritionDay','listNutritionHistory','getWeeklyAdjustment','getNutritionHomeStats','getPerformanceReport']);
           toast('Registro guardado', 'success');
           await loadNutrition(state.currentScreen === 'nutrition' ? state.navSeq : null);
         } catch (err) { toast(err.message || 'No se pudo guardar', 'error'); }
@@ -7050,6 +7501,18 @@ document.addEventListener('click', (e) => {
       } else {
         goTo('progress', { exercise: t.dataset.exerciseName || '' });
       }
+      break;
+    case 'perf-set-weeks': {
+      const w = Number(t.dataset.weeks);
+      if (w && w !== state.perfWeeks) {
+        state.perfWeeks = w;
+        loadPerformanceReport(state.currentScreen === 'progress' ? state.navSeq : null);
+      }
+      break;
+    }
+    case 'perf-toggle-lifts':
+      state.perfShowLifts = !state.perfShowLifts;
+      if (state.lastPerfReport) renderPerformanceReport(state.lastPerfReport);
       break;
     case 'progress-back-to-summary':
       state.progressDetailExercise = null;
