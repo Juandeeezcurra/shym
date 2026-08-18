@@ -960,6 +960,11 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
   }
+  /* Con 3 componentes el último queda solo en su fila: que ocupe el ancho
+     completo en vez de dejar un hueco al costado. */
+  .perf-tile:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
   .perf-tile {
     border: 1px solid var(--border);
     border-radius: 14px;
@@ -2730,9 +2735,9 @@ const API_CACHE_TTL = {
   getMuscleHeatmap: 300000,
   getPerformanceReport: 600000,
 };
-// v5: fuerza descartar el cache local (la biblioteca se cachea 30 min por
-// dispositivo y hay ejercicios nuevos que no aparecerían hasta que expire).
-const API_CACHE_STORAGE_KEY = 'gymtracker:api-cache:v5';
+// v6: el informe de rendimiento pasó de 4 componentes a 3 (se sacó Intensidad).
+// Sin bumpear, un payload cacheado viejo volvería a pintar la tarjeta vieja.
+const API_CACHE_STORAGE_KEY = 'gymtracker:api-cache:v6';
 
 function apiCacheKey(fnName, args) {
   return `${fnName}:${JSON.stringify(args || [])}`;
@@ -6148,7 +6153,7 @@ function renderPerformanceReport(data) {
       <div class="perf-hero-meta">
         <div class="perf-hero-label">${escapeHtml(data.overall_label || '')}</div>
         <div class="perf-hero-sub">
-          Últimas ${eff} semana${eff === 1 ? '' : 's'}, sobre ${scored} de 4 componentes con datos.${clamped ? ` Pediste ${data.weeks}, pero tu historial arranca hace ${eff}.` : ''}
+          Últimas ${eff} semana${eff === 1 ? '' : 's'}, sobre ${scored} de ${comps.length} componentes con datos.${clamped ? ` Pediste ${data.weeks}, pero tu historial arranca hace ${eff}.` : ''}
         </div>
       </div>
     </div>
@@ -6206,9 +6211,8 @@ function perfComponentSpark(c, labels) {
   if (c.key === 'load') {
     return perfSparkline(c.series.map(w => w.total_sets), labels, ' series');
   }
-  // Intensidad no lleva sparkline a propósito: en RIR "más alto" es peor, y
-  // mezclarlo con las otras dos (donde más alto es mejor) se lee al revés.
-  // La deriva ya va en texto en el detalle.
+  // Progresión no lleva sparkline: es un ratio de la última sesión de cada
+  // ejercicio, no una serie semanal, así que no hay nada honesto que graficar.
   return '';
 }
 

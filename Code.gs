@@ -180,9 +180,14 @@ function runApiCall_(fn, args) {
   return result;
 }
 
+// Subir cuando cambia la FORMA de una respuesta cacheada (no los datos), para
+// que el deploy nuevo no siga sirviendo payloads viejos hasta que expiren.
+// v2: getPerformanceReport paso de 4 componentes a 3 (se saco Intensidad/RIR).
+const API_SHAPE_VERSION_ = '2';
+
 function apiCacheKey_(fn, args) {
   const version = PropertiesService.getScriptProperties().getProperty('api_cache_version') || '1';
-  const raw = version + '|' + fn + '|' + JSON.stringify(args || []);
+  const raw = API_SHAPE_VERSION_ + '|' + version + '|' + fn + '|' + JSON.stringify(args || []);
   const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, raw);
   return 'api:' + Utilities.base64EncodeWebSafe(digest).slice(0, 42);
 }
@@ -4080,11 +4085,13 @@ function getMuscleModelMeta_() {
 // PERFORMANCE REPORT — vision global de rendimiento
 // Todo se deriva de sheets existentes. No requiere migracion.
 
+// Sin componente de intensidad: el RIR no se carga desde la app, asi que
+// medirlo solo producia una tarjeta permanentemente vacia. Su 15% se repartio
+// entre los tres componentes que si tienen datos.
 const PERF_WEIGHTS_ = {
-  consistency: 30,
-  progression: 30,
-  load: 25,
-  intensity: 15,
+  consistency: 35,
+  progression: 35,
+  load: 30,
 };
 
 function getPerformanceReport(params) {
@@ -4121,14 +4128,12 @@ function getPerformanceReport(params) {
   const consistency = buildPerfConsistency_(sessions, routines, days, weekStarts, currentWeekStart, today);
   const progression = buildPerfProgression_(sessions, sets, exercises, startWeek, today);
   const load = buildPerfLoad_(sessions, sets, exercises, weekStarts, currentWeekStart, today);
-  const intensity = buildPerfIntensity_(sessions, sets, weekStarts, today);
   const strength = buildPerfStrength_(sessions, sets, weekStarts, today, nutrition);
 
   const components = [
     { key: 'consistency', label: 'Consistencia', weight: PERF_WEIGHTS_.consistency, data: consistency },
     { key: 'progression', label: 'Progresión', weight: PERF_WEIGHTS_.progression, data: progression },
     { key: 'load', label: 'Carga', weight: PERF_WEIGHTS_.load, data: load },
-    { key: 'intensity', label: 'Intensidad', weight: PERF_WEIGHTS_.intensity, data: intensity },
   ];
 
   let weightSum = 0;
@@ -4144,7 +4149,6 @@ function getPerformanceReport(params) {
     consistency: consistency,
     progression: progression,
     load: load,
-    intensity: intensity,
     strength: strength,
     nutritionLink: buildPerfNutritionLink_(sessions, sets, nutrition, weekStarts, currentWeekStart, today),
   });
@@ -4172,7 +4176,7 @@ function getPerformanceReport(params) {
 }
 
 function emptyPerformanceReport_(weeks) {
-  const labels = { consistency: 'Consistencia', progression: 'Progresión', load: 'Carga', intensity: 'Intensidad' };
+  const labels = { consistency: 'Consistencia', progression: 'Progresión', load: 'Carga' };
   return {
     weeks: weeks,
     effective_weeks: 0,
@@ -4503,85 +4507,6 @@ function buildPerfLoad_(sessions, sets, exercises, weekStarts, currentWeekStart,
   };
 }
 
-// ---- Intensidad: RIR promedio y su deriva ----
-
-function buildPerfIntensity_(sessions, sets, weekStarts, today) {
-  const sessionsById = indexBy_(sessions, 'session_id');
-  const byWeek = {};
-  weekStarts.forEach(ws => { byWeek[ws] = { week_start: ws, sum: 0, count: 0, total: 0 }; });
-
-  (sets || []).forEach(set => {
-    const session = sessionsById[set.session_id];
-    if (!session) return;
-    const date = normalizeDate_(session.date);
-    if (!date || date > today) return;
-    const ws = getWeekRange_(date).start;
-    const bucket = byWeek[ws];
-    if (!bucket) return;
-    bucket.total++;
-    if (set.rir === '' || set.rir == null) return;
-    const rir = Number(set.rir);
-    if (isNaN(rir)) return;
-    bucket.sum += rir;
-    bucket.count++;
-  });
-
-  const series = weekStarts.map(ws => {
-    const b = byWeek[ws];
-    return {
-      week_start: ws,
-      avg_rir: b.count ? round2_(b.sum / b.count) : null,
-      logged_sets: b.count,
-      total_sets: b.total,
-    };
-  });
-
-  const totalSets = series.reduce((a, w) => a + w.total_sets, 0);
-  const loggedSets = series.reduce((a, w) => a + w.logged_sets, 0);
-  const coverage = totalSets ? loggedSets / totalSets : 0;
-
-  if (coverage < 0.2 || loggedSets < 10) {
-    return {
-      score: null,
-      headline: 'Sin datos de RIR',
-      detail: 'Solo ' + Math.round(coverage * 100) + '% de las series tienen RIR cargado. Cargalo para medir intensidad.',
-      series: series,
-      extra: { coverage: round2_(coverage * 100), logged_sets: loggedSets },
-    };
-  }
-
-  const withRir = series.filter(w => w.avg_rir != null);
-  const avgRir = perfAvg_(withRir.map(w => w.avg_rir));
-  // Zona util: RIR 1-3. Fuera de ahi, penaliza.
-  let score;
-  if (avgRir >= 1 && avgRir <= 3) score = 100;
-  else if (avgRir < 1) score = Math.round(perfClamp_(100 - (1 - avgRir) * 25, 60, 100));
-  else score = Math.round(perfClamp_(100 - (avgRir - 3) * 22, 0, 100));
-
-  let drift = null;
-  if (withRir.length >= 4) {
-    const half = Math.floor(withRir.length / 2);
-    const older = perfAvg_(withRir.slice(0, half).map(w => w.avg_rir));
-    const recent = perfAvg_(withRir.slice(withRir.length - half).map(w => w.avg_rir));
-    if (older != null && recent != null) drift = round2_(recent - older);
-  }
-
-  return {
-    score: score,
-    headline: 'RIR promedio ' + round2_(avgRir),
-    detail: drift == null
-      ? Math.round(coverage * 100) + '% de series con RIR cargado.'
-      : 'Deriva de ' + (drift >= 0 ? '+' : '') + drift + ' RIR entre la primera y la segunda mitad del rango.',
-    series: series,
-    extra: {
-      avg_rir: round2_(avgRir),
-      drift: drift,
-      coverage: round2_(coverage * 100),
-      logged_sets: loggedSets,
-    },
-  };
-}
-
 // ---- Fuerza: 1RM estimado agregado y peso corporal ----
 
 function buildPerfStrength_(sessions, sets, weekStarts, today, nutrition) {
@@ -4759,7 +4684,6 @@ function buildPerfInsights_(ctx) {
   const cons = ctx.consistency || {};
   const prog = ctx.progression || {};
   const load = ctx.load || {};
-  const intensity = ctx.intensity || {};
   const strength = ctx.strength || {};
   const link = ctx.nutritionLink;
 
@@ -4809,25 +4733,7 @@ function buildPerfInsights_(ctx) {
       'Series semanales +' + Math.round(trend) + '%: crecimiento sostenido sin salto brusco.');
   }
 
-  // 5. Deriva de RIR
-  const drift = intensity.extra ? intensity.extra.drift : null;
-  const avgRir = intensity.extra ? intensity.extra.avg_rir : null;
-  if (drift != null && drift >= 0.8) {
-    push('warn', 6, 'Estás entrenando más lejos del fallo',
-      'Tu RIR promedio subió ' + drift + ' puntos en el rango. Mismo peso, menos esfuerzo relativo: eso frena el estímulo.');
-  } else if (avgRir != null && avgRir > 3.5) {
-    push('warn', 5, 'Intensidad baja',
-      'RIR promedio ' + avgRir + '. Trabajar a 1-3 RIR en las series efectivas rinde bastante más.');
-  } else if (avgRir != null && avgRir < 0.5) {
-    push('warn', 5, 'Casi siempre al fallo',
-      'RIR promedio ' + avgRir + '. Llegar al fallo en todas las series acumula fatiga sin sumar estímulo proporcional.');
-  }
-  if (intensity.score == null && intensity.extra && intensity.extra.coverage != null && intensity.extra.coverage < 20) {
-    push('info', 4, 'Cargá el RIR',
-      'Solo ' + Math.round(intensity.extra.coverage) + '% de tus series tienen RIR. Es el dato más barato de cargar y el único que mide cuánto esfuerzo real pusiste.');
-  }
-
-  // 6. Fuerza vs peso corporal
+  // 5. Fuerza vs peso corporal
   const bw = strength.bodyweight;
   if (strength.total_e1rm_delta != null && bw && bw.delta != null) {
     if (strength.total_e1rm_delta > 0 && bw.delta > 0.5) {
@@ -4842,7 +4748,7 @@ function buildPerfInsights_(ctx) {
     }
   }
 
-  // 7. Nutricion x PRs
+  // 6. Nutricion x PRs
   if (link && link.good_protein != null && link.flat_protein != null) {
     const diff = link.good_protein - link.flat_protein;
     if (Math.abs(diff) >= 15) {
@@ -4859,7 +4765,7 @@ function buildPerfInsights_(ctx) {
     }
   }
 
-  // 8. Buenas noticias de progresion
+  // 7. Buenas noticias de progresion
   const movers = (prog.extra && prog.extra.top_movers) || [];
   if (movers.length && movers[0].delta_weight > 0) {
     push('good', 4, 'Subieron en su última sesión',
