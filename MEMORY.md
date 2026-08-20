@@ -122,6 +122,14 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
   - Los estados nunca se comunican solo por color: `--good` y `--warn` tienen delta-E 1.9 bajo protanopia, asi que cada insight lleva icono y etiqueta de texto. No sacar esas etiquetas.
   - Intensidad no lleva sparkline a proposito: en RIR "mas alto" es peor y se leia al reves junto a las otras dos.
 
+- Objetivo del ejercicio visible al entrenar:
+  - Cada card de `screen-train` muestra un chip `Objetivo` con `target_sets × target_reps_min–target_reps_max reps · suggested_weight`, leido de `Day_Exercises` (o de `Exercise_Library` cuando el ejercicio se agrega ad-hoc/entrenamiento libre).
+  - Helpers: `trainTargetOf_(ex)` normaliza el objetivo (peso `null`/`''`/`0` = sin sugerencia, siempre en kg) y `formatTrainTarget_(ex)` arma el texto. El chip se oculta si no hay ni reps ni peso.
+  - Los placeholders de peso y reps de cada serie priorizan la ultima vez; si no hay historial caen al objetivo del Sheet. El `aria-label` aclara si es "ultima vez" o "sugerido/objetivo".
+  - El tip de primera vez usa el peso sugerido cuando existe (`Primera vez: arranca con X kg...`).
+  - Objetivo (plan del Sheet) y tip (derivado del historial) son cosas distintas y conviven en `.train-chips`. No fusionarlos.
+  - Es solo frontend: no requiere `setup()` ni redeploy de Apps Script. Drafts viejos sin `suggested_weight` degradan a mostrar solo reps.
+
 ## Ideas Futuras Guardadas
 
 - PWA/offline: por ahora no implementar. Si se retoma, preferir PWA basica primero (instalable + cache de archivos + drafts locales existentes). No hacer sync offline completa sin definir conflictos.

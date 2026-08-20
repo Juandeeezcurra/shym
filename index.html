@@ -559,6 +559,36 @@
     opacity: 0.85;
   }
   .train-swap-note { margin-top: 3px; font-size: 12px; color: var(--muted); }
+  .train-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .train-chips > * { margin-top: 0 !important; }
+  .train-target {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+    border: 1px solid rgba(255, 159, 28, 0.3);
+    background: rgba(255, 159, 28, 0.08);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-align: left;
+  }
+  .train-target .train-target-label {
+    color: var(--muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    font-size: 10.5px;
+    letter-spacing: 0.05em;
+  }
+  .train-target b { font-weight: 800; }
   .train-tip {
     display: inline-flex;
     align-items: center;
@@ -5327,6 +5357,44 @@ function renderTrainExercises(exercises) {
   `;
 }
 
+// Objetivo tal como está seteado en el Sheet (Day_Exercises o Exercise_Library):
+// series, rango de reps y peso sugerido. Es el plan, no una sugerencia derivada
+// del historial: eso lo hace computeExerciseTip.
+function trainTargetOf_(ex) {
+  if (!ex) return null;
+  const sets = Number(ex.target_sets || 0);
+  const rmin = Number(ex.target_reps_min || 0);
+  const rmax = Number(ex.target_reps_max || 0);
+  const swRaw = ex.suggested_weight;
+  const sw = (swRaw == null || swRaw === '') ? NaN : Number(swRaw);
+  const hasWeight = !isNaN(sw) && sw > 0;
+
+  let reps = '';
+  if (rmin > 0 && rmax > 0) reps = rmin === rmax ? String(rmin) : `${rmin}–${rmax}`;
+  else if (rmin > 0 || rmax > 0) reps = String(rmin || rmax);
+
+  // Solo series, sin reps ni peso, no aporta nada: ya se ve en las filas.
+  if (!reps && !hasWeight) return null;
+  return {
+    sets: sets > 0 ? sets : null,
+    reps,
+    repsLabel: reps ? `${reps} reps` : '',
+    weightKg: hasWeight ? sw : null,
+    weightLabel: hasWeight ? `${formatKgDisplay(sw)} ${units.label()}` : '',
+  };
+}
+
+function formatTrainTarget_(ex) {
+  const t = trainTargetOf_(ex);
+  if (!t) return '';
+  const parts = [];
+  if (t.sets && t.repsLabel) parts.push(`${t.sets} × ${t.repsLabel}`);
+  else if (t.repsLabel) parts.push(t.repsLabel);
+  else if (t.sets) parts.push(`${t.sets} series`);
+  if (t.weightLabel) parts.push(t.weightLabel);
+  return parts.join(' · ');
+}
+
 function renderTrainExerciseCard_(ex) {
   const last = getLastEntryForExercise(ex);
   const previousSets = (last && last.sets && last.sets.length) ? last.sets : [];
@@ -5334,6 +5402,7 @@ function renderTrainExerciseCard_(ex) {
     { length: Math.max(1, Number(ex.target_sets || 1)) },
     (_, i) => renderSetRow(ex, i + 1, previousSets[i])
   ).join('');
+  const targetText = formatTrainTarget_(ex);
   const tip = computeTrainTip_(ex);
   const nameAttr = escapeHtml(ex.exercise_name);
   const rexAttr = escapeHtml(ex.routine_exercise_id);
@@ -5349,7 +5418,12 @@ function renderTrainExerciseCard_(ex) {
             </svg>
           </h3>
           ${ex.replaced_name ? `<p class="train-swap-note">Reemplaza a ${escapeHtml(ex.replaced_name)} · solo esta sesión</p>` : ''}
-          ${tip ? `<button type="button" class="train-tip ${tip.cls}" data-action="open-train-stats" data-exercise-name="${nameAttr}">💡 ${escapeHtml(tip.text)}</button>` : ''}
+          ${(targetText || tip) ? `
+            <div class="train-chips">
+              ${targetText ? `<span class="train-target"><span class="train-target-label">Objetivo</span> <b>${escapeHtml(targetText)}</b></span>` : ''}
+              ${tip ? `<button type="button" class="train-tip ${tip.cls}" data-action="open-train-stats" data-exercise-name="${nameAttr}">💡 ${escapeHtml(tip.text)}</button>` : ''}
+            </div>
+          ` : ''}
         </div>
         <button class="ghost-btn icon-btn" data-action="train-exercise-menu" data-rex-id="${rexAttr}" aria-label="Opciones del ejercicio">⋯</button>
       </div>
@@ -5367,6 +5441,10 @@ function computeExerciseTip(ex, lastBest, stallCount) {
   const rmin = Number(ex.target_reps_min || 8);
   const rmax = Number(ex.target_reps_max || 12);
   if (!lastBest || !lastBest.weight) {
+    const target = trainTargetOf_(ex);
+    if (target && target.weightLabel) {
+      return { cls: 'flat', short: 'sugerido', text: `Primera vez: arrancá con ${target.weightLabel} buscando ${rmin}-${rmax} reps.` };
+    }
     return { cls: 'flat', short: 'primera vez', text: `Primera vez: buscá un peso que te deje ${rmin}-${rmax} reps.` };
   }
   const w = Number(lastBest.weight);
@@ -5417,19 +5495,34 @@ function updateTrainDateDisplay() {
   }).replace('.', '');
 }
 
+// Placeholders: primero lo que hiciste la última vez; si no hay historial,
+// cae al objetivo seteado en el Sheet (peso sugerido y rango de reps).
 function renderSetRow(ex, setNumber, previousSet) {
-  const previousWeight = previousSet && previousSet.weight != null
+  const target = trainTargetOf_(ex);
+  const hasPrevWeight = previousSet && previousSet.weight != null;
+  const hasPrevReps = previousSet && previousSet.reps != null;
+  const previousWeight = hasPrevWeight
     ? units.toDisplay(previousSet.weight)
-    : 0;
-  const previousReps = previousSet && previousSet.reps != null ? previousSet.reps : 0;
+    : (target && target.weightKg != null ? formatKgDisplay(target.weightKg) : 0);
+  const previousReps = hasPrevReps
+    ? previousSet.reps
+    : ((target && target.reps) ? target.reps : 0);
+  const weightHint = hasPrevWeight
+    ? `Peso en ${units.label()} (última vez: ${previousWeight})`
+    : (target && target.weightKg != null
+        ? `Peso en ${units.label()} (sugerido: ${previousWeight})`
+        : `Peso en ${units.label()}`);
+  const repsHint = hasPrevReps
+    ? `Repeticiones (última vez: ${previousReps})`
+    : ((target && target.reps) ? `Repeticiones (objetivo: ${target.reps})` : 'Repeticiones');
   return `
     <div class="input-grid train-grid" data-set-row data-rex-id="${escapeHtml(ex.routine_exercise_id)}" data-set-number="${setNumber}">
       <div class="set-number">${setNumber}</div>
       <div class="set-field-group">
-        <input type="text" inputmode="decimal" data-field="weight" placeholder="${escapeHtml(previousWeight)}" aria-label="Peso en ${units.label()}" />
+        <input type="text" inputmode="decimal" data-field="weight" placeholder="${escapeHtml(previousWeight)}" aria-label="${escapeHtml(weightHint)}" />
       </div>
       <div class="set-field-group">
-        <input type="number" step="1" inputmode="numeric" data-field="reps" placeholder="${escapeHtml(previousReps)}" aria-label="Repeticiones" />
+        <input type="number" step="1" inputmode="numeric" data-field="reps" placeholder="${escapeHtml(previousReps)}" aria-label="${escapeHtml(repsHint)}" />
       </div>
       <button type="button" class="set-remove-btn" data-action="remove-train-set" data-rex-id="${escapeHtml(ex.routine_exercise_id)}" data-set-number="${setNumber}" aria-label="Quitar serie ${setNumber}">✕</button>
     </div>
@@ -5666,8 +5759,16 @@ function buildSessionExercise_(name, muscle, sets, known) {
     target_sets: sets,
     target_reps_min: (known && Number(known.target_reps_min)) || 8,
     target_reps_max: (known && Number(known.target_reps_max)) || 12,
+    suggested_weight: known ? normalizeSuggestedWeight_(known.suggested_weight) : null,
     technique_note: '',
   };
+}
+
+// El peso sugerido viaja en kg. '' / null / 0 significan "sin sugerencia".
+function normalizeSuggestedWeight_(value) {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return (isNaN(n) || n <= 0) ? null : n;
 }
 
 // Igual que buildSessionExercise_ pero a partir de un ejercicio de la
@@ -5681,6 +5782,7 @@ function buildSessionExerciseFromLibrary_(libEx, sets) {
     target_sets: sets || Number(libEx.target_sets) || 3,
     target_reps_min: Number(libEx.target_reps_min) || 8,
     target_reps_max: Number(libEx.target_reps_max) || 12,
+    suggested_weight: normalizeSuggestedWeight_(libEx.suggested_weight),
     technique_note: libEx.technique_note || '',
   };
 }
