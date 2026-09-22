@@ -1,12 +1,18 @@
-# Migración a Cloudflare — runbook
+# Shymie — runbook de puesta en marcha
 
-Pasos para pasar Shym de **GitHub Pages + Apps Script + Google Sheets** a
-**Cloudflare Workers + D1**. El código ya está listo en el repo; lo que sigue
-son los pasos que hay que correr una sola vez.
+Este repo ahora tiene **dos apps independientes**, que no comparten backend
+ni datos:
 
-Antes de empezar: **no borres nada de Google**. El Sheet y el deploy de Apps
-Script siguen funcionando hasta que confirmes que Cloudflare anda bien. La
-vuelta atrás es cambiar la URL, nada más.
+- **Shym** (la vieja): GitHub Pages + Apps Script + Google Sheets, en la raíz
+  del repo (`index.html`, `manifest.webmanifest`, `assets/`). Sigue
+  funcionando exactamente igual que siempre. No se toca.
+- **Shymie** (la nueva): Cloudflare Workers + D1, en `public/` + `src/`. Es un
+  puerto de la misma lógica de negocio, pero con su propia base de datos
+  vacía hasta que se importe.
+
+Son dos productos separados a propósito: distinto dominio, distinto storage
+del navegador, distinto token. Podés tener las dos instaladas en el celular a
+la vez sin que se pisen. Este documento es la puesta en marcha de Shymie.
 
 ---
 
@@ -20,16 +26,16 @@ npx wrangler login     # abre el navegador para autorizar tu cuenta
 ## 1. Crear la base D1
 
 ```bash
-npx wrangler d1 create shym
+npx wrangler d1 create shymie
 ```
 
 Devuelve un `database_id`. **Copialo a `wrangler.toml`**, reemplazando
-`PENDIENTE_CORRER_wrangler_d1_create_shym`.
+`PENDIENTE_CORRER_wrangler_d1_create_shymie`.
 
 Después creá las tablas:
 
 ```bash
-npx wrangler d1 migrations apply shym --remote
+npx wrangler d1 migrations apply shymie --remote
 ```
 
 ## 2. Definir el token de acceso
@@ -38,15 +44,17 @@ npx wrangler d1 migrations apply shym --remote
 # Generá uno al azar y guardalo en tu gestor de contraseñas:
 openssl rand -base64 32
 
-npx wrangler secret put SHYM_TOKEN
+npx wrangler secret put SHYMIE_TOKEN
 ```
 
 Sin este secreto la API responde `503` a todo. Es a propósito: un deploy sin
 token queda cerrado, no abierto.
 
-## 3. Exportar los datos del Sheet
+## 3. Traer los datos de Shym (opcional)
 
-Este es el último redeploy de Apps Script.
+Si querés arrancar Shymie con tu historial real en vez de en blanco, este paso
+saca los datos del Sheet una vez. **No modifica ni interrumpe Shym**: es de
+sólo lectura sobre Apps Script.
 
 1. Copiá `Code.gs` del repo (ya incluye `exportAll` y su registro en `getApi_`).
 2. Pegalo en Apps Script reemplazando todo.
@@ -56,7 +64,7 @@ Este es el último redeploy de Apps Script.
 ```bash
 curl -s -X POST "https://script.google.com/macros/s/TU_ID/exec" \
   -H 'Content-Type: text/plain;charset=utf-8' \
-  -d '{"fn":"exportAll","args":[]}' > shym-export.json
+  -d '{"fn":"exportAll","args":[]}' > shymie-export.json
 ```
 
 Verificá que trajo todo antes de seguir:
@@ -72,7 +80,7 @@ Imprime cuántas filas tiene cada tabla. Si alguna da 0 y no debería, pará ac�
 Primero local, para probar sin tocar producción:
 
 ```bash
-npx wrangler d1 migrations apply shym --local
+npx wrangler d1 migrations apply shymie --local
 node tools/import-sheets.mjs --local
 npm run dev
 ```
@@ -95,32 +103,33 @@ veces que haga falta.
 npx wrangler deploy
 ```
 
-Te da una URL `https://shym.<tu-subdominio>.workers.dev`. Abrila, pegá el
+Te da una URL `https://shymie.<tu-subdominio>.workers.dev`. Abrila, pegá el
 token y listo.
 
-## 6. Después de confirmar que anda
+Agregala a la pantalla de inicio del celular como una app nueva (es otro
+dominio, así que iOS/Android no la confunde con Shym).
 
-- Sacá Shym de GitHub Pages (Settings → Pages → None) para que no queden dos
-  versiones vivas apuntando a backends distintos.
-- Volvé a agregar la app a la pantalla de inicio del iPhone: es otro dominio,
-  así que iOS la trata como una app nueva.
-- El Sheet de Google quedátelo un tiempo como respaldo. Ya no se actualiza.
+## Si algo sale mal
+
+Shym sigue intacta en GitHub Pages, con su propio Sheet y su propio deploy de
+Apps Script. No depende de nada de lo de arriba. Podés seguir usándola sin
+límite mientras probás Shymie en paralelo.
 
 ---
 
-## Qué cambió
+## Qué es cada cosa
 
-| | Antes | Ahora |
+| | Shym (vieja) | Shymie (nueva) |
 |---|---|---|
-| Frontend | GitHub Pages | Worker (`public/`) |
+| Frontend | GitHub Pages, raíz del repo | Worker, `public/` |
 | Backend | Apps Script `/exec` | Worker `/api` |
 | Datos | Google Sheets | D1 (SQLite) |
 | Origen | dos dominios, con CORS | uno solo |
-| Acceso | URL no publicada | token en header |
+| Acceso | URL no publicada | token en header `X-Shymie-Token` |
 | Deploy | copiar y pegar a mano | `npx wrangler deploy` |
 | Latencia típica | 1–3 s | decenas de ms |
 
-## Estructura
+## Estructura de Shymie
 
 ```
 src/schema.js    modelo de datos: genera el SQL y el mapeo de tipos
@@ -129,11 +138,12 @@ src/platform.js  uuid, fechas y zona horaria
 src/api.js       GENERADO — lógica de negocio portada de Code.gs
 src/index.js     routing, auth y ciclo load → lógica → flush
 migrations/      DDL de D1
-public/          el frontend
+public/          el frontend de Shymie
 tools/           port, import/export y tests
 ```
 
-`src/api.js` no se edita a mano. Se edita `Code.gs` y se regenera:
+`src/api.js` no se edita a mano. Se edita `Code.gs` (la misma fuente que usa
+Shym) y se regenera:
 
 ```bash
 npm run port && npm test
@@ -177,3 +187,7 @@ falta `LockService`: el batch da atomicidad, algo que con Sheets no existía.
 - **Concurrencia.** Dos requests simultáneos podrían pisarse (leer → calcular →
   escribir). Con un solo usuario es despreciable; si alguna vez hay más de uno,
   la solución es un Durable Object.
+- **Mantener Shym y Shymie en sync.** Mientras las dos convivan, un fix de
+  lógica hecho en `Code.gs` hay que pegarlo también en el Sheet de Apps Script
+  para que Shym lo tenga, y correr `npm run port` para que Shymie lo tenga.
+  Si algún día se retira Shym, ese doble mantenimiento desaparece.

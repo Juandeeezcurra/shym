@@ -35,7 +35,7 @@ function corsHeaders() {
   return {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Shym-Token',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Shymie-Token',
     'Access-Control-Max-Age': '86400',
   };
 }
@@ -51,13 +51,13 @@ function safeEqual(a, b) {
 }
 
 function authorize(request, env) {
-  const expected = env.SHYM_TOKEN;
+  const expected = env.SHYMIE_TOKEN;
   // Sin token configurado la API queda cerrada, no abierta. Un deploy al que
   // se le olvido el secreto debe fallar ruidosamente y no quedar publico.
   if (!expected) {
-    return { ok: false, status: 503, error: 'Backend sin SHYM_TOKEN configurado.' };
+    return { ok: false, status: 503, error: 'Backend sin SHYMIE_TOKEN configurado.' };
   }
-  const provided = request.headers.get('X-Shym-Token') || '';
+  const provided = request.headers.get('X-Shymie-Token') || '';
   if (!safeEqual(provided, expected)) {
     return { ok: false, status: 401, error: 'Token invalido.' };
   }
@@ -141,7 +141,7 @@ export default {
       // Equivalente al doGet() viejo: healthcheck legible.
       return json({
         ok: true,
-        app: 'Shym API',
+        app: 'Shymie API',
         message: 'Backend activo en Cloudflare Workers.',
         time: new Date().toISOString(),
       });

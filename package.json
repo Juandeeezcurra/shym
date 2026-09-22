@@ -1,13 +1,13 @@
 {
-  "name": "shym",
+  "name": "shymie",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "db:create": "wrangler d1 create shym",
-    "db:migrate:local": "wrangler d1 migrations apply shym --local",
-    "db:migrate": "wrangler d1 migrations apply shym --remote",
+    "db:create": "wrangler d1 create shymie",
+    "db:migrate:local": "wrangler d1 migrations apply shymie --local",
+    "db:migrate": "wrangler d1 migrations apply shymie --remote",
     "db:schema": "node tools/gen-schema.mjs",
     "port": "node tools/port-code-gs.mjs",
     "import:local": "node tools/import-sheets.mjs --local",

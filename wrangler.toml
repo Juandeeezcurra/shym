@@ -1,4 +1,4 @@
-name = "shym"
+name = "shymie"
 main = "src/index.js"
 compatibility_date = "2026-09-21"
 
@@ -12,14 +12,14 @@ not_found_handling = "single-page-application"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "shym"
-database_id = "PENDIENTE_CORRER_wrangler_d1_create_shym"
+database_name = "shymie"
+database_id = "PENDIENTE_CORRER_wrangler_d1_create_shymie"
 migrations_dir = "migrations"
 
 [vars]
 # Los Workers corren en UTC. Sin esto las fechas de sesion se corren un dia.
 TZ = "America/Argentina/Buenos_Aires"
 
-# SHYM_TOKEN NO va aca: es secreto.
-#   produccion -> npx wrangler secret put SHYM_TOKEN
+# SHYMIE_TOKEN NO va aca: es secreto.
+#   produccion -> npx wrangler secret put SHYMIE_TOKEN
 #   local      -> archivo .dev.vars (ignorado por git)

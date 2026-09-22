@@ -1,7 +1,7 @@
 // ============================================================
 // SHYM — IMPORT DEL EXPORT DE SHEETS A D1
 // ============================================================
-//   node tools/import-sheets.mjs --local   [--file shym-export.json]
+//   node tools/import-sheets.mjs --local   [--file shymie-export.json]
 //   node tools/import-sheets.mjs --remote
 //
 // Lee el JSON que devuelve exportAll(), lo convierte a SQL y lo aplica con
@@ -17,7 +17,7 @@ const args = process.argv.slice(2);
 const remote = args.includes('--remote');
 const local = args.includes('--local');
 const fileArg = args.indexOf('--file');
-const file = fileArg >= 0 ? args[fileArg + 1] : 'shym-export.json';
+const file = fileArg >= 0 ? args[fileArg + 1] : 'shymie-export.json';
 const dryRun = args.includes('--dry-run');
 
 if (!remote && !local && !dryRun) {
@@ -81,7 +81,7 @@ for (const [key, value] of Object.entries(data.settings || {})) {
 }
 
 const sql = stmts.join('\n\n') + '\n';
-const outFile = '.wrangler/shym-import.sql';
+const outFile = '.wrangler/shymie-import.sql';
 fs.mkdirSync('.wrangler', { recursive: true });
 fs.writeFileSync(outFile, sql);
 
@@ -98,7 +98,7 @@ if (dryRun) {
 
 const target = remote ? '--remote' : '--local';
 console.log(`\nAplicando a D1 (${target})...`);
-execFileSync('npx', ['wrangler', 'd1', 'execute', 'shym', target, '--file', outFile, '--yes'], {
+execFileSync('npx', ['wrangler', 'd1', 'execute', 'shymie', target, '--file', outFile, '--yes'], {
   stdio: 'inherit',
 });
 console.log('Import completo.');

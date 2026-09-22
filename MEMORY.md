@@ -4,18 +4,25 @@ Esta es la biblia corta del proyecto. Si algo contradice esto, confiar primero e
 
 ## Arquitectura Canonica
 
-- La app es **frontend + backend API en un unico Cloudflare Worker**, con datos en **D1** (SQLite).
+Este repo contiene **dos apps independientes que no comparten backend ni datos**:
+
+- **Shym** (vieja, congelada): GitHub Pages + Apps Script + Google Sheets. Vive en la raiz del repo: `index.html`, `manifest.webmanifest`, `assets/`. Sigue funcionando para el usuario tal cual estaba. **No se edita mas.** Ningun cambio de codigo/feature se aplica aca salvo pedido explicito.
+- **Shymie** (nueva, activa): Cloudflare Workers + D1. Vive en `public/` (frontend) y `src/` (backend). **Todo el desarrollo nuevo va aca.**
+
+Las dos comparten el mismo modelo de datos y la misma logica de negocio de origen (`Code.gs`), pero corren por separado: distinto dominio, distinto storage del navegador, distinto token, sin sync entre ellas. Runbook de puesta en marcha de Shymie: `docs/migracion-cloudflare.md`.
+
+### Shymie — como esta armada
+
 - Frontend y API comparten origen. No hay CORS, no hay URL de backend que configurar.
-- El frontend canonical es `public/index.html`. El Worker lo sirve via el binding `ASSETS`.
+- El frontend canonical de Shymie es `public/index.html`. El Worker lo sirve via el binding `ASSETS`.
 - El backend es `src/index.js`, que expone `POST /api`.
 - `src/api.js` es **generado**: sale de `Code.gs` via `npm run port`. No editarlo a mano.
-- `Code.gs` queda en el repo solo como referencia historica y como fuente del port. Apps Script ya no corre nada.
-- El acceso se controla con un token compartido en el header `X-Shym-Token`, guardado en `localStorage` con key `gymtracker:token`. El secreto vive en Worker Secrets como `SHYM_TOKEN`.
-- Si falta `SHYM_TOKEN`, la API responde 503 a todo. Un deploy sin secreto queda cerrado, no abierto.
-- `google.script.run` y `HtmlService` siguen prohibidos. Tambien lo esta agregar llamadas a Google Sheets.
-- Runbook completo de la migracion: `docs/migracion-cloudflare.md`.
+- `Code.gs` sigue siendo la fuente de la logica de negocio (para eso lo lee el port), pero ya no se redeploya a Apps Script: esa via quedo congelada junto con Shym.
+- El acceso se controla con un token compartido en el header `X-Shymie-Token`, guardado en `localStorage` con key `gymtracker:token`. El secreto vive en Worker Secrets como `SHYMIE_TOKEN`.
+- Si falta `SHYMIE_TOKEN`, la API responde 503 a todo. Un deploy sin secreto queda cerrado, no abierto.
+- `google.script.run` y `HtmlService` estan prohibidos en Shymie. Tambien lo esta agregar llamadas a Google Sheets ahi.
 
-### Ciclo de request
+### Ciclo de request (Shymie)
 
 La logica de negocio portada es sincrona y D1 es asincrono. Cada request hace:
 
@@ -34,6 +41,8 @@ Por eso `LockService` desaparecio: el batch da atomicidad. El shim no-op en `src
 
 ## Deploy Correcto
 
+### Shymie
+
 Un solo comando:
 
 ```bash
@@ -43,15 +52,19 @@ npx wrangler deploy
 Si cambio el schema:
 
 ```bash
-npm run db:schema                            # regenera migrations/ desde src/schema.js
-npx wrangler d1 migrations apply shym --remote
+npm run db:schema                              # regenera migrations/ desde src/schema.js
+npx wrangler d1 migrations apply shymie --remote
 ```
 
 Si cambio la logica de negocio: editar `Code.gs`, despues `npm run port && npm test`, despues deploy.
 
-Ya no hay que copiar y pegar nada en Apps Script, ni redeployar web apps, ni pushear a GitHub Pages para que la app se actualice.
+No hay que copiar y pegar nada a mano, ni redeployar web apps, ni pushear a GitHub Pages para que Shymie se actualice.
 
-## Contrato API
+### Shym
+
+No se redeploya. Quedo congelada con lo que ya tenia. Si alguna vez el usuario pide explicitamente reactivar el mantenimiento de Shym, seguir el proceso viejo: pegar `Code.gs` en Apps Script y hacer New version deploy, y pushear la raiz del repo para GitHub Pages.
+
+## Contrato API (Shymie)
 
 El frontend manda:
 
@@ -60,7 +73,7 @@ fetch('/api', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
-    'X-Shym-Token': token,
+    'X-Shymie-Token': token,
   },
   body: JSON.stringify({ fn: 'nombreFuncion', args: [...] })
 })
@@ -151,7 +164,7 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
 ## Ideas Futuras Guardadas
 
 - PWA/offline: por ahora no implementar. Si se retoma, preferir PWA basica primero (instalable + cache de archivos + drafts locales existentes). No hacer sync offline completa sin definir conflictos.
-- Backup/export: con la migracion a D1 se perdio el Sheet como backup natural, asi que ahora si conviene. Opciones: `wrangler d1 export shym --remote --output backup.sql`, o un endpoint de export JSON. D1 tambien tiene point-in-time recovery de 30 dias.
+- Backup/export: Shymie perdio el Sheet como backup natural. Opciones: `wrangler d1 export shymie --remote --output backup.sql`, o un endpoint de export JSON. D1 tambien tiene point-in-time recovery de 30 dias.
 - Historial: a futuro se podria agregar filtros por rutina/dia o rangos mas largos si el uso real lo pide.
 
 No implementar features grandes de schema sin avisar que requieren tocar `src/schema.js`, generar una migracion nueva en `migrations/` y aplicarla con `wrangler d1 migrations apply`.
@@ -159,6 +172,7 @@ No implementar features grandes de schema sin avisar que requieren tocar `src/sc
 ## Reglas de Implementacion
 
 - Siempre pushear los cambios al terminar una tarea de codigo/docs. No esperar confirmacion extra del usuario para hacer push.
+- Nunca tocar `index.html`, `manifest.webmanifest` o `assets/` en la raiz del repo (son de Shym, congelada), salvo pedido explicito del usuario. El desarrollo nuevo va en `public/` y `src/` (Shymie).
 - Mantener estilo mobile-first dark premium.
 - No usar tablas visibles.
 - Mutaciones de rutina/dia/ejercicio deben devolver la rutina completa cuando eso evita un roundtrip.
@@ -168,12 +182,12 @@ No implementar features grandes de schema sin avisar que requieren tocar `src/sc
 - Si cambia la logica de negocio: editar `Code.gs`, correr `npm run port && npm test`, y despues `npx wrangler deploy`.
 - Nunca editar `src/api.js` a mano: es generado y el proximo port lo pisa.
 - Si cambia `src/schema.js`, regenerar migraciones con `npm run db:schema` y aplicarlas antes de deployar.
-- Si cambia `public/index.html` o assets, alcanza con `npx wrangler deploy`.
+- Si cambia `public/index.html` o `public/assets/`, alcanza con `npx wrangler deploy`.
 - Si cambia `manifest.webmanifest` o assets de icono, avisar que iOS puede requerir quitar/agregar de nuevo a Home Screen.
 
 ## Señales De Problema
 
-- Todo responde `503 Backend sin SHYM_TOKEN configurado`: falta el secreto. Correr `npx wrangler secret put SHYM_TOKEN`.
+- Todo responde `503 Backend sin SHYMIE_TOKEN configurado`: falta el secreto. Correr `npx wrangler secret put SHYMIE_TOKEN`.
 - Todo responde `401`: el token del navegador no coincide con el del Worker. El frontend lo borra solo y vuelve a la pantalla de conexion.
 - Error `Falta el binding DB de D1`: falta el `database_id` en `wrangler.toml`, o no se corrieron las migraciones.
 - `getSheet_ is not defined` o similar: alguien edito `src/api.js` a mano, o el port quedo desactualizado. Correr `npm run port`, que ademas chequea referencias colgadas.
