@@ -6,3 +6,7 @@ Thumbs.db
 .clasp.json
 .clasprc.json
 node_modules/
+
+# Cloudflare
+.dev.vars
+.wrangler/

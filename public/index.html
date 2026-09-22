@@ -2245,16 +2245,16 @@
     </div>
 
     <div class="hero">
-      <div class="eyebrow">Apps Script</div>
-      <p class="muted" style="font-size:14px;">Pegá la URL del Web App que termina en /exec. La app queda en GitHub; Google solo guarda los datos.</p>
+      <div class="eyebrow">Cloudflare</div>
+      <p class="muted" style="font-size:14px;">Pegá tu token de acceso. La app y los datos viven en Cloudflare.</p>
     </div>
 
     <div class="card">
-      <label class="field-label">URL backend</label>
-      <input id="setup-backend-url" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+      <label class="field-label">Token de acceso</label>
+      <input id="setup-backend-token" type="password" autocomplete="current-password" placeholder="Tu token" />
     </div>
 
-    <button class="primary-btn full" data-action="save-backend-url">Conectar</button>
+    <button class="primary-btn full" data-action="save-backend-token">Conectar</button>
   </section>
 
   <!-- ============ HOME ============ -->
@@ -2654,41 +2654,43 @@
 
 <script>
 // ============================================================
-// API WRAPPER — GitHub Pages frontend + Apps Script backend
+// API WRAPPER — frontend y backend en el mismo Worker de Cloudflare
 // ============================================================
+// La app y la API comparten origen: el mismo Worker sirve el HTML y responde
+// /api. Por eso ya no hace falta configurar una URL de backend, ni el
+// Content-Type text/plain que Apps Script pedia para esquivar el preflight de
+// CORS. Lo unico que se configura es el token de acceso.
 const backend = {
-  KEY: 'gymtracker:backend-url',
-  DEFAULT_KEY: 'gymtracker:backend-default-url',
-  DEFAULT_URL: 'https://script.google.com/macros/s/AKfycbyqz2Hb3Xdy27yp2SVQMzXXb8xUrItJLrVvYt7ssZscmnifjZGno9ZE7Fu9VnRBxgKl6A/exec',
-  get url() { return localStorage.getItem(this.KEY) || this.DEFAULT_URL; },
-  set(url) { localStorage.setItem(this.KEY, normalizeBackendUrl(url)); },
-  ensureDefault() {
-    if (localStorage.getItem(this.DEFAULT_KEY) === this.DEFAULT_URL) return;
-    localStorage.setItem(this.KEY, this.DEFAULT_URL);
-    localStorage.setItem(this.DEFAULT_KEY, this.DEFAULT_URL);
-  },
+  KEY: 'gymtracker:token',
+  ENDPOINT: '/api',
+  get token() { return localStorage.getItem(this.KEY) || ''; },
+  set(token) { localStorage.setItem(this.KEY, (token || '').toString().trim()); },
+  clear() { localStorage.removeItem(this.KEY); },
+  get ready() { return !!this.token; },
 };
-
-function normalizeBackendUrl(url) {
-  return (url || '').toString().trim().replace(/\/+$/, '');
-}
 
 const gas = new Proxy({}, {
   get(_, fnName) {
     return async (...args) => {
-      const url = backend.url;
-      if (!url) throw new Error('Falta configurar la URL del backend.');
-      const res = await fetch(url, {
+      if (!backend.ready) throw new Error('Falta configurar el token de acceso.');
+      const res = await fetch(backend.ENDPOINT, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shym-Token': backend.token,
+        },
         body: JSON.stringify({ fn: fnName, args }),
       });
+      if (res.status === 401) {
+        backend.clear();
+        throw new Error('Token invalido. Volve a conectarte.');
+      }
       const text = await res.text();
       let data;
       try {
         data = JSON.parse(text);
       } catch (err) {
-        throw new Error('Respuesta inválida del backend. Revisá que la URL termine en /exec.');
+        throw new Error('Respuesta invalida del backend (HTTP ' + res.status + ').');
       }
       if (!data.ok) throw new Error(data.error || 'Error del backend.');
       return data.result;
@@ -3171,7 +3173,7 @@ async function runLockedAction(key, fn) {
 // ============================================================
 registerScreen('setup', {
   onEnter() {
-    $('#setup-backend-url').value = backend.url;
+    $('#setup-backend-token').value = backend.token;
   }
 });
 
@@ -3183,7 +3185,7 @@ registerScreen('home', {
 });
 
 async function loadHome(navToken) {
-  if (!backend.url) return;
+  if (!backend.ready) return;
   const offset = state.homeWeekOffset || 0;
   const weekArgs = [{ offset }];
   const heatArgs = [{ days: state.muscleHeatDays || 7 }];
@@ -3812,11 +3814,11 @@ async function openSessionDetail(session_id) {
   }
 }
 
-async function handleSaveBackendUrl() {
-  const input = $('#setup-backend-url');
-  const url = normalizeBackendUrl(input.value);
-  if (!url) { toast('Pegá la URL /exec', 'error'); return; }
-  backend.set(url);
+async function handleSaveBackendToken() {
+  const input = $('#setup-backend-token');
+  const token = (input.value || '').trim();
+  if (!token) { toast('Pegá tu token de acceso', 'error'); return; }
+  backend.set(token);
   try {
     await withLoader(gas.ping());
     toast('Backend conectado', 'success');
@@ -7352,7 +7354,7 @@ registerScreen('nutrition', { onEnter(params, navToken) {
 }});
 
 async function loadNutrition(navToken) {
-  if (!backend.url) return;
+  if (!backend.ready) return;
   try {
     const [today, adjustment, history] = await cachedGasBatch([
       { fn: 'getNutritionDay', args: [{ date: todayInputValue() }] },
@@ -7646,7 +7648,7 @@ document.addEventListener('click', (e) => {
       break;
     case 'select-history-date': handleSelectHistoryDate(t.dataset.date); break;
     case 'clear-history-date': clearHistoryDateFilter(); break;
-    case 'save-backend-url': handleSaveBackendUrl(); break;
+    case 'save-backend-token': handleSaveBackendToken(); break;
     case 'new-routine': handleNewRoutine(); break;
     case 'back-to-routines': goTo('routines'); break;
     case 'rename-routine': handleRenameRoutine(); break;
@@ -7792,10 +7794,9 @@ document.addEventListener('change', (e) => {
 // BOOT
 // ============================================================
 (async function boot() {
-  backend.ensureDefault();
   loadStoredApiCache();
   $('#home-date').textContent = formatDateLong(todayInputValue());
-  if (!backend.url) {
+  if (!backend.ready) {
     goTo('setup');
     return;
   }

@@ -1,303 +1,131 @@
 // ============================================================
-// GYM TRACKER — GOOGLE APPS SCRIPT
+// SHYM — LOGICA DE NEGOCIO
 // ============================================================
-// Setup:
-//   1. Crea un Google Sheets vacio.
-//   2. Extensions > Apps Script. Pega solo Code.gs.
-//   3. Corre setup() una vez (boton Run).
-//   4. Deploy > New deployment > Web app > Execute as: Me, Access: Anyone.
-//   5. Abri la app en GitHub Pages y pega la URL /exec del deploy.
-// ============================================================
-// Single-user. Pesos guardados siempre en kg (toggle kg/lb es solo display).
+// GENERADO por tools/port-code-gs.mjs desde Code.gs. No editar a mano:
+// editar Code.gs o el script de port y volver a correrlo.
+//
+// Todo lo que hay aca abajo es la logica de negocio portada tal cual desde
+// Apps Script. Lo especifico de Google vive en las capas nuevas:
+//   - datos            -> src/db.js    (D1 con las mismas firmas sincronas)
+//   - uuid/fecha/TZ    -> src/platform.js
+//   - routing/auth     -> src/index.js
+//   - modelo de datos  -> src/schema.js
 // ============================================================
 
-const SHEETS = {
-  ROUTINES: 'Routines',
-  DAYS: 'Routine_Days',
-  EXERCISES: 'Day_Exercises',
-  SESSIONS: 'Sessions',
-  SETS: 'Session_Sets',
-  GOALS: 'Exercise_Goals',
-  NUTRITION: 'Nutrition',
-  LIBRARY: 'Exercise_Library',
+import { SHEETS, HEADERS } from './schema.js';
+import { genId_, nowIso_, todayIso_, isTrue_, formatDateIso } from './platform.js';
+
+// El Store del request en curso. Lo setea el Worker antes de invocar la API.
+let DB = null;
+export function setStore(store) { DB = store; }
+
+// Puentes a la capa de datos, con las firmas identicas a las de Apps Script
+// para que la logica de negocio de abajo no necesite ningun cambio.
+function readAll_(name) { return DB.readAll(name); }
+function appendRow_(name, obj) { return DB.appendRow(name, obj); }
+function appendRows_(name, objects) { return DB.appendRows(name, objects); }
+function updateRowById_(name, idCol, idValue, partial) { return DB.updateRowById(name, idCol, idValue, partial); }
+function deleteRowById_(name, idCol, idValue) { return DB.deleteRowById(name, idCol, idValue); }
+function deleteRowsWhere_(name, predicate) { return DB.deleteRowsWhere(name, predicate); }
+function invalidateReadCache_() { /* la cache vive en el Store, no hace falta */ }
+
+// Shim no-op de LockService. En Sheets el lock protegia secuencias de
+// escrituras sueltas. Ahora cada request acumula sus escrituras y las manda
+// en un unico d1.batch(), que D1 corre como transaccion, asi que la
+// atomicidad ya esta cubierta. El shim evita reestructurar los try/finally
+// de las 6 funciones que lo usaban.
+const LockService = {
+  getScriptLock: () => ({ waitLock() {}, releaseLock() {} }),
 };
 
-const HEADERS = {
-  [SHEETS.ROUTINES]: [
-    'routine_id', 'routine_name', 'created_at', 'is_active'
-  ],
-  [SHEETS.DAYS]: [
-    'day_id', 'routine_id', 'day_name', 'day_order', 'week_days'
-  ],
-  [SHEETS.EXERCISES]: [
-    'routine_exercise_id', 'day_id', 'exercise_order', 'exercise_name',
-    'target_sets', 'target_reps_min', 'target_reps_max',
-    'suggested_weight', 'technique_note', 'muscle_group', 'muscle_distribution'
-  ],
-  [SHEETS.SESSIONS]: [
-    'session_id', 'date', 'routine_id', 'day_id',
-    'bodyweight', 'notes', 'created_at', 'routine_name', 'day_name'
-  ],
-  [SHEETS.SETS]: [
-    'set_id', 'session_id', 'routine_exercise_id', 'exercise_name',
-    'set_number', 'weight', 'reps', 'rir', 'note', 'muscle_group', 'muscle_distribution'
-  ],
-  [SHEETS.GOALS]: [
-    'goal_id', 'exercise_name', 'target_weight', 'target_1rm', 'created_at', 'updated_at'
-  ],
-  [SHEETS.NUTRITION]: [
-    'date', 'weight', 'water', 'kcal', 'protein', 'fat', 'carbs', 'steps', 'notes', 'trained'
-  ],
-  [SHEETS.LIBRARY]: [
-    'exercise_id', 'exercise_name', 'target_sets', 'target_reps_min', 'target_reps_max',
-    'suggested_weight', 'technique_note', 'muscle_group', 'muscle_distribution', 'created_at'
-  ],
-};
+// ============================================================
+// REESCRITOS: tocaban el Sheet o PropertiesService directamente
+// ============================================================
 
-let READ_CACHE_ = {};
+// Antes escribia la columna is_active de todas las filas de una pasada con
+// setValues. Ahora es un update por fila, que el Store agrupa en el batch.
+function setActiveRoutine(routine_id) {
+  const routines = readAll_(SHEETS.ROUTINES);
+  if (!routines.length) throw new Error('No hay rutinas.');
+  if (!routines.some(r => r.routine_id === routine_id)) {
+    throw new Error('Rutina no encontrada: ' + routine_id);
+  }
+  routines.forEach(r => {
+    const shouldBeActive = r.routine_id === routine_id;
+    if (isTrue_(r.is_active) !== shouldBeActive) {
+      updateRowById_(SHEETS.ROUTINES, 'routine_id', r.routine_id, { is_active: shouldBeActive });
+    }
+  });
+  return { ok: true, routine_id: routine_id };
+}
 
-// Targets del plan de nutrición del usuario. El de calorías se puede ajustar
-// en runtime (Script Properties, key 'nutrition_target_kcal') vía getWeeklyAdjustment.
+// Antes: Utilities.formatDate(value, Session.getScriptTimeZone(), 'yyyy-MM-dd').
+function normalizeDate_(value) {
+  if (!value) return todayIso_();
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    return formatDateIso(value);
+  }
+  const s = value.toString().trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const d = new Date(s);
+  if (isNaN(d.getTime())) throw new Error('Fecha invalida.');
+  return formatDateIso(d);
+}
+
+// Antes: PropertiesService. Ahora la tabla settings de D1, que ademas es
+// durable y entra en la misma transaccion que el resto del request.
+function getNutritionTargetKcal_() {
+  const stored = DB.getSetting('nutrition_target_kcal');
+  const n = Number(stored);
+  return stored && !isNaN(n) && n > 0 ? n : NUTRITION_DEFAULT_KCAL_TARGET_;
+}
+
+function setNutritionTargetKcal_(value) {
+  DB.setSetting('nutrition_target_kcal', String(value));
+}
+
+// El schema lo crean las migraciones de D1 (migrations/), asi que setup() ya
+// no tiene que crear tablas. Queda solo el backfill historico.
+function migrateHistoricalSnapshots() {
+  return migrateHistoricalSnapshots_();
+}
+
+// En Sheets las tablas podian no existir hasta correr setup(), y algunos
+// endpoints las creaban al vuelo o toleraban su ausencia. En D1 las crean las
+// migraciones, asi que siempre existen: uno es constante y el otro no-op.
+function sheetExists_(name) {
+  return Object.prototype.hasOwnProperty.call(HEADERS, name);
+}
+
+function ensureSheet_(/* name */) { /* las migraciones ya crearon la tabla */ }
+
+// El upsert de nutricion tenia su propio lookup porque Sheets devolvia la
+// columna date como objeto Date y el === estricto de updateRowById_ nunca
+// matcheaba contra el string 'yyyy-MM-dd'. En D1 la fecha es TEXT siempre, asi
+// que ese motivo desaparece. Se conservan las firmas para no tocar
+// saveNutritionDay: findNutritionRowIndex_ devuelve indice+1 (>0 si existe).
+function findNutritionRowIndex_(date) {
+  const rows = readAll_(SHEETS.NUTRITION);
+  for (let i = 0; i < rows.length; i++) {
+    if (normalizeDate_(rows[i].date) === date) return i + 1;
+  }
+  return -1;
+}
+
+function writeNutritionRow_(rowIndex, partial) {
+  const rows = readAll_(SHEETS.NUTRITION);
+  const current = rows[rowIndex - 1];
+  if (!current) throw new Error('Fila de nutricion no encontrada.');
+  return updateRowById_(SHEETS.NUTRITION, 'date', current.date, partial);
+}
+
 const NUTRITION_DEFAULT_KCAL_TARGET_ = 2050;
+
 const NUTRITION_PROTEIN_TARGET_ = 155;
 
 // Toda escritura pasa por la app y bumpea api_cache_version, así que estos
 // TTLs pueden ser largos sin riesgo de servir datos viejos tras un cambio.
 // Solo getHomeStats/getWeekActivity dependen de "hoy" → TTL más corto.
-const READ_API_CACHE_SECONDS_ = {
-  ping: 20,
-  listRoutines: 3600,
-  getRoutine: 3600,
-  getActiveRoutine: 3600,
-  getTrainPickData: 3600,
-  getLastSessionForDay: 3600,
-  getSession: 3600,
-  getHomeStats: 600,
-  getWeekActivity: 900,
-  getHistoryData: 1800,
-  listRecentSessions: 1800,
-  listSessionDates: 1800,
-  listBodyweightHistory: 1800,
-  listAllExerciseNames: 3600,
-  listExerciseLibrary: 3600,
-  getProgressExerciseData: 1800,
-  getProgressSummary: 1800,
-  listExerciseHistory: 1800,
-  listMuscleGroupHistory: 1800,
-  getVolumeByMuscle: 1800,
-  getMuscleHeatmap: 1800,
-  getExerciseGoal: 1800,
-  getNutritionDay: 300,
-  listNutritionHistory: 1800,
-  getWeeklyAdjustment: 600,
-  getNutritionHomeStats: 600,
-  getPerformanceReport: 1800,
-};
-
-const WRITE_API_ = {
-  createRoutine: true,
-  renameRoutine: true,
-  duplicateRoutine: true,
-  setActiveRoutine: true,
-  deleteRoutine: true,
-  addDay: true,
-  renameDay: true,
-  updateDayWeekDays: true,
-  deleteDay: true,
-  reorderDay: true,
-  addExercise: true,
-  updateExercise: true,
-  deleteExercise: true,
-  reorderExercise: true,
-  createLibraryExercise: true,
-  updateLibraryExercise: true,
-  deleteLibraryExercise: true,
-  importRoutineExercisesToLibrary: true,
-  saveSession: true,
-  editSession: true,
-  deleteSession: true,
-  setExerciseGoal: true,
-  migrateHistoricalSnapshots: true,
-  saveNutritionDay: true,
-};
-
-// ============================================================
-// WEB/API ENTRY
-// ============================================================
-
-function doGet() {
-  return json_({
-    ok: true,
-    app: 'Gym Tracker API',
-    message: 'Backend activo. Abrí la app desde GitHub Pages y configurá esta URL /exec.',
-    time: nowIso_(),
-  });
-}
-
-function doPost(e) {
-  try {
-    const body = e && e.postData && e.postData.contents
-      ? JSON.parse(e.postData.contents)
-      : {};
-    const fn = (body.fn || '').toString();
-    const args = Array.isArray(body.args) ? body.args : [];
-    if (fn === 'batch') {
-      const calls = Array.isArray(args[0]) ? args[0] : [];
-      if (calls.length > 12) throw new Error('batch: máximo 12 llamadas.');
-      const results = calls.map(call => {
-        try {
-          const subFn = ((call && call.fn) || '').toString();
-          const subArgs = Array.isArray(call && call.args) ? call.args : [];
-          return { ok: true, result: runApiCall_(subFn, subArgs) };
-        } catch (err) {
-          return { ok: false, error: err && err.message ? err.message : String(err) };
-        }
-      });
-      return json_({ ok: true, result: results });
-    }
-    return json_({ ok: true, result: runApiCall_(fn, args) });
-  } catch (err) {
-    return json_({
-      ok: false,
-      error: err && err.message ? err.message : String(err),
-    });
-  }
-}
-
-function runApiCall_(fn, args) {
-  const api = getApi_();
-  if (!api[fn]) throw new Error('Funcion API no permitida: ' + fn);
-  if (READ_API_CACHE_SECONDS_[fn]) {
-    const cacheKey = apiCacheKey_(fn, args);
-    const cached = CacheService.getScriptCache().get(cacheKey);
-    if (cached) return JSON.parse(cached);
-    const result = api[fn].apply(null, args);
-    putApiCache_(cacheKey, result, READ_API_CACHE_SECONDS_[fn]);
-    return result;
-  }
-  const result = api[fn].apply(null, args);
-  if (WRITE_API_[fn]) bumpApiCacheVersion_();
-  return result;
-}
-
-// Subir cuando cambia la FORMA de una respuesta cacheada (no los datos), para
-// que el deploy nuevo no siga sirviendo payloads viejos hasta que expiren.
-// v2: getPerformanceReport paso de 4 componentes a 3 (se saco Intensidad/RIR).
-const API_SHAPE_VERSION_ = '2';
-
-function apiCacheKey_(fn, args) {
-  const version = PropertiesService.getScriptProperties().getProperty('api_cache_version') || '1';
-  const raw = API_SHAPE_VERSION_ + '|' + version + '|' + fn + '|' + JSON.stringify(args || []);
-  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, raw);
-  return 'api:' + Utilities.base64EncodeWebSafe(digest).slice(0, 42);
-}
-
-function putApiCache_(key, result, seconds) {
-  try {
-    const payload = JSON.stringify(result);
-    if (payload.length < 90000) {
-      CacheService.getScriptCache().put(key, payload, seconds);
-    }
-  } catch (err) {
-    // CacheService es oportunista: si falla, la API sigue funcionando sin cache.
-  }
-}
-
-function bumpApiCacheVersion_() {
-  try {
-    PropertiesService.getScriptProperties().setProperty('api_cache_version', nowIso_() + ':' + Utilities.getUuid());
-  } catch (err) {
-    // No bloquea escrituras si PropertiesService no esta disponible temporalmente.
-  }
-}
-
-function json_(payload) {
-  return ContentService
-    .createTextOutput(JSON.stringify(payload))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-function getApi_() {
-  return {
-    ping,
-    listRoutines,
-    createRoutine,
-    renameRoutine,
-    duplicateRoutine,
-    setActiveRoutine,
-    deleteRoutine,
-    getRoutine,
-    addDay,
-    renameDay,
-    updateDayWeekDays,
-    deleteDay,
-    reorderDay,
-    addExercise,
-    updateExercise,
-    deleteExercise,
-    reorderExercise,
-    listExerciseLibrary,
-    createLibraryExercise,
-    updateLibraryExercise,
-    deleteLibraryExercise,
-    importRoutineExercisesToLibrary,
-    getActiveRoutine,
-    getTrainPickData,
-    getLastSessionForDay,
-    saveSession,
-    getSession,
-    editSession,
-    deleteSession,
-    getHomeStats,
-    getWeekActivity,
-    getHistoryData,
-    listRecentSessions,
-    listSessionDates,
-    listBodyweightHistory,
-    listAllExerciseNames,
-    getProgressExerciseData,
-    getProgressSummary,
-    listExerciseHistory,
-    listMuscleGroupHistory,
-    getVolumeByMuscle,
-    getMuscleHeatmap,
-    getExerciseGoal,
-    setExerciseGoal,
-    migrateHistoricalSnapshots,
-    saveNutritionDay,
-    getNutritionDay,
-    listNutritionHistory,
-    getWeeklyAdjustment,
-    getNutritionHomeStats,
-    getPerformanceReport,
-    exportAll,
-  };
-}
-
-// ============================================================
-// SETUP — corre esto una vez despues de pegar el script
-// ============================================================
-
-function setup() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (!ss) throw new Error('Bind este script a un Google Sheets primero.');
-
-  Object.keys(HEADERS).forEach(name => ensureSheet_(name));
-
-  // Borra la sheet por defecto si esta vacia y existe
-  const defaultSheet = ss.getSheetByName('Sheet1') || ss.getSheetByName('Hoja 1') || ss.getSheetByName('Hoja1');
-  if (defaultSheet && defaultSheet.getLastRow() === 0 && ss.getSheets().length > 1) {
-    ss.deleteSheet(defaultSheet);
-  }
-
-  const migration = migrateHistoricalSnapshots_();
-  return 'Sheets listas: ' + Object.values(SHEETS).join(', ') + '. Migracion: ' + JSON.stringify(migration);
-}
-
-function migrateHistoricalSnapshots() {
-  Object.keys(HEADERS).forEach(name => ensureSheet_(name));
-  return migrateHistoricalSnapshots_();
-}
 
 function migrateHistoricalSnapshots_() {
   const routines = readAll_(SHEETS.ROUTINES);
@@ -398,151 +226,6 @@ function migrateHistoricalSnapshots_() {
 // ============================================================
 // HELPERS GENERICOS
 // ============================================================
-
-function getSheet_(name) {
-  const sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(name);
-  if (!sh) throw new Error('Sheet "' + name + '" no existe. Corre setup() primero.');
-  return sh;
-}
-
-function ensureSheet_(name) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (!ss) throw new Error('Bind este script a un Google Sheets primero.');
-  let sh = ss.getSheetByName(name);
-  if (!sh) sh = ss.insertSheet(name);
-  const headers = HEADERS[name];
-  if (!headers) throw new Error('Headers no definidos para ' + name);
-  sh.getRange(1, 1, 1, headers.length)
-    .setValues([headers])
-    .setFontWeight('bold')
-    .setBackground('#111519')
-    .setFontColor('#ffffff');
-  sh.setFrozenRows(1);
-  sh.autoResizeColumns(1, headers.length);
-  return sh;
-}
-
-function sheetExists_(name) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  return !!(ss && ss.getSheetByName(name));
-}
-
-function readAll_(name) {
-  if (READ_CACHE_[name]) {
-    return READ_CACHE_[name].map(row => Object.assign({}, row));
-  }
-  const sh = getSheet_(name);
-  const lastRow = sh.getLastRow();
-  if (lastRow < 2) return [];
-  const headers = HEADERS[name];
-  const values = sh.getRange(2, 1, lastRow - 1, headers.length).getValues();
-  const rows = values
-    .filter(row => row.some(c => c !== '' && c !== null))
-    .map(row => {
-      const obj = {};
-      headers.forEach((h, i) => { obj[h] = row[i]; });
-      return obj;
-    });
-  READ_CACHE_[name] = rows;
-  return rows.map(row => Object.assign({}, row));
-}
-
-function invalidateReadCache_(name) {
-  if (name) delete READ_CACHE_[name];
-  else READ_CACHE_ = {};
-}
-
-function appendRow_(name, obj) {
-  const sh = getSheet_(name);
-  const headers = HEADERS[name];
-  const row = headers.map(h => (obj[h] !== undefined && obj[h] !== null) ? obj[h] : '');
-  sh.appendRow(row);
-  invalidateReadCache_(name);
-  return obj;
-}
-
-function appendRows_(name, objects) {
-  const items = objects || [];
-  if (!items.length) return [];
-  const sh = getSheet_(name);
-  const headers = HEADERS[name];
-  const rows = items.map(obj => headers.map(h => (obj[h] !== undefined && obj[h] !== null) ? obj[h] : ''));
-  sh.getRange(sh.getLastRow() + 1, 1, rows.length, headers.length).setValues(rows);
-  invalidateReadCache_(name);
-  return items;
-}
-
-function findRowIndex_(sh, name, idCol, idValue) {
-  const headers = HEADERS[name];
-  const colIdx = headers.indexOf(idCol);
-  if (colIdx < 0) throw new Error('Columna "' + idCol + '" no existe en ' + name);
-  const lastRow = sh.getLastRow();
-  if (lastRow < 2) return -1;
-  const ids = sh.getRange(2, colIdx + 1, lastRow - 1, 1).getValues();
-  for (let i = 0; i < ids.length; i++) {
-    if (ids[i][0] === idValue) return i + 2;
-  }
-  return -1;
-}
-
-function updateRowById_(name, idCol, idValue, partial) {
-  const sh = getSheet_(name);
-  const rowIdx = findRowIndex_(sh, name, idCol, idValue);
-  if (rowIdx < 0) throw new Error('No se encontro ' + idCol + '=' + idValue + ' en ' + name);
-  const headers = HEADERS[name];
-  const current = sh.getRange(rowIdx, 1, 1, headers.length).getValues()[0];
-  const updated = headers.map((h, i) => partial[h] !== undefined ? partial[h] : current[i]);
-  sh.getRange(rowIdx, 1, 1, headers.length).setValues([updated]);
-  invalidateReadCache_(name);
-  const obj = {};
-  headers.forEach((h, i) => { obj[h] = updated[i]; });
-  return obj;
-}
-
-function deleteRowById_(name, idCol, idValue) {
-  const sh = getSheet_(name);
-  const rowIdx = findRowIndex_(sh, name, idCol, idValue);
-  if (rowIdx < 0) return false;
-  sh.deleteRow(rowIdx);
-  invalidateReadCache_(name);
-  return true;
-}
-
-function deleteRowsWhere_(name, predicate) {
-  const sh = getSheet_(name);
-  const lastRow = sh.getLastRow();
-  if (lastRow < 2) return 0;
-  const headers = HEADERS[name];
-  const values = sh.getRange(2, 1, lastRow - 1, headers.length).getValues();
-  let removed = 0;
-  for (let i = values.length - 1; i >= 0; i--) {
-    const obj = {};
-    headers.forEach((h, j) => { obj[h] = values[i][j]; });
-    if (predicate(obj)) {
-      sh.deleteRow(i + 2);
-      removed++;
-    }
-  }
-  if (removed) invalidateReadCache_(name);
-  return removed;
-}
-
-function genId_(prefix) {
-  return prefix + '_' + Utilities.getUuid().replace(/-/g, '').slice(0, 10);
-}
-
-function nowIso_() {
-  return new Date().toISOString();
-}
-
-function todayIso_() {
-  const tz = Session.getScriptTimeZone() || 'UTC';
-  return Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
-}
-
-function isTrue_(v) {
-  return v === true || v === 'TRUE' || v === 'true' || v === 1;
-}
 
 const MUSCLE_GROUPS_ = ['pecho', 'espalda', 'hombros', 'biceps', 'triceps', 'core', 'piernas'];
 
@@ -1191,26 +874,6 @@ function duplicateRoutine(params) {
   }
 }
 
-function setActiveRoutine(routine_id) {
-  const sh = getSheet_(SHEETS.ROUTINES);
-  const lastRow = sh.getLastRow();
-  if (lastRow < 2) throw new Error('No hay rutinas.');
-  const headers = HEADERS[SHEETS.ROUTINES];
-  const idCol = headers.indexOf('routine_id') + 1;
-  const activeCol = headers.indexOf('is_active') + 1;
-  const ids = sh.getRange(2, idCol, lastRow - 1, 1).getValues();
-  let found = false;
-  const updates = ids.map(row => {
-    const match = row[0] === routine_id;
-    if (match) found = true;
-    return [match];
-  });
-  if (!found) throw new Error('Rutina no encontrada: ' + routine_id);
-  sh.getRange(2, activeCol, lastRow - 1, 1).setValues(updates);
-  invalidateReadCache_(SHEETS.ROUTINES);
-  return { ok: true, routine_id: routine_id };
-}
-
 function deleteRoutine(routine_id) {
   const days = readAll_(SHEETS.DAYS).filter(d => d.routine_id === routine_id);
   const dayIds = days.map(d => d.day_id);
@@ -1660,6 +1323,7 @@ function deleteLibraryExercise(params) {
 // Copia a la biblioteca los ejercicios que ya existen en cualquier rutina
 // (uno por nombre, el primero que encuentra), sin duplicar los que ya
 // estén en la biblioteca. Aditivo: nunca sobrescribe ni borra nada.
+
 function importRoutineExercisesToLibrary() {
   const existingNames = {};
   readAll_(SHEETS.LIBRARY).forEach(e => {
@@ -1693,20 +1357,6 @@ function importRoutineExercisesToLibrary() {
 // ============================================================
 // TRAINING API — Parte 4
 // ============================================================
-
-function normalizeDate_(value) {
-  if (!value) return todayIso_();
-  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
-    const tz = Session.getScriptTimeZone() || 'UTC';
-    return Utilities.formatDate(value, tz, 'yyyy-MM-dd');
-  }
-  const s = value.toString().trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const d = new Date(s);
-  if (isNaN(d.getTime())) throw new Error('Fecha invalida.');
-  const tz = Session.getScriptTimeZone() || 'UTC';
-  return Utilities.formatDate(d, tz, 'yyyy-MM-dd');
-}
 
 function getActiveRoutine() {
   const active = readAll_(SHEETS.ROUTINES).find(r => isTrue_(r.is_active));
@@ -2931,31 +2581,6 @@ function buildSessionListItem_(session, sessionSets, routine, day) {
 // matchearían un Date contra el string 'date') — usa su propio lookup que
 // normaliza ambos lados antes de comparar.
 
-function findNutritionRowIndex_(date) {
-  const sh = getSheet_(SHEETS.NUTRITION);
-  const lastRow = sh.getLastRow();
-  if (lastRow < 2) return -1;
-  const headers = HEADERS[SHEETS.NUTRITION];
-  const dateCol = headers.indexOf('date') + 1;
-  const values = sh.getRange(2, dateCol, lastRow - 1, 1).getValues();
-  for (let i = 0; i < values.length; i++) {
-    if (normalizeDate_(values[i][0]) === date) return i + 2;
-  }
-  return -1;
-}
-
-function writeNutritionRow_(rowIndex, partial) {
-  const sh = getSheet_(SHEETS.NUTRITION);
-  const headers = HEADERS[SHEETS.NUTRITION];
-  const current = sh.getRange(rowIndex, 1, 1, headers.length).getValues()[0];
-  const updated = headers.map((h, i) => partial[h] !== undefined ? partial[h] : current[i]);
-  sh.getRange(rowIndex, 1, 1, headers.length).setValues([updated]);
-  invalidateReadCache_(SHEETS.NUTRITION);
-  const obj = {};
-  headers.forEach((h, i) => { obj[h] = updated[i]; });
-  return obj;
-}
-
 function nutritionNumOrNull_(value) {
   return (value === '' || value === undefined || value === null) ? null : Number(value);
 }
@@ -2974,20 +2599,6 @@ function parseNutritionRecord_(row) {
     notes: row.notes || '',
     trained: (row.trained === '' || row.trained === undefined || row.trained === null) ? null : isTrue_(row.trained),
   };
-}
-
-function getNutritionTargetKcal_() {
-  const stored = PropertiesService.getScriptProperties().getProperty('nutrition_target_kcal');
-  const n = Number(stored);
-  return stored && !isNaN(n) && n > 0 ? n : NUTRITION_DEFAULT_KCAL_TARGET_;
-}
-
-function setNutritionTargetKcal_(value) {
-  try {
-    PropertiesService.getScriptProperties().setProperty('nutrition_target_kcal', String(value));
-  } catch (err) {
-    // PropertiesService es oportunista: si falla no bloquea el cálculo del ajuste.
-  }
 }
 
 function nutritionAvg_(nums) {
@@ -4089,6 +3700,7 @@ function getMuscleModelMeta_() {
 // Sin componente de intensidad: el RIR no se carga desde la app, asi que
 // medirlo solo producia una tarjeta permanentemente vacia. Su 15% se repartio
 // entre los tres componentes que si tienen datos.
+
 const PERF_WEIGHTS_ = {
   consistency: 35,
   progression: 35,
@@ -4786,40 +4398,72 @@ function perfMuscleLabel_(group) {
 // Devuelve todas las filas crudas de las 8 sheets para importarlas a D1.
 // Ver tools/import-sheets.mjs en el repo.
 
-function exportAll() {
-  var out = { exported_at: nowIso_(), timezone: Session.getScriptTimeZone(), tables: {}, settings: {} };
+// ============================================================
+// SUPERFICIE PUBLICA DE LA API
+// ============================================================
+// Equivale al getApi_() de Apps Script: solo estas funciones son invocables
+// desde el frontend.
+export const API = {
+  ping,
+  listRoutines,
+  createRoutine,
+  renameRoutine,
+  duplicateRoutine,
+  setActiveRoutine,
+  deleteRoutine,
+  getRoutine,
+  addDay,
+  renameDay,
+  updateDayWeekDays,
+  deleteDay,
+  reorderDay,
+  addExercise,
+  updateExercise,
+  deleteExercise,
+  reorderExercise,
+  listExerciseLibrary,
+  createLibraryExercise,
+  updateLibraryExercise,
+  deleteLibraryExercise,
+  importRoutineExercisesToLibrary,
+  getActiveRoutine,
+  getTrainPickData,
+  getLastSessionForDay,
+  saveSession,
+  getSession,
+  editSession,
+  deleteSession,
+  getHomeStats,
+  getWeekActivity,
+  getHistoryData,
+  listRecentSessions,
+  listSessionDates,
+  listBodyweightHistory,
+  listAllExerciseNames,
+  getProgressExerciseData,
+  getProgressSummary,
+  listExerciseHistory,
+  listMuscleGroupHistory,
+  getVolumeByMuscle,
+  getMuscleHeatmap,
+  getExerciseGoal,
+  setExerciseGoal,
+  migrateHistoricalSnapshots,
+  saveNutritionDay,
+  getNutritionDay,
+  listNutritionHistory,
+  getWeeklyAdjustment,
+  getNutritionHomeStats,
+  getPerformanceReport,
+};
 
-  Object.keys(HEADERS).forEach(function (name) {
-    if (!sheetExists_(name)) { out.tables[name] = []; return; }
-    var sh = getSheet_(name);
-    var lastRow = sh.getLastRow();
-    var headers = HEADERS[name];
-    if (lastRow < 2) { out.tables[name] = []; return; }
-    var values = sh.getRange(2, 1, lastRow - 1, headers.length).getValues();
-    out.tables[name] = values
-      .filter(function (row) { return row.some(function (c) { return c !== '' && c !== null; }); })
-      .map(function (row) {
-        var obj = {};
-        headers.forEach(function (h, i) {
-          var v = row[i];
-          // Las fechas vuelven como Date de Sheets: se normalizan a ISO para
-          // que el import no dependa de la zona horaria del importador.
-          if (Object.prototype.toString.call(v) === '[object Date]') {
-            v = Utilities.formatDate(v, Session.getScriptTimeZone() || 'UTC', 'yyyy-MM-dd');
-          }
-          obj[h] = v;
-        });
-        return obj;
-      });
-  });
-
-  var props = PropertiesService.getScriptProperties().getProperties();
-  if (props && props.nutrition_target_kcal) {
-    out.settings.nutrition_target_kcal = props.nutrition_target_kcal;
-  }
-
-  var counts = {};
-  Object.keys(out.tables).forEach(function (k) { counts[k] = out.tables[k].length; });
-  out.counts = counts;
-  return out;
-}
+// Endpoints que escriben. El Worker los usa para decidir si hace flush.
+export const WRITE_API = new Set([
+  'createRoutine', 'renameRoutine', 'duplicateRoutine', 'setActiveRoutine',
+  'deleteRoutine', 'addDay', 'renameDay', 'updateDayWeekDays', 'deleteDay',
+  'reorderDay', 'addExercise', 'updateExercise', 'deleteExercise',
+  'reorderExercise', 'createLibraryExercise', 'updateLibraryExercise',
+  'deleteLibraryExercise', 'importRoutineExercisesToLibrary', 'saveSession',
+  'editSession', 'deleteSession', 'setExerciseGoal',
+  'migrateHistoricalSnapshots', 'saveNutritionDay',
+]);

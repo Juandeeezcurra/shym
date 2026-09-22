@@ -4,49 +4,64 @@ Esta es la biblia corta del proyecto. Si algo contradice esto, confiar primero e
 
 ## Arquitectura Canonica
 
-- La app es **frontend estatico en GitHub Pages + backend API en Google Apps Script**.
-- El usuario abre la app en: `https://juandeeezcurra.github.io/shym/`.
-- El frontend canonical es `index.html` en la raiz del repo. Debe estar en lowercase para GitHub Pages.
-- No usar `Index.html` como archivo canonical. No volver a depender de Apps Script HtmlService.
-- Apps Script contiene **solo `Code.gs`**.
-- `Code.gs` expone API JSON por `doPost(e)`.
-- El frontend llama al backend con `fetch` a la URL del Web App que termina en `/exec`.
-- La URL del backend se guarda en `localStorage` con key `gymtracker:backend-url`.
-- `google.script.run` esta prohibido en este proyecto. Si aparece, es una regresion.
-- `HtmlService.createTemplateFromFile('Index')` esta prohibido en este proyecto. Si aparece, es una regresion.
+- La app es **frontend + backend API en un unico Cloudflare Worker**, con datos en **D1** (SQLite).
+- Frontend y API comparten origen. No hay CORS, no hay URL de backend que configurar.
+- El frontend canonical es `public/index.html`. El Worker lo sirve via el binding `ASSETS`.
+- El backend es `src/index.js`, que expone `POST /api`.
+- `src/api.js` es **generado**: sale de `Code.gs` via `npm run port`. No editarlo a mano.
+- `Code.gs` queda en el repo solo como referencia historica y como fuente del port. Apps Script ya no corre nada.
+- El acceso se controla con un token compartido en el header `X-Shym-Token`, guardado en `localStorage` con key `gymtracker:token`. El secreto vive en Worker Secrets como `SHYM_TOKEN`.
+- Si falta `SHYM_TOKEN`, la API responde 503 a todo. Un deploy sin secreto queda cerrado, no abierto.
+- `google.script.run` y `HtmlService` siguen prohibidos. Tambien lo esta agregar llamadas a Google Sheets.
+- Runbook completo de la migracion: `docs/migracion-cloudflare.md`.
+
+### Ciclo de request
+
+La logica de negocio portada es sincrona y D1 es asincrono. Cada request hace:
+
+1. **load** — una lectura trae las tablas a memoria (`Store.load`).
+2. **logica** — corre sincrona: lee de memoria, y las escrituras mutan memoria y se encolan.
+3. **flush** — la cola se manda en un unico `d1.batch()`, que D1 corre como transaccion.
+
+Por eso `LockService` desaparecio: el batch da atomicidad. El shim no-op en `src/api.js` existe para no reestructurar los `try/finally` de las 6 funciones que lo usaban.
+
+### Invariantes del port (no romper)
+
+- **Celda vacia es `''`, nunca `null`.** `db.js` convierte `NULL -> ''` al leer. La logica hace `weight === '' ? null : Number(weight)` en mas de veinte lugares; con `null`, `Number(null)` da `0` y una serie sin peso contaria como 0 kg.
+- **`is_active` y `trained` vuelven como booleano nativo.** `getTrainPickData` hace `routines.find(r => r.is_active)` sin `isTrue_`: el string `'false'` seria truthy.
+- **La zona horaria es explicita.** Los Workers corren en UTC. La var `TZ` de `wrangler.toml` (`America/Argentina/Buenos_Aires`) alimenta `todayIso_`. Sin eso las fechas de sesion se corren un dia y con ellas la racha, el calendario y el resumen semanal.
+- **No hay cache de servidor.** Se elimino con la migracion: existia porque Apps Script tardaba 1-3 s y con D1 solo agregaba staleness. El cache de `localStorage` del frontend se mantiene.
 
 ## Deploy Correcto
 
-### Frontend
+Un solo comando:
 
-- Cambios en `index.html` se pushean a GitHub.
-- GitHub Pages sirve el HTML automaticamente.
-- Si el navegador no ve cambios: hard refresh. En iPhone puede requerir limpiar cache de Safari.
+```bash
+npx wrangler deploy
+```
 
-### Backend
+Si cambio el schema:
 
-Cada vez que cambia `Code.gs`:
+```bash
+npm run db:schema                            # regenera migrations/ desde src/schema.js
+npx wrangler d1 migrations apply shym --remote
+```
 
-1. Copiar `Code.gs` desde GitHub raw.
-2. Pegar en Apps Script, reemplazando todo el contenido.
-3. Guardar.
-4. Deploy -> Manage deployments -> Edit -> Version: New version -> Deploy.
-5. Configuracion del Web App:
-   - Execute as: `Me`
-   - Access: `Anyone`
-6. Copiar la URL que termina en `/exec`.
-7. En la app de GitHub Pages, pegar esa URL en la pantalla "Configurar backend".
+Si cambio la logica de negocio: editar `Code.gs`, despues `npm run port && npm test`, despues deploy.
 
-No pegar `index.html` en Apps Script. Eso fue el error que mezclo arquitecturas.
+Ya no hay que copiar y pegar nada en Apps Script, ni redeployar web apps, ni pushear a GitHub Pages para que la app se actualice.
 
 ## Contrato API
 
 El frontend manda:
 
 ```js
-fetch(BACKEND_URL, {
+fetch('/api', {
   method: 'POST',
-  headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Shym-Token': token,
+  },
   body: JSON.stringify({ fn: 'nombreFuncion', args: [...] })
 })
 ```
@@ -63,11 +78,14 @@ o:
 { "ok": false, "error": "mensaje" }
 ```
 
-Funciones permitidas viven en `getApi_()` dentro de `Code.gs`. Si se agrega un endpoint publico, agregarlo ahi.
+El contrato `{ fn, args }` es el mismo de antes: por eso el frontend casi no cambio.
+`401` significa token invalido y el frontend lo limpia y vuelve a la pantalla de conexion.
+
+Funciones permitidas viven en `API` dentro de `src/api.js`, que el port genera desde `getApi_()` de `Code.gs`. Si se agrega un endpoint publico, agregarlo a `getApi_()` **y** a la lista `API` del footer en `tools/port-code-gs.mjs`.
 
 ## Data Model
 
-Sheets:
+Tablas en D1 (definidas en `src/schema.js`, que genera el DDL y el mapeo de tipos):
 
 - `Routines`: `routine_id`, `routine_name`, `created_at`, `is_active`
 - `Routine_Days`: `day_id`, `routine_id`, `day_name`, `day_order`, `week_days`
@@ -96,10 +114,10 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
 - Calendario de actividad base completo: `listSessionDates({ days })` agrupa sesiones por fecha y `screen-history` muestra grilla de 13 semanas con filtro por dia.
 - Peso corporal completo: `listBodyweightHistory({ limit })` usa `Sessions.bodyweight`, y `screen-progress` tiene vista segmentada Ejercicio/Peso corporal con grafico SVG y registros clickeables.
 - Duplicar rutina completo: `duplicateRoutine({ routine_id, new_name })` clona rutina, dias y ejercicios con IDs nuevos; no copia sesiones.
-- Muscle group base completo: `Day_Exercises.muscle_group` con opciones `pecho`, `espalda`, `hombros`, `bicep`, `tricep`, `core`, `piernas`. El modal de ejercicio guarda el grupo y las cards muestran chip. Requiere correr `setup()` tras actualizar Apps Script para agregar la columna.
+- Muscle group base completo: `Day_Exercises.muscle_group` con opciones `pecho`, `espalda`, `hombros`, `bicep`, `tricep`, `core`, `piernas`. El modal de ejercicio guarda el grupo y las cards muestran chip. La columna ya existe en el schema de D1.
 - Home actual simplificado: funciona como lanzador rapido con CTA de entrenamiento, accesos a Rutinas/Historial, rutina activa y ultima sesion. No mostrar conteos semanales, dias asignados, rachas, volumen ni PRs en Home porque vuelve lenta e innecesariamente cargada la entrada.
 - Rutinas/Entrenar/Progreso deben abrir livianos: la lista de rutinas no cuenta dias/ejercicios; Entrenar carga primero rutinas y despues la rutina seleccionada; Progreso carga primero nombres y el historial pesado solo al pedirlo o si esta cacheado.
-- El frontend persiste cache de lecturas en `localStorage` (`gymtracker:api-cache:v2`) para que recargas y navegacion entre tabs no dependan siempre de Apps Script.
+- El frontend persiste cache de lecturas en `localStorage` (`gymtracker:api-cache:v2`) para que recargas y navegacion entre tabs no dependan siempre de la red.
 - Calendario semanal completo: cada dia de rutina puede tener `week_days` ISO (`1,3` = lunes y miercoles). Home, detalle de rutina, detalle de dia y seleccion de entrenamiento muestran chips.
 - Streak semanal y resumen semanal quedan como helpers historicos, pero no deben cargarse en Home salvo pedido explicito del usuario.
 - Progreso por musculo completo:
@@ -110,10 +128,10 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
   - El grupo muscular principal es obligatorio al crear/editar ejercicios, porque alimenta heatmap y graficos.
 - Goals por ejercicio existen en codigo: `Exercise_Goals`, `getExerciseGoal`, `setExerciseGoal`, card de Meta en historial de ejercicio. Mantener salvo que el usuario pida explicitamente sacarlo.
 - Auditoria tecnica guardada en `docs/tech-audit.md`. Arreglos aplicados: boot del Home, fecha local, goals tolerantes a hoja faltante, drafts canonicos en kg, validacion de bodyweight, notas preservadas, retorno desde Progreso, snapshots historicos, duplicacion con musculo obligatorio/inferido e historial de 91 dias.
-- Snapshots historicos: sesiones nuevas guardan `routine_name`/`day_name`; sets nuevos guardan `muscle_group`. `setup()` corre migracion historica y tambien existe `migrateHistoricalSnapshots()` para backfill manual. La migracion solo recupera datos inferibles desde IDs actuales o nombres equivalentes.
+- Snapshots historicos: sesiones nuevas guardan `routine_name`/`day_name`; sets nuevos guardan `muscle_group`. `migrateHistoricalSnapshots()` sigue disponible como endpoint para backfill manual. La migracion solo recupera datos inferibles desde IDs actuales o nombres equivalentes.
 - `docs/pending.md` ya no es fuente activa: queda como archivo historico de pendientes completados. Usar este `MEMORY.md` como fuente de estado.
 - Informe de rendimiento completo:
-  - `getPerformanceReport({ weeks })` (4-16, default 8) devuelve score global 0-100, 4 componentes, `strength` e `insights`. No requiere columnas nuevas ni `setup()`: deriva todo de sheets existentes.
+  - `getPerformanceReport({ weeks })` (4-16, default 8) devuelve score global 0-100, 4 componentes, `strength` e `insights`. No requiere columnas nuevas: deriva todo de las tablas existentes.
   - Componentes y pesos: Consistencia 30 (sesiones reales vs `Routine_Days.week_days` de la rutina activa), Progresion 30 (ejercicios subiendo vs `stall_count`), Carga 25 (series efectivas semanales via `getSetMuscleStimuli_` + tendencia primera vs segunda mitad), Intensidad 15 (RIR promedio; se excluye del score si la cobertura es menor a 20% o hay menos de 10 series con RIR). El score global renormaliza sobre los componentes con datos.
   - La ventana se recorta a la semana de tu primera sesion real y se reporta en `effective_weeks`. Sin eso, pedir 16 semanas con 10 entrenadas inventaba semanas vacias y disparaba tendencias falsas tipo `+600%`. El frontend avisa cuando recorta.
   - Sin sesiones en el rango devuelve `emptyPerformanceReport_`: todo en `null`, sin insights. No mostrar score 0.
@@ -125,18 +143,18 @@ Pesos persistidos siempre en kg. El toggle kg/lb es display/input solamente.
 - Objetivo del ejercicio visible al entrenar:
   - Cada card de `screen-train` muestra un chip `Objetivo` con `target_sets × target_reps_min–target_reps_max reps · suggested_weight`, leido de `Day_Exercises` (o de `Exercise_Library` cuando el ejercicio se agrega ad-hoc/entrenamiento libre).
   - Helpers: `trainTargetOf_(ex)` normaliza el objetivo (peso `null`/`''`/`0` = sin sugerencia, siempre en kg) y `formatTrainTarget_(ex)` arma el texto. El chip se oculta si no hay ni reps ni peso.
-  - Los placeholders de peso y reps de cada serie priorizan la ultima vez; si no hay historial caen al objetivo del Sheet. El `aria-label` aclara si es "ultima vez" o "sugerido/objetivo".
+  - Los placeholders de peso y reps de cada serie priorizan la ultima vez; si no hay historial caen al objetivo guardado en `Day_Exercises`. El `aria-label` aclara si es "ultima vez" o "sugerido/objetivo".
   - El tip de primera vez usa el peso sugerido cuando existe (`Primera vez: arranca con X kg...`).
-  - Objetivo (plan del Sheet) y tip (derivado del historial) son cosas distintas y conviven en `.train-chips`. No fusionarlos.
-  - Es solo frontend: no requiere `setup()` ni redeploy de Apps Script. Drafts viejos sin `suggested_weight` degradan a mostrar solo reps.
+  - Objetivo (plan guardado) y tip (derivado del historial) son cosas distintas y conviven en `.train-chips`. No fusionarlos.
+  - Es solo frontend. Drafts viejos sin `suggested_weight` degradan a mostrar solo reps.
 
 ## Ideas Futuras Guardadas
 
 - PWA/offline: por ahora no implementar. Si se retoma, preferir PWA basica primero (instalable + cache de archivos + drafts locales existentes). No hacer sync offline completa sin definir conflictos.
-- Backup/export: por ahora no implementar. El Google Sheet ya funciona como backup natural. Si se retoma, preferir Export JSON completo para migracion/respaldo.
+- Backup/export: con la migracion a D1 se perdio el Sheet como backup natural, asi que ahora si conviene. Opciones: `wrangler d1 export shym --remote --output backup.sql`, o un endpoint de export JSON. D1 tambien tiene point-in-time recovery de 30 dias.
 - Historial: a futuro se podria agregar filtros por rutina/dia o rangos mas largos si el uso real lo pide.
 
-No implementar features grandes de schema sin avisar que requieren actualizar `Code.gs`, correr/ajustar `setup()` o migrar columnas existentes en Sheets, y redeployar Apps Script.
+No implementar features grandes de schema sin avisar que requieren tocar `src/schema.js`, generar una migracion nueva en `migrations/` y aplicarla con `wrangler d1 migrations apply`.
 
 ## Reglas de Implementacion
 
@@ -147,13 +165,18 @@ No implementar features grandes de schema sin avisar que requieren actualizar `C
 - Orden de dias y ejercicios por `*_order`, sin drag-and-drop por ahora.
 - Sets vacios se ignoran al guardar sesion.
 - Al guardar sesion exitosamente, borrar draft `gymtracker:session-draft:<day_id>:<date>`.
-- Si cambia `Code.gs`, avisar que hay que redeployar Apps Script.
-- Si cambia `index.html`, avisar que hay que pushear y refrescar GitHub Pages.
-- Si cambia `manifest.webmanifest` o assets de icono, avisar que GitHub Pages puede cachear y que iOS puede requerir quitar/agregar de nuevo a Home Screen.
+- Si cambia la logica de negocio: editar `Code.gs`, correr `npm run port && npm test`, y despues `npx wrangler deploy`.
+- Nunca editar `src/api.js` a mano: es generado y el proximo port lo pisa.
+- Si cambia `src/schema.js`, regenerar migraciones con `npm run db:schema` y aplicarlas antes de deployar.
+- Si cambia `public/index.html` o assets, alcanza con `npx wrangler deploy`.
+- Si cambia `manifest.webmanifest` o assets de icono, avisar que iOS puede requerir quitar/agregar de nuevo a Home Screen.
 
 ## Señales De Problema
 
-- Error `google.script.run is not defined`: el frontend volvio a depender de Apps Script. Corregir a `fetch`.
-- Error `No se encontró el archivo HTML llamado Index`: alguien esta intentando servir HTML desde Apps Script. No corresponde.
-- La URL `/exec` abierta directo muestra JSON: eso esta bien. La app se abre desde GitHub Pages.
-- La app no conecta al backend: revisar URL `/exec`, deploy nueva version, permisos `Anyone`, y que `Code.gs` tenga `doPost`.
+- Todo responde `503 Backend sin SHYM_TOKEN configurado`: falta el secreto. Correr `npx wrangler secret put SHYM_TOKEN`.
+- Todo responde `401`: el token del navegador no coincide con el del Worker. El frontend lo borra solo y vuelve a la pantalla de conexion.
+- Error `Falta el binding DB de D1`: falta el `database_id` en `wrangler.toml`, o no se corrieron las migraciones.
+- `getSheet_ is not defined` o similar: alguien edito `src/api.js` a mano, o el port quedo desactualizado. Correr `npm run port`, que ademas chequea referencias colgadas.
+- Las fechas aparecen corridas un dia: se perdio la var `TZ` de `wrangler.toml`.
+- Una serie sin peso cuenta como 0 kg en el volumen: se rompio la conversion `NULL -> ''` de `src/db.js`.
+- `GET /api` abierto directo muestra JSON: eso esta bien, es el healthcheck.

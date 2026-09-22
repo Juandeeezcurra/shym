@@ -1,0 +1,25 @@
+name = "shym"
+main = "src/index.js"
+compatibility_date = "2026-09-21"
+
+# El Worker sirve tambien el frontend: mismo origen para la app y la API.
+# Eso elimina CORS, el hack de Content-Type text/plain que pedia Apps Script,
+# y la pantalla de "Configurar backend".
+[assets]
+directory = "public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "shym"
+database_id = "PENDIENTE_CORRER_wrangler_d1_create_shym"
+migrations_dir = "migrations"
+
+[vars]
+# Los Workers corren en UTC. Sin esto las fechas de sesion se corren un dia.
+TZ = "America/Argentina/Buenos_Aires"
+
+# SHYM_TOKEN NO va aca: es secreto.
+#   produccion -> npx wrangler secret put SHYM_TOKEN
+#   local      -> archivo .dev.vars (ignorado por git)
