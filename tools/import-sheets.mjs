@@ -98,7 +98,9 @@ if (dryRun) {
 
 const target = remote ? '--remote' : '--local';
 console.log(`\nAplicando a D1 (${target})...`);
+// shell:true porque en Windows 'npx' es npx.cmd y execFileSync no lo resuelve solo.
 execFileSync('npx', ['wrangler', 'd1', 'execute', 'shymie', target, '--file', outFile, '--yes'], {
   stdio: 'inherit',
+  shell: true,
 });
 console.log('Import completo.');

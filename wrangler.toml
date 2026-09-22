@@ -13,7 +13,7 @@ not_found_handling = "single-page-application"
 [[d1_databases]]
 binding = "DB"
 database_name = "shymie"
-database_id = "PENDIENTE_CORRER_wrangler_d1_create_shymie"
+database_id = "95661495-c1cb-4ddb-b4d7-909b4a5ddefb"
 migrations_dir = "migrations"
 
 [vars]

@@ -62,10 +62,16 @@ sólo lectura sobre Apps Script.
 4. Exportá:
 
 ```bash
-curl -s -X POST "https://script.google.com/macros/s/TU_ID/exec" \
-  -H 'Content-Type: text/plain;charset=utf-8' \
-  -d '{"fn":"exportAll","args":[]}' > shymie-export.json
+node -e "fetch('https://script.google.com/macros/s/TU_ID/exec',{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({fn:'exportAll',args:[]})}).then(r=>r.text()).then(t=>require('fs').writeFileSync('shymie-export.json',t))"
 ```
+
+Con `curl` no funciona: Apps Script responde 302 hacia `googleusercontent.com`
+y el redirect se reenvia sin `Content-Length`, asi que Google devuelve
+**411 Length Required** y el archivo queda con un HTML de error adentro.
+El `fetch` de Node sigue el redirect correctamente.
+
+`shymie-export.json` tiene todo tu historial y esta en `.gitignore`: no lo
+subas al repo.
 
 Verificá que trajo todo antes de seguir:
 
@@ -85,8 +91,19 @@ node tools/import-sheets.mjs --local
 npm run dev
 ```
 
-Abrí `http://localhost:8788`, pegá el token de `.dev.vars` y revisá que estén
-tus rutinas, tu historial y el informe de rendimiento.
+Abri `http://localhost:8787` (el puerto por defecto de `wrangler dev`), pega
+el token de `.dev.vars` y revisa que esten tus rutinas, tu historial y el
+informe de rendimiento.
+
+Para probarlo desde el celular sin deployar, ata el server a toda la red:
+
+```bash
+npx wrangler dev --ip 0.0.0.0
+```
+
+Wrangler imprime la IP de LAN (tipo `http://192.168.0.99:8787`). Funciona solo
+con la compu prendida y el celular en la misma red: es para probar, no para
+usar en serio.
 
 Cuando estés conforme:
 
@@ -97,17 +114,33 @@ node tools/import-sheets.mjs --remote
 El import borra las tablas antes de escribir, así que se puede repetir las
 veces que haga falta.
 
-## 5. Deploy
+## 5. Registrar el subdominio workers.dev
+
+La primera vez, la cuenta no tiene subdominio y `wrangler deploy` sube el
+Worker pero falla al publicarlo, con:
+
+```
+You need to register a workers.dev subdomain before publishing to workers.dev
+```
+
+Es un paso unico de cuenta y hay que hacerlo en el navegador (no hay comando de
+wrangler para esto, y el prompt interactivo no corre en modo no-interactivo):
+
+1. Entra a https://dash.cloudflare.com → Workers & Pages
+2. Elegi el subdominio. Es global y queda fijo: todos tus Workers viven en
+   `<worker>.<subdominio>.workers.dev`.
+
+## 6. Deploy
 
 ```bash
 npx wrangler deploy
 ```
 
-Te da una URL `https://shymie.<tu-subdominio>.workers.dev`. Abrila, pegá el
+Te da una URL `https://shymie.<tu-subdominio>.workers.dev`. Abrila, pega el
 token y listo.
 
 Agregala a la pantalla de inicio del celular como una app nueva (es otro
-dominio, así que iOS/Android no la confunde con Shym).
+dominio, asi que iOS/Android no la confunde con Shym).
 
 ## Si algo sale mal
 
